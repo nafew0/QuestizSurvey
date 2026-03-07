@@ -14,7 +14,7 @@ function Switch({ checked, onCheckedChange, className, disabled = false, ...prop
       }}
       className={cn(
         'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-transparent transition disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-primary' : 'bg-slate-200',
+        checked ? 'bg-primary' : 'bg-[rgb(var(--theme-neutral-strong-rgb))]',
         className
       )}
       {...props}
@@ -30,4 +30,3 @@ function Switch({ checked, onCheckedChange, className, disabled = false, ...prop
 }
 
 export { Switch }
-

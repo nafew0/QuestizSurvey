@@ -8,12 +8,12 @@ const Home = () => {
   const { isAuthenticated, user } = useAuth()
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.16),_transparent_24%),radial-gradient(circle_at_bottom_right,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)]">
+    <div className="theme-app-gradient min-h-[calc(100vh-4rem)]">
       <div className="container mx-auto px-4 py-16">
         <div className="mb-16 space-y-6 text-center">
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 shadow-lg shadow-slate-900/5 backdrop-blur">
+          <div className="theme-chip-secondary mx-auto w-fit items-center gap-2 shadow-sm">
             Phase 2
-            <span className="h-1 w-1 rounded-full bg-slate-300" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[rgb(var(--theme-secondary-rgb))]" />
             Survey builder ready
           </div>
           <h1 className="text-5xl font-bold tracking-tight md:text-6xl">
@@ -59,10 +59,10 @@ const Home = () => {
         </div>
 
         <div className="mx-auto grid max-w-6xl gap-6 md:grid-cols-3">
-          <Card className="rounded-[2rem] border-white/70 bg-white/80 shadow-xl shadow-slate-900/5">
+          <Card className="theme-panel rounded-[2rem]">
             <CardHeader>
-              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <ClipboardList className="h-6 w-6 text-primary" />
+              <div className="theme-icon-primary mb-2 flex h-12 w-12 items-center justify-center rounded-2xl">
+                <ClipboardList className="h-6 w-6" />
               </div>
               <CardTitle>Survey Workspace</CardTitle>
               <CardDescription>
@@ -71,10 +71,10 @@ const Home = () => {
             </CardHeader>
           </Card>
 
-          <Card className="rounded-[2rem] border-white/70 bg-white/80 shadow-xl shadow-slate-900/5">
+          <Card className="theme-panel rounded-[2rem]">
             <CardHeader>
-              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <Rocket className="h-6 w-6 text-primary" />
+              <div className="theme-icon-secondary mb-2 flex h-12 w-12 items-center justify-center rounded-2xl">
+                <Rocket className="h-6 w-6" />
               </div>
               <CardTitle>Preview Mode</CardTitle>
               <CardDescription>
@@ -83,10 +83,10 @@ const Home = () => {
             </CardHeader>
           </Card>
 
-          <Card className="rounded-[2rem] border-white/70 bg-white/80 shadow-xl shadow-slate-900/5">
+          <Card className="theme-panel rounded-[2rem]">
             <CardHeader>
-              <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
-                <Shield className="h-6 w-6 text-primary" />
+              <div className="theme-icon-accent mb-2 flex h-12 w-12 items-center justify-center rounded-2xl">
+                <Shield className="h-6 w-6" />
               </div>
               <CardTitle>Authenticated Builder</CardTitle>
               <CardDescription>

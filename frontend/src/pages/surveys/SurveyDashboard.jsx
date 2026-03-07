@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { useToast } from '@/hooks/useToast'
 import {
   createSurvey,
@@ -52,6 +53,7 @@ import { STATUS_BADGE_VARIANTS } from '@/constants/surveyBuilder'
 export default function SurveyDashboard() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { activeColors } = useSiteTheme()
   const [surveys, setSurveys] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -110,8 +112,9 @@ export default function SurveyDashboard() {
         title: createForm.title,
         description: createForm.description,
         theme: {
-          primary: '#2563eb',
-          accent: '#0f172a',
+          primary: activeColors.primary,
+          secondary: activeColors.secondary,
+          accent: activeColors.accent,
         },
         settings: {
           progress_bar: true,
@@ -197,9 +200,9 @@ export default function SurveyDashboard() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_26%),radial-gradient(circle_at_bottom_right,_rgba(249,115,22,0.12),_transparent_30%),linear-gradient(180deg,_#f8fafc_0%,_#eff6ff_100%)] px-4 py-8">
+    <div className="theme-app-gradient min-h-[calc(100vh-4rem)] px-4 py-8">
       <div className="mx-auto max-w-7xl space-y-8">
-        <header className="rounded-[2.25rem] border border-white/70 bg-white/75 px-6 py-8 shadow-2xl shadow-slate-900/10 backdrop-blur md:px-8">
+        <header className="theme-panel rounded-[2.25rem] px-6 py-8 md:px-8">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -207,10 +210,10 @@ export default function SurveyDashboard() {
                 <Badge variant="outline">React survey workspace</Badge>
               </div>
               <div className="space-y-3">
-                <h1 className="text-4xl font-semibold tracking-tight text-slate-950 md:text-5xl">
+                <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
                   My Surveys
                 </h1>
-                <p className="max-w-2xl text-base leading-8 text-slate-500">
+                <p className="max-w-2xl text-base leading-8 text-muted-foreground">
                   Create polished studies, iterate in the builder, and preview respondent flows before launch.
                 </p>
               </div>
@@ -273,29 +276,31 @@ export default function SurveyDashboard() {
           </div>
 
           <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-              <Search className="h-4 w-4 text-slate-400" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by title, slug, or status"
-                className="border-none p-0 shadow-none focus-visible:ring-0"
-              />
+            <div className="rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-4 py-3">
+              <div className="flex items-center gap-3">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by title, slug, or status"
+                  className="border-none p-0 shadow-none focus-visible:ring-0"
+                />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <div className="theme-panel-soft grid grid-cols-2 gap-3 rounded-2xl px-4 py-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Surveys
                 </p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
                   {surveys.length}
                 </p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Active
                 </p>
-                <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
                   {surveys.filter((survey) => survey.status === 'active').length}
                 </p>
               </div>
@@ -308,7 +313,7 @@ export default function SurveyDashboard() {
             {Array.from({ length: 3 }, (_, index) => (
               <div
                 key={index}
-                className="h-64 animate-pulse rounded-[2rem] border border-slate-200 bg-white/70"
+                className="theme-panel h-64 animate-pulse rounded-[2rem]"
               />
             ))}
           </div>
@@ -324,10 +329,10 @@ export default function SurveyDashboard() {
         ) : null}
 
         {!loading && !error && !filteredSurveys.length ? (
-          <Card className="rounded-[2rem] border-dashed border-slate-300 bg-white/80 text-center shadow-lg shadow-slate-900/5">
+          <Card className="theme-panel rounded-[2rem] border-dashed text-center">
             <CardHeader>
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100">
-                <Sparkle className="h-8 w-8 text-slate-500" />
+              <div className="theme-icon-accent mx-auto flex h-16 w-16 items-center justify-center rounded-3xl">
+                <Sparkle className="h-8 w-8" />
               </div>
               <CardTitle className="mt-4">No surveys match yet</CardTitle>
               <CardDescription className="mx-auto max-w-xl">
@@ -348,7 +353,7 @@ export default function SurveyDashboard() {
             {filteredSurveys.map((survey) => (
               <Card
                 key={survey.id}
-                className="group cursor-pointer rounded-[2rem] border-white/70 bg-white/80 shadow-lg shadow-slate-900/5 transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900/10"
+                className="theme-panel group cursor-pointer rounded-[2rem] transition hover:-translate-y-1 hover:shadow-2xl"
                 onClick={() => navigate(`/surveys/${survey.id}/edit`)}
               >
                 <CardHeader className="space-y-5">
@@ -395,25 +400,25 @@ export default function SurveyDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 rounded-3xl bg-slate-100 p-4">
+                  <div className="theme-panel-soft grid grid-cols-2 gap-4 rounded-3xl p-4">
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Responses
                       </p>
-                      <p className="mt-1 text-2xl font-semibold tracking-tight text-slate-950">
+                      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">
                         {survey.response_count ?? 0}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                         Created
                       </p>
-                      <p className="mt-1 text-sm font-medium text-slate-700">
+                      <p className="mt-1 text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
                         {formatSurveyDate(survey.created_at)}
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500">
+                  <p className="text-sm text-muted-foreground">
                     Open the builder to edit pages, refine logic, and preview the respondent flow.
                   </p>
                 </CardContent>
@@ -425,4 +430,3 @@ export default function SurveyDashboard() {
     </div>
   )
 }
-

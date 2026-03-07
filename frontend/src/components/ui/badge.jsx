@@ -1,12 +1,15 @@
 import { cn } from '@/lib/utils'
 
 const BADGE_VARIANTS = {
-  default: 'bg-primary/10 text-primary border-primary/20',
-  secondary: 'bg-slate-100 text-slate-700 border-slate-200',
+  default:
+    'border-primary/20 bg-primary/10 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.55)]',
+  secondary:
+    'border-[rgb(var(--theme-secondary-strong-rgb)/0.92)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.82)] text-[rgb(var(--theme-secondary-ink-rgb))]',
   success: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   warning: 'bg-amber-100 text-amber-700 border-amber-200',
   danger: 'bg-rose-100 text-rose-700 border-rose-200',
-  outline: 'bg-transparent text-slate-700 border-slate-200',
+  outline:
+    'border-[rgb(var(--theme-accent-strong-rgb)/0.88)] bg-[rgb(var(--theme-accent-soft-rgb)/0.68)] text-[rgb(var(--theme-accent-ink-rgb))]',
 }
 
 function Badge({ className, variant = 'default', ...props }) {
@@ -23,4 +26,3 @@ function Badge({ className, variant = 'default', ...props }) {
 }
 
 export { Badge }
-

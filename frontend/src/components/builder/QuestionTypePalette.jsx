@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react'
 import { GripVertical } from 'lucide-react'
 
 import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
-import { Button } from '@/components/ui/button'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 
 export default function QuestionTypePalette() {
@@ -16,24 +15,24 @@ export default function QuestionTypePalette() {
   const groupedTypes = useMemo(() => QUESTION_TYPE_GROUPS, [])
 
   return (
-    <aside className="flex min-h-[30rem] h-full flex-col rounded-[2rem] border border-slate-200 bg-white/90 p-3 shadow-lg shadow-slate-900/5">
+    <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col rounded-[2rem] p-3">
       <div className="mb-4 space-y-1.5 px-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
           Question Palette
         </p>
-        <h2 className="text-xl font-semibold tracking-tight text-slate-950">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
           Build the flow
         </h2>
-        <p className="text-sm leading-5 text-slate-500">
+        <p className="text-sm leading-5 text-muted-foreground">
           Drag blocks into the canvas or use the insert buttons between questions.
         </p>
       </div>
 
-      <div className="space-y-3 overflow-y-auto pr-1">
+      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
         {groupedTypes.map((group) => (
           <section
             key={group.id}
-            className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50"
+            className="theme-panel-soft overflow-hidden rounded-3xl"
           >
             <button
               type="button"
@@ -46,16 +45,16 @@ export default function QuestionTypePalette() {
               className="flex w-full items-center justify-between gap-4 px-4 py-4 text-left"
             >
               <div>
-                <p className="text-sm font-semibold tracking-tight text-slate-900">
+                <p className="text-sm font-semibold tracking-tight text-foreground">
                   {group.label}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">{group.description}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
               </div>
-              <GripVertical className="h-4 w-4 text-slate-400" />
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
             </button>
 
             {openGroups[group.id] ? (
-              <div className="space-y-2 border-t border-slate-200 bg-white p-3">
+              <div className="space-y-2 border-t border-[rgb(var(--theme-border-rgb)/0.82)] bg-white/90 p-3">
                 {group.types.map((type) => {
                   const Icon = QUESTION_TYPE_ICONS[type]
                   return (
@@ -73,16 +72,16 @@ export default function QuestionTypePalette() {
                         )
                         event.dataTransfer.effectAllowed = 'copyMove'
                       }}
-                      className="flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+                      className="flex w-full items-center gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
                     >
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100">
-                        <Icon className="h-4 w-4 text-slate-600" />
+                      <div className="theme-icon-secondary flex h-10 w-10 items-center justify-center rounded-2xl">
+                        <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-800">
+                        <p className="truncate text-sm font-semibold text-foreground">
                           {QUESTION_TYPE_META[type].label}
                         </p>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-muted-foreground">
                           {QUESTION_TYPE_META[type].shortLabel}
                         </p>
                       </div>
@@ -93,20 +92,6 @@ export default function QuestionTypePalette() {
             ) : null}
           </section>
         ))}
-      </div>
-
-      <div className="mt-3 rounded-3xl bg-slate-950 px-4 py-4 text-white">
-        <p className="text-sm font-semibold">Tip</p>
-        <p className="mt-2 text-sm leading-6 text-slate-300">
-          Use insert buttons for click-to-add, or drag a block between cards to place it exactly where respondents should see it.
-        </p>
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-3 h-10 w-full rounded-2xl bg-white/10 text-white hover:bg-white/20"
-        >
-          Native drag enabled
-        </Button>
       </div>
     </aside>
   )

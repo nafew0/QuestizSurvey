@@ -1,23 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Copy, GripVertical, LayoutPanelTop, Plus, Trash2 } from 'lucide-react'
 
 import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
 import QuestionRenderer from '@/components/survey/QuestionRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import { cn } from '@/lib/utils'
 import {
   createClientUuid,
   getInitialQuestionValue,
@@ -31,64 +24,131 @@ function PageDropSlot({ onDrop, label }) {
       onDrop={onDrop}
       className="group flex items-center gap-3 py-2"
     >
-      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
-      <div className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400 transition group-hover:border-primary/40 group-hover:text-primary">
+      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
+      <div className="rounded-full border border-dashed border-[rgb(var(--theme-border-rgb)/0.92)] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground transition group-hover:border-primary/40 group-hover:text-primary">
         {label}
       </div>
-      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
+      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
     </div>
   )
 }
 
 function QuestionInsertMenu({ onInsert }) {
+  const [open, setOpen] = useState(false)
+  const [opensUpward, setOpensUpward] = useState(false)
+  const triggerRef = useRef(null)
+  const panelRef = useRef(null)
+
+  const updateDirection = () => {
+    const triggerRect = triggerRef.current?.getBoundingClientRect()
+    if (!triggerRect) {
+      return
+    }
+
+    setOpensUpward(triggerRect.top >= window.innerHeight * 0.7)
+  }
+
+  useEffect(() => {
+    if (!open) {
+      return undefined
+    }
+
+    const handlePointerDown = (event) => {
+      if (
+        triggerRef.current?.contains(event.target) ||
+        panelRef.current?.contains(event.target)
+      ) {
+        return
+      }
+
+      setOpen(false)
+    }
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+      }
+    }
+
+    const handleViewportChange = () => updateDirection()
+
+    window.addEventListener('mousedown', handlePointerDown)
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+
+    return () => {
+      window.removeEventListener('mousedown', handlePointerDown)
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+    }
+  }, [open])
+
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          onClick={(event) => event.stopPropagation()}
-          className="inline-flex items-center gap-2 rounded-full border border-dashed border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-        >
-          <Plus className="h-4 w-4" />
-          Insert question
-        </button>
-      </DropdownMenuTrigger>
-
-      <DropdownMenuContent
-        align="center"
-        sideOffset={10}
-        className="w-[34rem] max-w-[92vw] max-h-[70vh] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10"
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          updateDirection()
+          setOpen((current) => !current)
+        }}
+        className="inline-flex items-center gap-2 rounded-full border border-dashed border-[rgb(var(--theme-border-rgb)/0.92)] bg-white px-4 py-2 text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))] transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
       >
-        {QUESTION_TYPE_GROUPS.map((group, index) => (
-          <section key={group.id} className={index > 0 ? 'mt-3 border-t border-slate-200 pt-3' : ''}>
-            {index > 0 ? <DropdownMenuSeparator className="hidden" /> : null}
-            <DropdownMenuLabel className="px-1 py-1 text-xs uppercase tracking-[0.18em] text-slate-400">
-              {group.label}
-            </DropdownMenuLabel>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {group.types.map((type) => {
-                const Icon = QUESTION_TYPE_ICONS[type]
+        <Plus className="h-4 w-4" />
+        Insert question
+      </button>
 
-                return (
-                  <DropdownMenuItem
-                    key={type}
-                    onSelect={() => onInsert(type)}
-                    className="h-auto items-center gap-3 rounded-2xl border border-slate-200 px-3 py-3 focus:bg-primary/5 focus:text-slate-950"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
-                      <Icon className="h-4 w-4 text-slate-600" />
-                    </div>
-                    <span className="text-sm font-semibold text-slate-900">
-                      {QUESTION_TYPE_META[type].label}
-                    </span>
-                  </DropdownMenuItem>
-                )
-              })}
-            </div>
-          </section>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      {open ? (
+        <div
+          ref={panelRef}
+          onClick={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+          className={cn(
+            'theme-panel absolute left-1/2 z-40 w-[34rem] max-w-[min(92vw,34rem)] -translate-x-1/2 rounded-[1.5rem] p-3',
+            'max-h-[min(70vh,34rem)] overflow-y-auto overscroll-contain',
+            opensUpward ? 'bottom-full mb-3 origin-bottom' : 'top-full mt-3 origin-top'
+          )}
+        >
+          {QUESTION_TYPE_GROUPS.map((group, index) => (
+            <section
+              key={group.id}
+              className={index > 0 ? 'mt-3 border-t border-[rgb(var(--theme-border-rgb)/0.82)] pt-3' : ''}
+            >
+              <p className="px-1 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {group.label}
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {group.types.map((type) => {
+                  const Icon = QUESTION_TYPE_ICONS[type]
+
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        onInsert(type)
+                        setOpen(false)
+                      }}
+                      className="flex items-center gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
+                    >
+                      <div className="theme-icon-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-semibold text-foreground">
+                        {QUESTION_TYPE_META[type].label}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -99,9 +159,9 @@ function QuestionInsertSlot({ onDrop, onInsert }) {
       onDrop={onDrop}
       className="group flex items-center gap-3 py-3"
     >
-      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
+      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
       <QuestionInsertMenu onInsert={onInsert} />
-      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
+      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
     </div>
   )
 }
@@ -335,10 +395,10 @@ function QuestionCard({
 
   return (
     <article
-      className={`rounded-[1.75rem] border bg-white p-5 shadow-sm transition ${
+      className={`theme-panel rounded-[1.75rem] p-5 transition ${
         selected
           ? 'border-primary shadow-lg shadow-primary/10'
-          : 'border-slate-200 hover:border-slate-300'
+          : 'hover:border-[rgb(var(--theme-mix-strong-rgb)/0.95)]'
       }`}
       onClick={(event) => {
         event.stopPropagation()
@@ -350,7 +410,7 @@ function QuestionCard({
           type="button"
           draggable
           onDragStart={onDragStart}
-          className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-400 hover:text-slate-700"
+          className="theme-panel-soft mt-1 rounded-2xl p-2 text-muted-foreground hover:text-foreground"
         >
           <GripVertical className="h-4 w-4" />
         </button>
@@ -392,7 +452,7 @@ function QuestionCard({
                   event.stopPropagation()
                   onDuplicate()
                 }}
-                className="h-9 w-9 rounded-full text-slate-500"
+                className="h-9 w-9 rounded-full text-muted-foreground"
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -404,7 +464,7 @@ function QuestionCard({
                   event.stopPropagation()
                   onDelete()
                 }}
-                className="h-9 w-9 rounded-full text-slate-500"
+                className="h-9 w-9 rounded-full text-muted-foreground"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -516,17 +576,17 @@ export default function SurveyBuilderCanvas({
       {survey.pages.map((page, pageIndex) => (
         <div key={page.id} className="space-y-4">
           <section
-            className={`rounded-[2rem] border bg-white p-5 shadow-lg shadow-slate-900/5 transition ${
+            className={`theme-panel rounded-[2rem] p-5 transition ${
               selectedPageId === page.id && !selectedQuestionId
                 ? 'border-primary shadow-primary/10'
-                : 'border-slate-200'
+                : ''
             }`}
             onClick={() => {
               onSelectPage(page.id)
               onSelectQuestion(null)
             }}
           >
-            <div className="flex flex-col gap-4 border-b border-slate-200 pb-4 md:flex-row md:items-start md:justify-between">
+            <div className="flex flex-col gap-4 border-b border-[rgb(var(--theme-border-rgb)/0.82)] pb-4 md:flex-row md:items-start md:justify-between">
               <div className="flex flex-1 items-start gap-3">
                 <button
                   type="button"
@@ -540,7 +600,7 @@ export default function SurveyBuilderCanvas({
                       })
                     )
                   }
-                  className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-400 hover:text-slate-700"
+                  className="theme-panel-soft mt-1 rounded-2xl p-2 text-muted-foreground hover:text-foreground"
                 >
                   <GripVertical className="h-4 w-4" />
                 </button>
@@ -554,21 +614,21 @@ export default function SurveyBuilderCanvas({
                     value={page.title}
                     onChange={(event) => onPageFieldChange(page.id, 'title', event.target.value)}
                     onClick={(event) => event.stopPropagation()}
-                    className="w-full border-none bg-transparent p-0 text-2xl font-semibold tracking-tight text-slate-950 focus:outline-none"
+                    className="w-full border-none bg-transparent p-0 text-2xl font-semibold tracking-tight text-foreground focus:outline-none"
                   />
                   <textarea
                     value={page.description || ''}
                     onChange={(event) => onPageFieldChange(page.id, 'description', event.target.value)}
                     onClick={(event) => event.stopPropagation()}
                     placeholder="Page description"
-                    className="min-h-[80px] w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="min-h-[80px] w-full rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] px-3 py-3 text-sm text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
               </div>
 
               <div className="grid gap-3 md:w-[280px]">
                 <label className="space-y-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Page logic
                   </span>
                   <select
@@ -582,7 +642,7 @@ export default function SurveyBuilderCanvas({
                           : null
                       )
                     }
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="h-11 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
                     <option value="">Continue to next page</option>
                     {pageOptions
@@ -685,12 +745,12 @@ export default function SurveyBuilderCanvas({
                 ))}
 
                 {!page.questions.length ? (
-                  <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                    <LayoutPanelTop className="mx-auto h-8 w-8 text-slate-400" />
-                    <p className="mt-3 text-sm font-semibold text-slate-700">
+                  <div className="theme-panel-soft rounded-[1.75rem] border-dashed px-6 py-10 text-center">
+                    <LayoutPanelTop className="mx-auto h-8 w-8 text-muted-foreground" />
+                    <p className="mt-3 text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
                       Drop your first question into this page
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">
+                    <p className="mt-1 text-sm text-muted-foreground">
                       Use the insert button or drag a block from the left palette.
                     </p>
                   </div>
@@ -712,9 +772,9 @@ export default function SurveyBuilderCanvas({
       ))}
 
       {!survey.pages.length ? (
-        <div className="rounded-[2rem] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-          <p className="text-lg font-semibold text-slate-900">No pages yet</p>
-          <p className="mt-2 text-sm text-slate-500">
+        <div className="theme-panel rounded-[2rem] border-dashed px-6 py-12 text-center">
+          <p className="text-lg font-semibold text-foreground">No pages yet</p>
+          <p className="mt-2 text-sm text-muted-foreground">
             Start by creating a page, then drag question blocks from the palette.
           </p>
           <Button type="button" className="mt-4 rounded-2xl" onClick={() => onAddPage()}>

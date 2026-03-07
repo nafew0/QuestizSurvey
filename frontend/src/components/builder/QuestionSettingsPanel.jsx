@@ -17,13 +17,13 @@ import {
 
 function PanelSection({ eyebrow, title, description, children }) {
   return (
-    <section className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-white p-5">
+    <section className="theme-panel space-y-4 rounded-[1.75rem] p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
           {eyebrow ? (
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
           ) : null}
-          <h3 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h3>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">{title}</h3>
         </div>
         {description ? <HelpPopover title={title}>{description}</HelpPopover> : null}
       </div>
@@ -36,7 +36,7 @@ function Field({ label, hint, children }) {
   return (
     <label className="block space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-medium text-slate-700">{label}</p>
+        <p className="text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">{label}</p>
         {hint ? (
           <HelpPopover title={label} triggerClassName="h-7 w-7 text-slate-400">
             {hint}
@@ -53,7 +53,7 @@ function MiniSelect({ value, onChange, options, className = '' }) {
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className={`h-11 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${className}`}
+      className={`h-11 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${className}`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>
@@ -81,7 +81,7 @@ function ArrayEditor({ label, items, onChange }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-slate-700">{label}</p>
+        <p className="text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">{label}</p>
         <Button type="button" variant="outline" size="sm" onClick={() => onChange([...items, `${label} ${items.length + 1}`])}>
           <Plus className="mr-1 h-4 w-4" />
           Add
@@ -209,7 +209,7 @@ export default function QuestionSettingsPanel({
 
   if (!question) {
     return (
-      <aside className="flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
+      <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] p-4">
         <PanelSection
           eyebrow="Survey"
           title="Survey settings"
@@ -336,14 +336,14 @@ export default function QuestionSettingsPanel({
   const ratingRules = currentRules.filter((rule) => !rule.condition?.default)
 
   return (
-    <aside className="flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
-      <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
+    <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] p-4">
+      <div className="theme-panel rounded-[1.75rem] p-5">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="default">{QUESTION_TYPE_META[question.question_type]?.shortLabel}</Badge>
           <Badge variant="outline">Question editor</Badge>
         </div>
         <div className="mt-4 flex items-start justify-between gap-3">
-          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
             {QUESTION_TYPE_META[question.question_type]?.label}
           </h2>
           <HelpPopover title="Question editor" align="end">
@@ -353,7 +353,7 @@ export default function QuestionSettingsPanel({
           </HelpPopover>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+        <div className="theme-panel-soft mt-5 grid grid-cols-2 gap-2 rounded-2xl p-1">
           {[
             ['settings', 'Settings'],
             ['logic', 'Logic'],
@@ -364,8 +364,8 @@ export default function QuestionSettingsPanel({
               onClick={() => setActiveTab(tabKey)}
               className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
                 activeTab === tabKey
-                  ? 'bg-white text-slate-950 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-900'
+                  ? 'bg-white text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {label}

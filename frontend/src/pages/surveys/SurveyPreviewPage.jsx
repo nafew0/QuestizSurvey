@@ -34,10 +34,10 @@ export default function SurveyPreviewPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-lg shadow-slate-900/5">
+      <div className="theme-app-gradient flex min-h-screen items-center justify-center">
+        <div className="theme-panel flex items-center gap-3 rounded-2xl px-5 py-4">
           <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-sm font-medium text-slate-700">Loading preview</span>
+          <span className="text-sm font-medium text-muted-foreground">Loading preview</span>
         </div>
       </div>
     )
@@ -45,7 +45,7 @@ export default function SurveyPreviewPage() {
 
   if (error || !survey) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="theme-app-gradient flex min-h-screen items-center justify-center px-4">
         <div className="max-w-lg rounded-[2rem] border border-rose-200 bg-rose-50 p-8 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-rose-900">
             Preview unavailable
@@ -65,7 +65,7 @@ export default function SurveyPreviewPage() {
         <Button
           type="button"
           variant="outline"
-          className="rounded-2xl bg-white/80 backdrop-blur"
+          className="theme-panel rounded-2xl bg-white/80"
           onClick={() => navigate(`/surveys/${surveyId}/edit`)}
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -76,4 +76,3 @@ export default function SurveyPreviewPage() {
     </div>
   )
 }
-

@@ -133,21 +133,21 @@ export default function SurveyPreview({ survey }) {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_28%),linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-8 text-slate-900">
+    <div className="theme-app-gradient min-h-screen px-4 py-8 text-foreground">
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="flex flex-col gap-4 rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-xl shadow-slate-900/10 backdrop-blur md:flex-row md:items-center md:justify-between">
+        <header className="theme-panel flex flex-col gap-4 rounded-[2rem] p-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <Badge variant="warning">Preview Mode</Badge>
-              <p className="text-sm text-slate-500">Responses are not saved</p>
+              <p className="text-sm text-muted-foreground">Responses are not saved</p>
             </div>
             <h1 className="text-3xl font-semibold tracking-tight">{survey.title}</h1>
-            <p className="max-w-2xl text-sm leading-6 text-slate-500">
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               Review branching, pacing, and question layout across device widths before going live.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-100 p-2">
+          <div className="theme-panel-soft flex flex-wrap gap-2 rounded-2xl p-2">
             {SURVEY_DEVICE_MODES.map((mode) => {
               const Icon = DEVICE_ICONS[mode.value]
               return (
@@ -157,8 +157,8 @@ export default function SurveyPreview({ survey }) {
                   onClick={() => setDeviceMode(mode.value)}
                   className={`flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium transition ${
                     deviceMode === mode.value
-                      ? 'bg-white text-slate-950 shadow-sm'
-                      : 'text-slate-500 hover:text-slate-900'
+                      ? 'bg-white text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <Icon className="h-4 w-4" />
@@ -170,24 +170,24 @@ export default function SurveyPreview({ survey }) {
         </header>
 
         {stage === 'page' ? (
-          <div className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-lg shadow-slate-900/10 backdrop-blur">
+          <div className="theme-panel rounded-[2rem] p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Progress
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
+                <p className="mt-1 text-sm text-muted-foreground">
                   Page {currentPageIndex + 1} of {survey.pages.length}
                 </p>
               </div>
-              <p className="text-sm font-semibold text-slate-700">{Math.round(progressValue)}%</p>
+              <p className="text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">{Math.round(progressValue)}%</p>
             </div>
             <Progress value={progressValue} />
           </div>
         ) : null}
 
         <div className={`mx-auto transition-all ${deviceClass}`}>
-          <div className="rounded-[2rem] border border-white/70 bg-white/90 p-6 shadow-2xl shadow-slate-900/10 backdrop-blur md:p-8">
+          <div className="theme-panel rounded-[2rem] p-6 md:p-8">
             {stage === 'welcome' ? (
               <div className="space-y-6 text-center">
                 <Badge variant="default" className="mx-auto">
@@ -197,7 +197,7 @@ export default function SurveyPreview({ survey }) {
                   <h2 className="text-4xl font-semibold tracking-tight">
                     {survey.welcome_page?.title || survey.title}
                   </h2>
-                  <p className="mx-auto max-w-2xl text-base leading-8 text-slate-500">
+                  <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
                     {survey.welcome_page?.desc ||
                       survey.description ||
                       'Preview the survey introduction exactly as respondents will see it.'}
@@ -214,17 +214,17 @@ export default function SurveyPreview({ survey }) {
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
                     <Badge variant="secondary">Page {currentPage.order}</Badge>
-                    <p className="text-sm text-slate-500">
+                    <p className="text-sm text-muted-foreground">
                       Skip logic updates live as you answer.
                     </p>
                   </div>
                   {currentPage.title ? (
-                    <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+                    <h2 className="text-3xl font-semibold tracking-tight text-foreground">
                       {currentPage.title}
                     </h2>
                   ) : null}
                   {currentPage.description ? (
-                    <p className="text-sm leading-7 text-slate-500">{currentPage.description}</p>
+                    <p className="text-sm leading-7 text-muted-foreground">{currentPage.description}</p>
                   ) : null}
                 </div>
 
@@ -271,7 +271,7 @@ export default function SurveyPreview({ survey }) {
                   <h2 className="text-4xl font-semibold tracking-tight">
                     {survey.thank_you_page?.title || 'Preview complete'}
                   </h2>
-                  <p className="mx-auto max-w-2xl text-base leading-8 text-slate-500">
+                  <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
                     {survey.thank_you_page?.desc ||
                       'This is the completion state respondents will see after submitting the survey.'}
                   </p>
@@ -305,7 +305,7 @@ export default function SurveyPreview({ survey }) {
                 </Badge>
                 <div className="space-y-4">
                   <h2 className="text-4xl font-semibold tracking-tight">Disqualification path</h2>
-                  <p className="mx-auto max-w-2xl text-base leading-8 text-slate-500">
+                  <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
                     {disqualifyMessage}
                   </p>
                 </div>

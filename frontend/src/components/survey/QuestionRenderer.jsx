@@ -36,20 +36,20 @@ function BaseQuestionFrame({
   return (
     <div
       className={cn(
-        'space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5',
+        'theme-panel space-y-4 rounded-3xl p-6',
         frameClassName
       )}
     >
       {showPrompt || (showDescription && question.description) ? (
         <div className="space-y-2">
           {showPrompt ? (
-            <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+            <h3 className="text-lg font-semibold tracking-tight text-foreground">
               {question.text}
               {required ? <span className="ml-1 text-rose-500">*</span> : null}
             </h3>
           ) : null}
           {showDescription && question.description ? (
-            <p className="text-sm text-slate-500">{question.description}</p>
+            <p className="text-sm text-muted-foreground">{question.description}</p>
           ) : null}
         </div>
       ) : null}

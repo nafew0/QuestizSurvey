@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ClipboardList, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
+import ThemeStudioDialog from '@/components/theme/ThemeStudioDialog'
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -29,29 +31,42 @@ const Navbar = () => {
   }
 
   return (
-    <nav className="border-b bg-background">
+    <nav className="border-b border-[rgb(var(--theme-border-rgb)/0.75)] bg-white/90 backdrop-blur">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <Link to="/" className="text-2xl font-bold tracking-tight text-primary">
-            Questiz
+          <Link to="/" className="flex items-center gap-3">
+            <span className="theme-icon-primary flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-bold">
+              Q
+            </span>
+            <div className="space-y-0.5">
+              <p className="text-lg font-bold tracking-tight text-[rgb(var(--theme-primary-ink-rgb))]">
+                Questiz
+              </p>
+              <Badge variant="secondary" className="px-2 py-0.5 text-[10px]">
+                Theme-ready builder
+              </Badge>
+            </div>
           </Link>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center gap-3">
+            <ThemeStudioDialog />
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard">
-                  <Button variant="ghost">My Surveys</Button>
+                  <Button variant="ghost" className="rounded-full">My Surveys</Button>
                 </Link>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback>{getUserInitials()}</AvatarFallback>
+                        <AvatarFallback className="bg-[rgb(var(--theme-secondary-soft-rgb))] text-[rgb(var(--theme-secondary-ink-rgb))]">
+                          {getUserInitials()}
+                        </AvatarFallback>
                       </Avatar>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <DropdownMenuContent className="w-56 rounded-2xl" align="end" forceMount>
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">{user?.username}</p>
@@ -88,10 +103,10 @@ const Navbar = () => {
             ) : (
               <>
                 <Link to="/login">
-                  <Button variant="ghost">Login</Button>
+                  <Button variant="ghost" className="rounded-full">Login</Button>
                 </Link>
                 <Link to="/register">
-                  <Button>Register</Button>
+                  <Button className="rounded-full">Register</Button>
                 </Link>
               </>
             )}
