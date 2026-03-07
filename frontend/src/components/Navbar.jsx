@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { User, LogOut, LayoutDashboard, Settings } from "lucide-react"
+import { ClipboardList, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -32,15 +32,15 @@ const Navbar = () => {
     <nav className="border-b bg-background">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
-          <Link to="/" className="text-2xl font-bold text-primary">
-            questizsurvey
+          <Link to="/" className="text-2xl font-bold tracking-tight text-primary">
+            Questiz
           </Link>
 
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard">
-                  <Button variant="ghost">Dashboard</Button>
+                  <Button variant="ghost">My Surveys</Button>
                 </Link>
 
                 <DropdownMenu>
@@ -61,6 +61,10 @@ const Navbar = () => {
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate('/dashboard')}>
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      <span>My Surveys</span>
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => navigate('/dashboard')}>
                       <LayoutDashboard className="mr-2 h-4 w-4" />
                       <span>Dashboard</span>
