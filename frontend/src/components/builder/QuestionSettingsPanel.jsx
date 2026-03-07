@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CustomSelect } from '@/components/ui/custom-select'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -23,7 +24,7 @@ function PanelSection({ eyebrow, title, description, children }) {
           {eyebrow ? (
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{eyebrow}</p>
           ) : null}
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">{title}</h3>
+          <h3 className="text-base font-semibold tracking-tight text-foreground">{title}</h3>
         </div>
         {description ? <HelpPopover title={title}>{description}</HelpPopover> : null}
       </div>
@@ -50,17 +51,13 @@ function Field({ label, hint, children }) {
 
 function MiniSelect({ value, onChange, options, className = '' }) {
   return (
-    <select
+    <CustomSelect
       value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className={`h-11 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 ${className}`}
-    >
-      {options.map((option) => (
-        <option key={option.value} value={option.value}>
-          {option.label}
-        </option>
-      ))}
-    </select>
+      onChange={onChange}
+      options={options}
+      triggerClassName={className}
+      placeholder="Select an option"
+    />
   )
 }
 
@@ -343,7 +340,7 @@ export default function QuestionSettingsPanel({
           <Badge variant="outline">Question editor</Badge>
         </div>
         <div className="mt-4 flex items-start justify-between gap-3">
-          <h2 className="text-2xl font-semibold tracking-tight text-foreground">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">
             {QUESTION_TYPE_META[question.question_type]?.label}
           </h2>
           <HelpPopover title="Question editor" align="end">

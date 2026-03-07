@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from surveys.models import Choice, Question
@@ -49,22 +50,24 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
         read_only_fields = ["page"]
 
     def create(self, validated_data):
-        choices_data = validated_data.pop("choices", [])
-        question = Question.objects.create(**validated_data)
-        self._sync_choices(question, choices_data)
-        return question
+        with transaction.atomic():
+            choices_data = validated_data.pop("choices", [])
+            question = Question.objects.create(**validated_data)
+            self._sync_choices(question, choices_data)
+            return question
 
     def update(self, instance, validated_data):
-        choices_data = validated_data.pop("choices", None)
+        with transaction.atomic():
+            choices_data = validated_data.pop("choices", None)
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+            instance.save()
 
-        if choices_data is not None:
-            self._sync_choices(instance, choices_data)
+            if choices_data is not None:
+                self._sync_choices(instance, choices_data)
 
-        return instance
+            return instance
 
     def _sync_choices(self, question, choices_data):
         existing_choices = {str(choice.id): choice for choice in question.choices.all()}

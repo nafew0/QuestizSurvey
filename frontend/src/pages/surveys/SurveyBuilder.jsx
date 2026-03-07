@@ -94,7 +94,7 @@ export default function SurveyBuilder() {
                 <input
                   value={survey.title}
                   onChange={(event) => updateSurveyField('title', event.target.value)}
-                  className="min-w-0 flex-1 border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-foreground focus:outline-none md:text-[1.4rem] xl:max-w-[20rem]"
+                  className="min-w-0 flex-1 border-none bg-transparent p-0 text-base font-semibold tracking-tight text-foreground focus:outline-none md:text-[1.15rem] xl:max-w-[20rem]"
                 />
 
                 <div className="flex flex-wrap items-center gap-2">

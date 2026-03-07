@@ -43,13 +43,13 @@ function BaseQuestionFrame({
       {showPrompt || (showDescription && question.description) ? (
         <div className="space-y-2">
           {showPrompt ? (
-            <h3 className="text-lg font-semibold tracking-tight text-foreground">
+            <h3 className="text-sm font-semibold tracking-tight text-foreground">
               {question.text}
               {required ? <span className="ml-1 text-rose-500">*</span> : null}
             </h3>
           ) : null}
           {showDescription && question.description ? (
-            <p className="text-sm text-muted-foreground">{question.description}</p>
+            <p className="text-[13px] text-muted-foreground">{question.description}</p>
           ) : null}
         </div>
       ) : null}

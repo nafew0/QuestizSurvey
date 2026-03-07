@@ -58,7 +58,7 @@ function DialogFooter({ className, ...props }) {
 const DialogTitle = React.forwardRef(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn('text-2xl font-semibold tracking-tight text-foreground', className)}
+    className={cn('text-xl font-semibold tracking-tight text-foreground', className)}
     {...props}
   />
 ))

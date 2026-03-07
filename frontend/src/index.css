@@ -81,6 +81,10 @@
     min-height: 100%;
   }
 
+  html {
+    font-size: 80%;
+  }
+
   * {
     @apply border-border;
   }

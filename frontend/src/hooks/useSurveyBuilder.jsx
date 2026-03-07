@@ -26,6 +26,7 @@ import {
   getPagePayload,
   getQuestionPayload,
   moveArrayItem,
+  normalizeQuestion,
   normalizeSurvey,
   reindexPages,
   reindexQuestions,
@@ -35,6 +36,52 @@ function useLatestRef(value) {
   const ref = useRef(value)
   ref.current = value
   return ref
+}
+
+function remapDuplicatedIdentifiers(value, identifierMap) {
+  if (Array.isArray(value)) {
+    return value.map((item) => remapDuplicatedIdentifiers(item, identifierMap))
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [
+        key,
+        remapDuplicatedIdentifiers(nestedValue, identifierMap),
+      ])
+    )
+  }
+
+  if (typeof value === 'string') {
+    return identifierMap[value] ?? value
+  }
+
+  return value
+}
+
+function buildDuplicateQuestionDraft(question) {
+  const choiceIdMap = {}
+  const duplicatedChoices = (question.choices ?? []).map((choice, index) => {
+    const nextChoiceId = createClientUuid()
+
+    if (choice.id) {
+      choiceIdMap[String(choice.id)] = nextChoiceId
+    }
+
+    return {
+      ...choice,
+      id: nextChoiceId,
+      order: index + 1,
+    }
+  })
+
+  return {
+    ...deepClone(question),
+    text: `${question.text} (Copy)`,
+    settings: remapDuplicatedIdentifiers(question.settings ?? {}, choiceIdMap),
+    skip_logic: remapDuplicatedIdentifiers(question.skip_logic ?? [], choiceIdMap),
+    choices: duplicatedChoices,
+  }
 }
 
 export function useSurveyBuilder(surveyId) {
@@ -106,6 +153,28 @@ export function useSurveyBuilder(surveyId) {
 
       const nextSurvey = typeof updater === 'function' ? updater(current) : updater
       return nextSurvey
+    })
+  }, [])
+
+  const clearQuestionSaveState = useCallback((questionId) => {
+    const existingTimeout = questionSaveTimeouts.current.get(questionId)
+    if (existingTimeout) {
+      clearTimeout(existingTimeout)
+      questionSaveTimeouts.current.delete(questionId)
+    }
+
+    setSavingState((current) => {
+      if (!current.questions[questionId]) {
+        return current
+      }
+
+      const nextQuestions = { ...current.questions }
+      delete nextQuestions[questionId]
+
+      return {
+        ...current,
+        questions: nextQuestions,
+      }
     })
   }, [])
 
@@ -499,20 +568,53 @@ export function useSurveyBuilder(surveyId) {
   )
 
   const syncQuestionOrder = useCallback(
-    async (nextPages, routePageId) => {
+    async (
+      nextPages,
+      routePageId,
+      {
+        reload = true,
+        allowEmpty = false,
+        failureTitle = 'Question update failed',
+        failureDescription = 'Please retry this change.',
+      } = {}
+    ) => {
       const currentSurvey = surveyRef.current
       if (!currentSurvey) {
         return
       }
 
-      await reorderQuestions(
-        currentSurvey.id,
-        routePageId,
-        buildQuestionReorderPayload(nextPages)
-      )
-      await loadSurvey()
+      const payload = buildQuestionReorderPayload(nextPages)
+      if (!payload.length) {
+        if (reload || allowEmpty) {
+          return
+        }
+      }
+
+      try {
+        if (payload.length) {
+          await reorderQuestions(currentSurvey.id, routePageId, payload)
+        }
+
+        if (reload) {
+          await loadSurvey()
+        }
+      } catch (err) {
+        if (!reload) {
+          await loadSurvey()
+        }
+
+        toast({
+          title: failureTitle,
+          description: err.response?.data?.detail || failureDescription,
+          variant: 'error',
+        })
+
+        err.questionSyncHandled = true
+
+        throw err
+      }
     },
-    [loadSurvey, surveyRef]
+    [loadSurvey, surveyRef, toast]
   )
 
   const createNewQuestion = useCallback(
@@ -574,8 +676,6 @@ export function useSurveyBuilder(surveyId) {
         return
       }
 
-      await deleteQuestion(currentSurvey.id, location.page.id, location.question.id)
-
       const nextPages = currentSurvey.pages.map((page) => {
         if (page.id !== location.page.id) {
           return page
@@ -589,10 +689,40 @@ export function useSurveyBuilder(surveyId) {
         }
       })
 
-      await syncQuestionOrder(nextPages, location.page.id)
-      setSelectedQuestionId(null)
+      updateLocalSurvey((existing) => ({
+        ...existing,
+        pages: nextPages,
+      }))
+      clearQuestionSaveState(questionId)
+      setSelectedQuestionId((current) => (current === questionId ? null : current))
+      setSelectedPageId(location.page.id)
+
+      try {
+        await deleteQuestion(currentSurvey.id, location.page.id, location.question.id)
+        await syncQuestionOrder(nextPages, location.page.id, {
+          reload: false,
+          allowEmpty: true,
+          failureTitle: 'Question delete failed',
+          failureDescription: 'The question was deleted but its order could not be refreshed.',
+        })
+
+        toast({
+          title: 'Question deleted',
+          description: 'The question was removed from the page.',
+          variant: 'warning',
+        })
+      } catch (err) {
+        if (!err.questionSyncHandled) {
+          await loadSurvey()
+          toast({
+            title: 'Question delete failed',
+            description: err.response?.data?.detail || 'The question could not be deleted.',
+            variant: 'error',
+          })
+        }
+      }
     },
-    [surveyRef, syncQuestionOrder]
+    [clearQuestionSaveState, loadSurvey, surveyRef, syncQuestionOrder, toast, updateLocalSurvey]
   )
 
   const duplicateQuestionById = useCallback(
@@ -604,37 +734,59 @@ export function useSurveyBuilder(surveyId) {
         return
       }
 
-      const createdQuestion = await createQuestion(currentSurvey.id, location.page.id, {
-        ...getQuestionPayload({
-          ...deepClone(location.question),
-          text: `${location.question.text} (Copy)`,
-        }),
-        order: location.page.questions.length + 1,
-      })
+      try {
+        const createdQuestion = normalizeQuestion(
+          await createQuestion(currentSurvey.id, location.page.id, {
+            ...getQuestionPayload(buildDuplicateQuestionDraft(location.question)),
+            order: location.page.questions.length + 1,
+          })
+        )
 
-      const nextPages = currentSurvey.pages.map((page) => {
-        if (page.id !== location.page.id) {
-          return page
+        const nextPages = currentSurvey.pages.map((page) => {
+          if (page.id !== location.page.id) {
+            return page
+          }
+
+          const nextQuestions = [...page.questions]
+          nextQuestions.splice(location.questionIndex + 1, 0, createdQuestion)
+
+          return {
+            ...page,
+            questions: reindexQuestions(nextQuestions),
+          }
+        })
+
+        updateLocalSurvey((existing) => ({
+          ...existing,
+          pages: nextPages,
+        }))
+        setSelectedQuestionId(createdQuestion.id)
+        setSelectedPageId(location.page.id)
+
+        await syncQuestionOrder(nextPages, location.page.id, {
+          reload: false,
+          failureTitle: 'Question duplicate failed',
+          failureDescription:
+            'The copy was created but could not be placed in the intended position.',
+        })
+
+        toast({
+          title: 'Question duplicated',
+          description: 'The new copy is inserted right after the original.',
+          variant: 'success',
+        })
+      } catch (err) {
+        if (!err.questionSyncHandled) {
+          await loadSurvey()
+          toast({
+            title: 'Question duplicate failed',
+            description: err.response?.data?.detail || 'The question could not be duplicated.',
+            variant: 'error',
+          })
         }
-
-        const nextQuestions = [...page.questions]
-        nextQuestions.splice(location.questionIndex + 1, 0, createdQuestion)
-
-        return {
-          ...page,
-          questions: reindexQuestions(nextQuestions),
-        }
-      })
-
-      await syncQuestionOrder(nextPages, location.page.id)
-      setSelectedQuestionId(createdQuestion.id)
-      toast({
-        title: 'Question duplicated',
-        description: 'The new copy is inserted right after the original.',
-        variant: 'success',
-      })
+      }
     },
-    [surveyRef, syncQuestionOrder, toast]
+    [loadSurvey, surveyRef, syncQuestionOrder, toast, updateLocalSurvey]
   )
 
   const moveQuestion = useCallback(

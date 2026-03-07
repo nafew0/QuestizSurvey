@@ -1,18 +1,21 @@
+import { CustomSelect } from '@/components/ui/custom-select'
+
 export default function DropdownRenderer({ question, value, onChange, disabled = false }) {
   return (
-    <select
+    <CustomSelect
       value={value || ''}
-      onChange={(event) => onChange(event.target.value)}
+      onChange={onChange}
       disabled={disabled}
-      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-    >
-      <option value="">Select an option</option>
-      {question.choices?.map((choice) => (
-        <option key={choice.id ?? choice.order} value={choice.id}>
-          {choice.text}
-        </option>
-      ))}
-    </select>
+      placeholder="Select an option"
+      options={[
+        { value: '', label: 'Select an option' },
+        ...(question.choices?.map((choice) => ({
+          value: choice.id,
+          label: choice.text,
+        })) ?? []),
+      ]}
+      triggerClassName="h-12 rounded-2xl px-4 text-sm"
+      contentClassName="max-h-80"
+    />
   )
 }
-

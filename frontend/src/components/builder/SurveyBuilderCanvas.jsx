@@ -5,6 +5,15 @@ import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
 import QuestionRenderer from '@/components/survey/QuestionRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { CustomSelect } from '@/components/ui/custom-select'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
@@ -261,7 +270,7 @@ function ChoiceEditor({
                 onChoiceFieldChange(question.id, index, 'text', event.target.value)
               }
               onPaste={(event) => applyBulkPaste(event, index)}
-              className="h-auto rounded-none border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-base text-slate-800 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-auto rounded-none border-0 border-b border-[rgb(var(--theme-border-rgb)/0.82)] bg-transparent px-0 py-2 text-sm text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
             />
 
             {selected ? (
@@ -422,17 +431,17 @@ function QuestionCard({
                 <Textarea
                   value={question.text}
                   onChange={(event) => onTitleChange(event.target.value)}
-                  className="min-h-[110px] border-0 bg-transparent px-0 py-0 text-lg leading-8 text-slate-900 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="min-h-[100px] border-0 bg-transparent px-0 py-0 text-[0.95rem] leading-7 text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-start gap-2">
                   <Input
                     value={question.text}
                     onChange={(event) => onTitleChange(event.target.value)}
-                    className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-2xl font-semibold tracking-tight text-slate-950 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base"
                   />
                   {question.required ? (
-                    <span className="pt-1 text-2xl font-semibold text-rose-500">*</span>
+                    <span className="pt-0.5 text-sm font-semibold text-rose-500 md:text-base">*</span>
                   ) : null}
                 </div>
               )}
@@ -520,6 +529,7 @@ export default function SurveyBuilderCanvas({
   const [previewAnswers, setPreviewAnswers] = useState(() =>
     buildInitialPreviewAnswers(survey.pages)
   )
+  const [pendingDeleteQuestion, setPendingDeleteQuestion] = useState(null)
 
   const pageOptions = useMemo(
     () =>
@@ -614,14 +624,14 @@ export default function SurveyBuilderCanvas({
                     value={page.title}
                     onChange={(event) => onPageFieldChange(page.id, 'title', event.target.value)}
                     onClick={(event) => event.stopPropagation()}
-                    className="w-full border-none bg-transparent p-0 text-2xl font-semibold tracking-tight text-foreground focus:outline-none"
+                    className="w-full border-none bg-transparent p-0 text-base font-semibold tracking-tight text-foreground focus:outline-none md:text-lg"
                   />
                   <textarea
                     value={page.description || ''}
                     onChange={(event) => onPageFieldChange(page.id, 'description', event.target.value)}
                     onClick={(event) => event.stopPropagation()}
                     placeholder="Page description"
-                    className="min-h-[80px] w-full rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] px-3 py-3 text-sm text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="min-h-[72px] w-full rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] px-3 py-3 text-[13px] text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
               </div>
@@ -631,28 +641,28 @@ export default function SurveyBuilderCanvas({
                   <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                     Page logic
                   </span>
-                  <select
+                  <CustomSelect
                     value={page.skip_logic?.target || ''}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       onPageFieldChange(
                         page.id,
                         'skip_logic',
-                        event.target.value
-                          ? { action: 'skip_to_page', target: event.target.value }
+                        value
+                          ? { action: 'skip_to_page', target: value }
                           : null
                       )
                     }
-                    className="h-11 w-full rounded-2xl border border-input bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  >
-                    <option value="">Continue to next page</option>
-                    {pageOptions
-                      .filter((option) => option.value !== page.id)
-                      .map((option) => (
-                        <option key={option.value} value={option.value}>
-                          Skip to {option.label}
-                        </option>
-                      ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'Continue to next page' },
+                      ...pageOptions
+                        .filter((option) => option.value !== page.id)
+                        .map((option) => ({
+                          value: option.value,
+                          label: `Skip to ${option.label}`,
+                        })),
+                    ]}
+                    placeholder="Continue to next page"
+                  />
                 </label>
                 <div className="flex gap-2">
                   <Button
@@ -715,7 +725,15 @@ export default function SurveyBuilderCanvas({
                       onPreviewValueChange={(value) => updatePreviewAnswer(question.id, value)}
                       onQuestionFieldChange={onQuestionFieldChange}
                       onDuplicate={() => onDuplicateQuestion(question.id)}
-                      onDelete={() => onDeleteQuestion(question.id)}
+                      onDelete={() =>
+                        setPendingDeleteQuestion({
+                          id: question.id,
+                          text:
+                            question.text ||
+                            QUESTION_TYPE_META[question.question_type]?.label ||
+                            'this question',
+                        })
+                      }
                       onChoiceFieldChange={onChoiceFieldChange}
                       onAddChoice={onAddChoice}
                       onRemoveChoice={onRemoveChoice}
@@ -783,6 +801,54 @@ export default function SurveyBuilderCanvas({
           </Button>
         </div>
       ) : null}
+
+      <Dialog
+        open={Boolean(pendingDeleteQuestion)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteQuestion(null)
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete question?</DialogTitle>
+            <DialogDescription>
+              This will remove{' '}
+              <span className="font-medium text-foreground">
+                {pendingDeleteQuestion?.text}
+              </span>{' '}
+              from the current page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-2xl"
+              onClick={() => setPendingDeleteQuestion(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-2xl"
+              onClick={async () => {
+                if (!pendingDeleteQuestion) {
+                  return
+                }
+
+                const questionId = pendingDeleteQuestion.id
+                setPendingDeleteQuestion(null)
+                await onDeleteQuestion(questionId)
+              }}
+            >
+              Delete question
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

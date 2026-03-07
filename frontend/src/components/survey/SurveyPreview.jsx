@@ -141,7 +141,7 @@ export default function SurveyPreview({ survey }) {
               <Badge variant="warning">Preview Mode</Badge>
               <p className="text-sm text-muted-foreground">Responses are not saved</p>
             </div>
-            <h1 className="text-3xl font-semibold tracking-tight">{survey.title}</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{survey.title}</h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               Review branching, pacing, and question layout across device widths before going live.
             </p>
@@ -194,7 +194,7 @@ export default function SurveyPreview({ survey }) {
                   Welcome Page
                 </Badge>
                 <div className="space-y-4">
-                  <h2 className="text-4xl font-semibold tracking-tight">
+                  <h2 className="text-3xl font-semibold tracking-tight">
                     {survey.welcome_page?.title || survey.title}
                   </h2>
                   <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
@@ -219,7 +219,7 @@ export default function SurveyPreview({ survey }) {
                     </p>
                   </div>
                   {currentPage.title ? (
-                    <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+                    <h2 className="text-2xl font-semibold tracking-tight text-foreground">
                       {currentPage.title}
                     </h2>
                   ) : null}
@@ -268,7 +268,7 @@ export default function SurveyPreview({ survey }) {
                   Thank You
                 </Badge>
                 <div className="space-y-4">
-                  <h2 className="text-4xl font-semibold tracking-tight">
+                  <h2 className="text-3xl font-semibold tracking-tight">
                     {survey.thank_you_page?.title || 'Preview complete'}
                   </h2>
                   <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
@@ -304,7 +304,7 @@ export default function SurveyPreview({ survey }) {
                   Logic Exit
                 </Badge>
                 <div className="space-y-4">
-                  <h2 className="text-4xl font-semibold tracking-tight">Disqualification path</h2>
+                  <h2 className="text-3xl font-semibold tracking-tight">Disqualification path</h2>
                   <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
                     {disqualifyMessage}
                   </p>
