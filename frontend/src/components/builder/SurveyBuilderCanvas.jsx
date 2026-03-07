@@ -46,7 +46,10 @@ function QuestionCard({
           ? 'border-primary shadow-lg shadow-primary/10'
           : 'border-slate-200 hover:border-slate-300'
       }`}
-      onClick={onSelect}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}
     >
       <div className="flex items-start gap-3">
         <button
@@ -74,6 +77,14 @@ function QuestionCard({
           {question.description ? (
             <p className="text-sm leading-6 text-slate-500">{question.description}</p>
           ) : null}
+
+          <p
+            className={`text-xs font-medium uppercase tracking-[0.18em] ${
+              selected ? 'text-primary' : 'text-slate-400'
+            }`}
+          >
+            {selected ? 'Editing options and logic in the right panel' : 'Select this card to edit options and logic'}
+          </p>
 
           {question.choices?.length ? (
             <button
