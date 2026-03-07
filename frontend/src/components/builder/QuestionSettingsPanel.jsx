@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,12 +18,14 @@ import {
 function PanelSection({ eyebrow, title, description, children }) {
   return (
     <section className="space-y-4 rounded-[1.75rem] border border-slate-200 bg-white p-5">
-      <div className="space-y-1">
-        {eyebrow ? (
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>
-        ) : null}
-        <h3 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h3>
-        {description ? <p className="text-sm leading-6 text-slate-500">{description}</p> : null}
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1">
+          {eyebrow ? (
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{eyebrow}</p>
+          ) : null}
+          <h3 className="text-lg font-semibold tracking-tight text-slate-950">{title}</h3>
+        </div>
+        {description ? <HelpPopover title={title}>{description}</HelpPopover> : null}
       </div>
       {children}
     </section>
@@ -32,9 +35,13 @@ function PanelSection({ eyebrow, title, description, children }) {
 function Field({ label, hint, children }) {
   return (
     <label className="block space-y-2">
-      <div>
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-slate-700">{label}</p>
-        {hint ? <p className="text-xs text-slate-500">{hint}</p> : null}
+        {hint ? (
+          <HelpPopover title={label} triggerClassName="h-7 w-7 text-slate-400">
+            {hint}
+          </HelpPopover>
+        ) : null}
       </div>
       {children}
     </label>
@@ -129,10 +136,6 @@ export default function QuestionSettingsPanel({
   onSurveyFieldChange,
   onPageFieldChange,
   onQuestionFieldChange,
-  onChoiceFieldChange,
-  addChoice,
-  removeChoice,
-  moveChoice,
 }) {
   const [activeTab, setActiveTab] = useState('settings')
 
@@ -206,7 +209,7 @@ export default function QuestionSettingsPanel({
 
   if (!question) {
     return (
-      <aside className="flex h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
+      <aside className="flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
         <PanelSection
           eyebrow="Survey"
           title="Survey settings"
@@ -333,18 +336,22 @@ export default function QuestionSettingsPanel({
   const ratingRules = currentRules.filter((rule) => !rule.condition?.default)
 
   return (
-    <aside className="flex h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
+    <aside className="flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] border border-slate-200 bg-slate-50 p-4">
       <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5">
         <div className="flex flex-wrap items-center gap-3">
           <Badge variant="default">{QUESTION_TYPE_META[question.question_type]?.shortLabel}</Badge>
           <Badge variant="outline">Question editor</Badge>
         </div>
-        <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-          {QUESTION_TYPE_META[question.question_type]?.label}
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-500">
-          Configure wording, behavior, and branching for the selected block.
-        </p>
+        <div className="mt-4 flex items-start justify-between gap-3">
+          <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+            {QUESTION_TYPE_META[question.question_type]?.label}
+          </h2>
+          <HelpPopover title="Question editor" align="end">
+            {questionHasChoices(question.question_type)
+              ? 'Edit question text and option labels in the canvas. Use this panel for helper text, behavior, validation, and branching.'
+              : 'Use this panel for helper text, behavior, validation, and branching for the selected question.'}
+          </HelpPopover>
+        </div>
 
         <div className="mt-5 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
           {[
@@ -393,9 +400,11 @@ export default function QuestionSettingsPanel({
 
             <div className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-4">
-                <div>
+                <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-slate-700">Required</p>
-                  <p className="text-xs text-slate-500">Respondents must answer before continuing.</p>
+                  <HelpPopover title="Required" triggerClassName="h-7 w-7 text-slate-400">
+                    Respondents must answer before continuing.
+                  </HelpPopover>
                 </div>
                 <Switch
                   checked={Boolean(question.required)}
@@ -403,9 +412,11 @@ export default function QuestionSettingsPanel({
                 />
               </div>
               <div className="flex items-center justify-between gap-4">
-                <div>
+                <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-slate-700">Allow comment</p>
-                  <p className="text-xs text-slate-500">Adds an optional comment box to responses.</p>
+                  <HelpPopover title="Allow comment" triggerClassName="h-7 w-7 text-slate-400">
+                    Adds an optional comment box to responses.
+                  </HelpPopover>
                 </div>
                 <Switch
                   checked={Boolean(question.settings?.allow_comment)}
@@ -415,129 +426,81 @@ export default function QuestionSettingsPanel({
             </div>
           </PanelSection>
 
-          {questionHasChoices(question.question_type) ? (
+          {questionHasChoices(question.question_type) &&
+          ('randomize_choices' in (question.settings ?? {}) ||
+            'allow_other' in (question.settings ?? {}) ||
+            question.question_type === 'multiple_choice_multi') ? (
             <PanelSection
-              eyebrow="Options"
-              title="Choice editor"
-              description="Edit text, media, and ordering for selectable options."
+              eyebrow="Choices"
+              title="Choice behavior"
+              description="Control how the option list behaves without editing the option text itself."
             >
-              <div className="space-y-3">
-                {(question.choices ?? []).map((choice, index) => (
-                  <div key={choice.id ?? index} className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1 space-y-3">
-                        <Input
-                          value={choice.text}
-                          onChange={(event) =>
-                            onChoiceFieldChange(question.id, index, 'text', event.target.value)
-                          }
-                          className="rounded-2xl bg-white"
-                        />
-                        {question.question_type === 'image_choice' ? (
-                          <Input
-                            value={choice.image_url || ''}
-                            placeholder="Image URL"
-                            onChange={(event) =>
-                              onChoiceFieldChange(question.id, index, 'image_url', event.target.value)
-                            }
-                            className="rounded-2xl bg-white"
-                          />
-                        ) : null}
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                            <span className="text-sm text-slate-600">Other option</span>
-                            <Switch
-                              checked={Boolean(choice.is_other)}
-                              onCheckedChange={(checked) =>
-                                onChoiceFieldChange(question.id, index, 'is_other', checked)
-                              }
-                            />
-                          </label>
-                          <Input
-                            type="number"
-                            placeholder="Score"
-                            value={choice.score ?? ''}
-                            onChange={(event) =>
-                              onChoiceFieldChange(
-                                question.id,
-                                index,
-                                'score',
-                                event.target.value === '' ? null : Number(event.target.value)
-                              )
-                            }
-                            className="rounded-2xl bg-white"
-                          />
-                        </div>
-                      </div>
-                      <ReorderButtons
-                        canMoveUp={index > 0}
-                        canMoveDown={index < question.choices.length - 1}
-                        onMoveUp={() => moveChoice(question.id, index, index - 1)}
-                        onMoveDown={() => moveChoice(question.id, index, index + 1)}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="icon"
-                        onClick={() => removeChoice(question.id, index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+              <div className="space-y-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                {'randomize_choices' in (question.settings ?? {}) ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-700">Randomize choices</p>
+                      <HelpPopover title="Randomize choices" triggerClassName="h-7 w-7 text-slate-400">
+                        Shuffles the option order for respondents to reduce position bias.
+                      </HelpPopover>
                     </div>
+                    <Switch
+                      checked={Boolean(question.settings?.randomize_choices)}
+                      onCheckedChange={(checked) =>
+                        updateQuestionSettings({ randomize_choices: checked })
+                      }
+                    />
                   </div>
-                ))}
-              </div>
-              <Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => addChoice(question.id)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add choice
-              </Button>
+                ) : null}
 
-              <div className="grid gap-3 rounded-3xl border border-slate-200 bg-white p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-700">Randomize choice order</p>
-                  <Switch
-                    checked={Boolean(question.settings?.randomize_choices)}
-                    onCheckedChange={(checked) => updateQuestionSettings({ randomize_choices: checked })}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium text-slate-700">Add “Other” option</p>
-                  <Switch
-                    checked={Boolean(question.settings?.allow_other)}
-                    onCheckedChange={(checked) => updateQuestionSettings({ allow_other: checked })}
-                  />
-                </div>
-                {question.question_type === 'multiple_choice_multi' ? (
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field label="Min selections">
-                      <Input
-                        type="number"
-                        min="0"
-                        value={question.settings?.min_selections ?? 0}
-                        onChange={(event) =>
-                          updateQuestionSettings({
-                            min_selections: Number(event.target.value || 0),
-                          })
-                        }
-                        className="rounded-2xl"
-                      />
-                    </Field>
-                    <Field label="Max selections">
-                      <Input
-                        type="number"
-                        min="0"
-                        value={question.settings?.max_selections ?? 0}
-                        onChange={(event) =>
-                          updateQuestionSettings({
-                            max_selections: Number(event.target.value || 0),
-                          })
-                        }
-                        className="rounded-2xl"
-                      />
-                    </Field>
+                {'allow_other' in (question.settings ?? {}) ? (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-slate-700">Allow other option</p>
+                      <HelpPopover title="Allow other option" triggerClassName="h-7 w-7 text-slate-400">
+                        Adds a free-text fallback option for respondents.
+                      </HelpPopover>
+                    </div>
+                    <Switch
+                      checked={Boolean(question.settings?.allow_other)}
+                      onCheckedChange={(checked) =>
+                        updateQuestionSettings({ allow_other: checked })
+                      }
+                    />
                   </div>
                 ) : null}
               </div>
+
+              {question.question_type === 'multiple_choice_multi' ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Min selections" hint="Set 0 to allow respondents to skip this question unless it is required.">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={question.settings?.min_selections ?? 0}
+                      onChange={(event) =>
+                        updateQuestionSettings({
+                          min_selections: Number(event.target.value || 0),
+                        })
+                      }
+                      className="rounded-2xl"
+                    />
+                  </Field>
+                  <Field label="Max selections" hint="Set 0 for no maximum limit.">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={question.settings?.max_selections ?? 0}
+                      onChange={(event) =>
+                        updateQuestionSettings({
+                          max_selections: Number(event.target.value || 0),
+                        })
+                      }
+                      className="rounded-2xl"
+                    />
+                  </Field>
+                </div>
+              ) : null}
             </PanelSection>
           ) : null}
 
@@ -818,13 +781,13 @@ export default function QuestionSettingsPanel({
           description="Define where respondents should go next based on how they answer."
         >
           <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <div>
+            <div className="flex items-center gap-2">
               <p className="text-sm font-medium text-slate-700">Enable skip logic</p>
-              <p className="text-xs text-slate-500">
+              <HelpPopover title="Enable skip logic" triggerClassName="h-7 w-7 text-slate-400">
                 {questionSupportsSkipLogic(question.question_type)
                   ? 'Create answer-specific jumps or exits.'
                   : 'This question type does not currently support branching.'}
-              </p>
+              </HelpPopover>
             </div>
             <Switch
               checked={(question.skip_logic ?? []).length > 0}

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
+from uuid import uuid4
 
 from surveys.models import Choice, Page, Question, Survey
 
@@ -104,3 +105,52 @@ class SurveyCrudTests(TestCase):
         self.assertNotEqual(duplicated_page.id, original_page.id)
         self.assertNotEqual(duplicated_question.id, original_question.id)
         self.assertEqual(duplicated_question.settings["allow_other"], True)
+
+    def test_update_question_preserves_supplied_choice_ids_for_new_choices(self):
+        survey = self._create_survey_with_structure(self.user)
+        page = survey.pages.get()
+        question = page.questions.get()
+        existing_choice = question.choices.order_by("order").first()
+        new_choice_id = uuid4()
+
+        response = self.client.put(
+            f"/api/surveys/{survey.id}/pages/{page.id}/questions/{question.id}/",
+            {
+                "question_type": question.question_type,
+                "text": question.text,
+                "description": question.description,
+                "required": question.required,
+                "order": question.order,
+                "settings": question.settings,
+                "skip_logic": [
+                    {
+                        "condition": {"choice_id": str(new_choice_id)},
+                        "action": "end_survey",
+                        "target": "",
+                    }
+                ],
+                "choices": [
+                    {
+                        "id": str(existing_choice.id),
+                        "text": existing_choice.text,
+                        "order": existing_choice.order,
+                        "score": existing_choice.score,
+                    },
+                    {
+                        "id": str(new_choice_id),
+                        "text": "New option",
+                        "order": 2,
+                    },
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(question.choices.filter(id=new_choice_id, text="New option").exists())
+
+        question.refresh_from_db()
+        self.assertEqual(
+            question.skip_logic[0]["condition"]["choice_id"],
+            str(new_choice_id),
+        )

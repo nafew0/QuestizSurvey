@@ -1,18 +1,30 @@
-import { useMemo, useState } from 'react'
-import {
-  Copy,
-  GripVertical,
-  LayoutPanelTop,
-  Plus,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ChevronUp, Copy, GripVertical, LayoutPanelTop, Plus, Trash2 } from 'lucide-react'
 
+import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
+import QuestionRenderer from '@/components/survey/QuestionRenderer'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { HelpPopover } from '@/components/ui/help-popover'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import {
+  createClientUuid,
+  getInitialQuestionValue,
+  questionHasChoices,
+} from '@/utils/surveyBuilder'
 
-function DropSlot({ onDrop, label }) {
+function PageDropSlot({ onDrop, label }) {
   return (
     <div
       onDragOver={(event) => event.preventDefault()}
@@ -28,20 +40,302 @@ function DropSlot({ onDrop, label }) {
   )
 }
 
+function QuestionInsertMenu({ onInsert }) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex items-center gap-2 rounded-full border border-dashed border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+        >
+          <Plus className="h-4 w-4" />
+          Insert question
+        </button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="center"
+        sideOffset={10}
+        className="w-[34rem] max-w-[92vw] max-h-[70vh] overflow-y-auto rounded-[1.5rem] border border-slate-200 bg-white p-3 shadow-xl shadow-slate-900/10"
+      >
+        {QUESTION_TYPE_GROUPS.map((group, index) => (
+          <section key={group.id} className={index > 0 ? 'mt-3 border-t border-slate-200 pt-3' : ''}>
+            {index > 0 ? <DropdownMenuSeparator className="hidden" /> : null}
+            <DropdownMenuLabel className="px-1 py-1 text-xs uppercase tracking-[0.18em] text-slate-400">
+              {group.label}
+            </DropdownMenuLabel>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {group.types.map((type) => {
+                const Icon = QUESTION_TYPE_ICONS[type]
+
+                return (
+                  <DropdownMenuItem
+                    key={type}
+                    onSelect={() => onInsert(type)}
+                    className="h-auto items-center gap-3 rounded-2xl border border-slate-200 px-3 py-3 focus:bg-primary/5 focus:text-slate-950"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100">
+                      <Icon className="h-4 w-4 text-slate-600" />
+                    </div>
+                    <span className="text-sm font-semibold text-slate-900">
+                      {QUESTION_TYPE_META[type].label}
+                    </span>
+                  </DropdownMenuItem>
+                )
+              })}
+            </div>
+          </section>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function QuestionInsertSlot({ onDrop, onInsert }) {
+  return (
+    <div
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={onDrop}
+      className="group flex items-center gap-3 py-3"
+    >
+      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
+      <QuestionInsertMenu onInsert={onInsert} />
+      <div className="h-px flex-1 bg-slate-200 transition group-hover:bg-primary/50" />
+    </div>
+  )
+}
+
+function buildInitialPreviewAnswers(pages) {
+  return pages.reduce((answers, page) => {
+    page.questions.forEach((question) => {
+      answers[question.id] = getInitialQuestionValue(question)
+    })
+    return answers
+  }, {})
+}
+
+function createChoiceDraft(questionType, text = '') {
+  return {
+    id: createClientUuid(),
+    text,
+    order: 0,
+    image_url: questionType === 'image_choice' ? '' : '',
+    is_other: false,
+    score: null,
+  }
+}
+
+function normalizeChoices(choices) {
+  return choices.map((choice, index) => ({
+    ...choice,
+    order: index + 1,
+  }))
+}
+
+function ChoiceIndicator({ questionType }) {
+  if (questionType === 'multiple_choice_multi') {
+    return <span className="h-5 w-5 rounded-md border-2 border-slate-300 bg-white" />
+  }
+
+  return <span className="h-5 w-5 rounded-full border-2 border-slate-300 bg-white" />
+}
+
+function ChoiceEditor({
+  question,
+  selected,
+  onQuestionFieldChange,
+  onChoiceFieldChange,
+  onAddChoice,
+  onRemoveChoice,
+  onMoveChoice,
+}) {
+  const showScoreField =
+    question.question_type === 'yes_no' ||
+    (question.choices ?? []).some((choice) => choice.score != null)
+
+  const applyBulkPaste = (event, choiceIndex) => {
+    const pastedText = event.clipboardData.getData('text')
+    const nextLines = pastedText
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+
+    if (nextLines.length < 2) {
+      return
+    }
+
+    event.preventDefault()
+
+    const currentChoices = [...(question.choices ?? [])]
+    const existingChoice = currentChoices[choiceIndex]
+
+    if (!existingChoice) {
+      return
+    }
+
+    const replacementChoices = nextLines.map((line, index) =>
+      index === 0
+        ? {
+            ...existingChoice,
+            text: line,
+          }
+        : createChoiceDraft(question.question_type, line)
+    )
+
+    currentChoices.splice(choiceIndex, 1, ...replacementChoices)
+    onQuestionFieldChange(question.id, 'choices', normalizeChoices(currentChoices))
+  }
+
+  return (
+    <div className="space-y-3">
+      {(question.choices ?? []).map((choice, index) => (
+        <div key={choice.id ?? index} className="space-y-3">
+          <div className="flex items-center gap-3">
+            <ChoiceIndicator questionType={question.question_type} />
+
+            <Input
+              value={choice.text}
+              placeholder={`Option ${index + 1}`}
+              onChange={(event) =>
+                onChoiceFieldChange(question.id, index, 'text', event.target.value)
+              }
+              onPaste={(event) => applyBulkPaste(event, index)}
+              className="h-auto rounded-none border-0 border-b border-slate-200 bg-transparent px-0 py-2 text-base text-slate-800 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            />
+
+            {selected ? (
+              <div className="flex shrink-0 items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index === 0}
+                  onClick={() => onMoveChoice(question.id, index, index - 1)}
+                  className="h-8 w-8 rounded-full text-slate-500"
+                >
+                  <ChevronUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  disabled={index >= question.choices.length - 1}
+                  onClick={() => onMoveChoice(question.id, index, index + 1)}
+                  className="h-8 w-8 rounded-full text-slate-500"
+                >
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onRemoveChoice(question.id, index)}
+                  className="h-8 w-8 rounded-full text-slate-500"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {selected && (question.question_type === 'image_choice' || showScoreField || choice.is_other) ? (
+            <div className="ml-8 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 md:grid-cols-3">
+              {question.question_type === 'image_choice' ? (
+                <label className="space-y-2 md:col-span-2">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                    Image URL
+                  </span>
+                  <Input
+                    value={choice.image_url || ''}
+                    placeholder="https://..."
+                    onChange={(event) =>
+                      onChoiceFieldChange(question.id, index, 'image_url', event.target.value)
+                    }
+                    className="rounded-2xl bg-white"
+                  />
+                </label>
+              ) : null}
+
+              {showScoreField ? (
+                <label className="space-y-2">
+                  <span className="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">
+                    Score
+                  </span>
+                  <Input
+                    type="number"
+                    value={choice.score ?? ''}
+                    placeholder="Optional"
+                    onChange={(event) =>
+                      onChoiceFieldChange(
+                        question.id,
+                        index,
+                        'score',
+                        event.target.value === '' ? null : Number(event.target.value)
+                      )
+                    }
+                    className="rounded-2xl bg-white"
+                  />
+                </label>
+              ) : null}
+
+              <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <span className="text-sm font-medium text-slate-700">Other option</span>
+                <Switch
+                  checked={Boolean(choice.is_other)}
+                  onCheckedChange={(checked) =>
+                    onChoiceFieldChange(question.id, index, 'is_other', checked)
+                  }
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
+      ))}
+
+      {selected ? (
+        <div className="flex items-center gap-2 pl-8">
+          <Button
+            type="button"
+            variant="ghost"
+            className="justify-start rounded-full px-0 text-base text-slate-500 hover:bg-transparent hover:text-slate-900"
+            onClick={() => onAddChoice(question.id)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add option
+          </Button>
+          <HelpPopover title="Options">
+            Paste multiple lines into any option field to create several answer choices at once.
+          </HelpPopover>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function QuestionCard({
   question,
   selected,
+  previewValue,
   onSelect,
   onDragStart,
   onTitleChange,
+  onPreviewValueChange,
+  onQuestionFieldChange,
   onDuplicate,
   onDelete,
+  onChoiceFieldChange,
+  onAddChoice,
+  onRemoveChoice,
+  onMoveChoice,
 }) {
-  const [expanded, setExpanded] = useState(false)
+  const isChoiceQuestion = questionHasChoices(question.question_type)
+  const isInstructional = question.question_type === 'instructional_text'
+  const isStructural = ['section_heading', 'instructional_text'].includes(question.question_type)
 
   return (
     <article
-      className={`rounded-[1.75rem] border bg-white p-4 shadow-sm transition ${
+      className={`rounded-[1.75rem] border bg-white p-5 shadow-sm transition ${
         selected
           ? 'border-primary shadow-lg shadow-primary/10'
           : 'border-slate-200 hover:border-slate-300'
@@ -61,72 +355,82 @@ function QuestionCard({
           <GripVertical className="h-4 w-4" />
         </button>
 
-        <div className="min-w-0 flex-1 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline">{QUESTION_TYPE_META[question.question_type]?.shortLabel}</Badge>
-            {question.required ? <Badge variant="danger">Required</Badge> : null}
+        <div className="min-w-0 flex-1 space-y-5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              {isInstructional ? (
+                <Textarea
+                  value={question.text}
+                  onChange={(event) => onTitleChange(event.target.value)}
+                  className="min-h-[110px] border-0 bg-transparent px-0 py-0 text-lg leading-8 text-slate-900 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              ) : (
+                <div className="flex min-w-0 flex-1 items-start gap-2">
+                  <Input
+                    value={question.text}
+                    onChange={(event) => onTitleChange(event.target.value)}
+                    className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-2xl font-semibold tracking-tight text-slate-950 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  {question.required ? (
+                    <span className="pt-1 text-2xl font-semibold text-rose-500">*</span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              <HelpPopover title="Question block" align="end">
+                {isChoiceQuestion
+                  ? 'Edit the question and answer options in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'
+                  : 'Edit the main question in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'}
+              </HelpPopover>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDuplicate()
+                }}
+                className="h-9 w-9 rounded-full text-slate-500"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDelete()
+                }}
+                className="h-9 w-9 rounded-full text-slate-500"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          <input
-            value={question.text}
-            onChange={(event) => onTitleChange(event.target.value)}
-            onClick={(event) => event.stopPropagation()}
-            className="w-full border-none bg-transparent p-0 text-lg font-semibold tracking-tight text-slate-900 focus:outline-none"
-          />
-
-          {question.description ? (
-            <p className="text-sm leading-6 text-slate-500">{question.description}</p>
+          {isChoiceQuestion ? (
+            <ChoiceEditor
+              question={question}
+              selected={selected}
+              onQuestionFieldChange={onQuestionFieldChange}
+              onChoiceFieldChange={onChoiceFieldChange}
+              onAddChoice={onAddChoice}
+              onRemoveChoice={onRemoveChoice}
+              onMoveChoice={onMoveChoice}
+            />
+          ) : !isStructural ? (
+            <QuestionRenderer
+              question={question}
+              value={previewValue}
+              onChange={onPreviewValueChange}
+              showPrompt={false}
+              showDescription={false}
+              frameClassName="border-0 bg-transparent p-0 shadow-none"
+            />
           ) : null}
-
-          <p
-            className={`text-xs font-medium uppercase tracking-[0.18em] ${
-              selected ? 'text-primary' : 'text-slate-400'
-            }`}
-          >
-            {selected ? 'Editing options and logic in the right panel' : 'Select this card to edit options and logic'}
-          </p>
-
-          {question.choices?.length ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                setExpanded((current) => !current)
-              }}
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900"
-            >
-              <Sparkles className="h-4 w-4" />
-              {expanded ? 'Hide choices' : `Preview ${question.choices.length} choices`}
-            </button>
-          ) : null}
-
-          {expanded && question.choices?.length ? (
-            <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              {question.choices.map((choice) => (
-                <div
-                  key={choice.id ?? choice.order}
-                  className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
-                >
-                  {choice.text}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <Button type="button" variant="outline" size="icon" onClick={(event) => {
-            event.stopPropagation()
-            onDuplicate()
-          }}>
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button type="button" variant="outline" size="icon" onClick={(event) => {
-            event.stopPropagation()
-            onDelete()
-          }}>
-            <Trash2 className="h-4 w-4" />
-          </Button>
         </div>
       </div>
     </article>
@@ -148,7 +452,15 @@ export default function SurveyBuilderCanvas({
   onMoveQuestion,
   onDuplicateQuestion,
   onDeleteQuestion,
+  onChoiceFieldChange,
+  onAddChoice,
+  onRemoveChoice,
+  onMoveChoice,
 }) {
+  const [previewAnswers, setPreviewAnswers] = useState(() =>
+    buildInitialPreviewAnswers(survey.pages)
+  )
+
   const pageOptions = useMemo(
     () =>
       survey.pages.map((page) => ({
@@ -157,6 +469,29 @@ export default function SurveyBuilderCanvas({
       })),
     [survey.pages]
   )
+
+  useEffect(() => {
+    setPreviewAnswers((current) => {
+      const nextAnswers = {}
+
+      survey.pages.forEach((page) => {
+        page.questions.forEach((question) => {
+          nextAnswers[question.id] = Object.prototype.hasOwnProperty.call(current, question.id)
+            ? current[question.id]
+            : getInitialQuestionValue(question)
+        })
+      })
+
+      return nextAnswers
+    })
+  }, [survey.pages])
+
+  const updatePreviewAnswer = (questionId, value) => {
+    setPreviewAnswers((current) => ({
+      ...current,
+      [questionId]: value,
+    }))
+  }
 
   const getDragPayload = (event) => {
     try {
@@ -168,7 +503,7 @@ export default function SurveyBuilderCanvas({
 
   return (
     <div className="space-y-4">
-      <DropSlot
+      <PageDropSlot
         label="Move or drop a page here"
         onDrop={(event) => {
           const payload = getDragPayload(event)
@@ -260,7 +595,12 @@ export default function SurveyBuilderCanvas({
                   </select>
                 </label>
                 <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="flex-1 rounded-2xl" onClick={() => onAddPage(page.id)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1 rounded-2xl"
+                    onClick={() => onAddPage(page.id)}
+                  >
                     <Plus className="mr-2 h-4 w-4" />
                     Add page after
                   </Button>
@@ -272,8 +612,8 @@ export default function SurveyBuilderCanvas({
             </div>
 
             <div className="pt-4">
-              <DropSlot
-                label="Drop question here"
+              <QuestionInsertSlot
+                onInsert={(questionType) => onAddQuestion(page.id, questionType, 0)}
                 onDrop={(event) => {
                   const payload = getDragPayload(event)
                   if (!payload) {
@@ -296,6 +636,7 @@ export default function SurveyBuilderCanvas({
                     <QuestionCard
                       question={question}
                       selected={selectedQuestionId === question.id}
+                      previewValue={previewAnswers[question.id]}
                       onSelect={() => {
                         onSelectPage(page.id)
                         onSelectQuestion(question.id)
@@ -311,12 +652,20 @@ export default function SurveyBuilderCanvas({
                         )
                       }
                       onTitleChange={(value) => onQuestionFieldChange(question.id, 'text', value)}
+                      onPreviewValueChange={(value) => updatePreviewAnswer(question.id, value)}
+                      onQuestionFieldChange={onQuestionFieldChange}
                       onDuplicate={() => onDuplicateQuestion(question.id)}
                       onDelete={() => onDeleteQuestion(question.id)}
+                      onChoiceFieldChange={onChoiceFieldChange}
+                      onAddChoice={onAddChoice}
+                      onRemoveChoice={onRemoveChoice}
+                      onMoveChoice={onMoveChoice}
                     />
 
-                    <DropSlot
-                      label={questionIndex === page.questions.length - 1 ? 'Drop at end' : 'Insert question'}
+                    <QuestionInsertSlot
+                      onInsert={(questionType) =>
+                        onAddQuestion(page.id, questionType, questionIndex + 1)
+                      }
                       onDrop={(event) => {
                         const payload = getDragPayload(event)
                         if (!payload) {
@@ -342,7 +691,7 @@ export default function SurveyBuilderCanvas({
                       Drop your first question into this page
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Drag from the left palette or use the page-level quick actions.
+                      Use the insert button or drag a block from the left palette.
                     </p>
                   </div>
                 ) : null}
@@ -350,7 +699,7 @@ export default function SurveyBuilderCanvas({
             </div>
           </section>
 
-          <DropSlot
+          <PageDropSlot
             label="Move or drop a page here"
             onDrop={(event) => {
               const payload = getDragPayload(event)

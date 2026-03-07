@@ -18,6 +18,7 @@ import {
 import {
   buildPageReorderPayload,
   buildQuestionReorderPayload,
+  createClientUuid,
   createPageDraft,
   createQuestionDraft,
   deepClone,
@@ -342,6 +343,7 @@ export function useSurveyBuilder(surveyId) {
             const nextChoices = [
               ...(question.choices ?? []),
               {
+                id: createClientUuid(),
                 text: `Option ${(question.choices?.length ?? 0) + 1}`,
                 order: (question.choices?.length ?? 0) + 1,
                 image_url: '',

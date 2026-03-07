@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils'
+
 import MultipleChoiceSingleRenderer from './renderers/MultipleChoiceSingleRenderer'
 import MultipleChoiceMultiRenderer from './renderers/MultipleChoiceMultiRenderer'
 import DropdownRenderer from './renderers/DropdownRenderer'
@@ -17,7 +19,14 @@ import DemographicsRenderer from './renderers/DemographicsRenderer'
 import SectionHeadingRenderer from './renderers/SectionHeadingRenderer'
 import InstructionalTextRenderer from './renderers/InstructionalTextRenderer'
 
-function BaseQuestionFrame({ question, required, children }) {
+function BaseQuestionFrame({
+  question,
+  required,
+  children,
+  showPrompt = true,
+  showDescription = true,
+  frameClassName = '',
+}) {
   const isStructural = ['section_heading', 'instructional_text'].includes(question.question_type)
 
   if (isStructural) {
@@ -25,14 +34,25 @@ function BaseQuestionFrame({ question, required, children }) {
   }
 
   return (
-    <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5">
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold tracking-tight text-slate-900">
-          {question.text}
-          {required ? <span className="ml-1 text-rose-500">*</span> : null}
-        </h3>
-        {question.description ? <p className="text-sm text-slate-500">{question.description}</p> : null}
-      </div>
+    <div
+      className={cn(
+        'space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5',
+        frameClassName
+      )}
+    >
+      {showPrompt || (showDescription && question.description) ? (
+        <div className="space-y-2">
+          {showPrompt ? (
+            <h3 className="text-lg font-semibold tracking-tight text-slate-900">
+              {question.text}
+              {required ? <span className="ml-1 text-rose-500">*</span> : null}
+            </h3>
+          ) : null}
+          {showDescription && question.description ? (
+            <p className="text-sm text-slate-500">{question.description}</p>
+          ) : null}
+        </div>
+      ) : null}
       {children}
     </div>
   )
@@ -43,6 +63,9 @@ export default function QuestionRenderer({
   value,
   onChange,
   disabled = false,
+  showPrompt = true,
+  showDescription = true,
+  frameClassName = '',
 }) {
   const rendererProps = {
     question,
@@ -114,7 +137,13 @@ export default function QuestionRenderer({
   }
 
   return (
-    <BaseQuestionFrame question={question} required={question.required}>
+    <BaseQuestionFrame
+      question={question}
+      required={question.required}
+      showPrompt={showPrompt}
+      showDescription={showDescription}
+      frameClassName={frameClassName}
+    >
       {renderer}
     </BaseQuestionFrame>
   )

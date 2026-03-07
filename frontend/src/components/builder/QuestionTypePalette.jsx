@@ -1,49 +1,9 @@
 import { useMemo, useState } from 'react'
-import {
-  AlignLeft,
-  ArrowDownUp,
-  CalendarClock,
-  CircleHelp,
-  GripVertical,
-  Heading2,
-  ImagePlus,
-  ListChecks,
-  ListFilter,
-  ListTodo,
-  Mail,
-  MessageSquareText,
-  MousePointerSquareDashed,
-  PanelTop,
-  Scale,
-  SlidersHorizontal,
-  Star,
-  Table2,
-  Upload,
-} from 'lucide-react'
+import { GripVertical } from 'lucide-react'
 
+import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
 import { Button } from '@/components/ui/button'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
-
-const ICONS = {
-  multiple_choice_single: CircleHelp,
-  multiple_choice_multi: ListChecks,
-  dropdown: ListFilter,
-  short_text: AlignLeft,
-  long_text: MessageSquareText,
-  yes_no: MousePointerSquareDashed,
-  rating_scale: SlidersHorizontal,
-  star_rating: Star,
-  nps: Scale,
-  constant_sum: ArrowDownUp,
-  date_time: CalendarClock,
-  matrix: Table2,
-  ranking: ListTodo,
-  image_choice: ImagePlus,
-  file_upload: Upload,
-  demographics: Mail,
-  section_heading: Heading2,
-  instructional_text: PanelTop,
-}
 
 export default function QuestionTypePalette() {
   const [openGroups, setOpenGroups] = useState(() =>
@@ -56,16 +16,16 @@ export default function QuestionTypePalette() {
   const groupedTypes = useMemo(() => QUESTION_TYPE_GROUPS, [])
 
   return (
-    <aside className="flex h-full flex-col rounded-[2rem] border border-slate-200 bg-white/90 p-4 shadow-lg shadow-slate-900/5">
-      <div className="mb-5 space-y-2 px-2">
+    <aside className="flex min-h-[30rem] h-full flex-col rounded-[2rem] border border-slate-200 bg-white/90 p-3 shadow-lg shadow-slate-900/5">
+      <div className="mb-4 space-y-1.5 px-2">
         <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
           Question Palette
         </p>
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-950">
+        <h2 className="text-xl font-semibold tracking-tight text-slate-950">
           Build the flow
         </h2>
-        <p className="text-sm leading-6 text-slate-500">
-          Drag blocks into the canvas to build pages, logic, and response paths.
+        <p className="text-sm leading-5 text-slate-500">
+          Drag blocks into the canvas or use the insert buttons between questions.
         </p>
       </div>
 
@@ -97,7 +57,7 @@ export default function QuestionTypePalette() {
             {openGroups[group.id] ? (
               <div className="space-y-2 border-t border-slate-200 bg-white p-3">
                 {group.types.map((type) => {
-                  const Icon = ICONS[type]
+                  const Icon = QUESTION_TYPE_ICONS[type]
                   return (
                     <button
                       key={type}
@@ -135,15 +95,15 @@ export default function QuestionTypePalette() {
         ))}
       </div>
 
-      <div className="mt-4 rounded-3xl bg-slate-950 px-4 py-4 text-white">
+      <div className="mt-3 rounded-3xl bg-slate-950 px-4 py-4 text-white">
         <p className="text-sm font-semibold">Tip</p>
-        <p className="mt-2 text-sm text-slate-300">
-          Drop a block between cards to insert it exactly where the respondent should see it.
+        <p className="mt-2 text-sm leading-6 text-slate-300">
+          Use insert buttons for click-to-add, or drag a block between cards to place it exactly where respondents should see it.
         </p>
         <Button
           type="button"
           variant="secondary"
-          className="mt-4 w-full rounded-2xl bg-white/10 text-white hover:bg-white/20"
+          className="mt-3 h-10 w-full rounded-2xl bg-white/10 text-white hover:bg-white/20"
         >
           Native drag enabled
         </Button>

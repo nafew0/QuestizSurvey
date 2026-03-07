@@ -4,6 +4,18 @@ export function deepClone(value) {
   return JSON.parse(JSON.stringify(value))
 }
 
+export function createClientUuid() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16)
+    const value = character === 'x' ? random : (random & 0x3) | 0x8
+    return value.toString(16)
+  })
+}
+
 export function questionHasChoices(questionType) {
   return [
     'multiple_choice_single',
@@ -30,18 +42,18 @@ export function defaultChoicesForType(questionType) {
   switch (questionType) {
     case 'yes_no':
       return [
-        { text: 'Yes', order: 1, score: 1 },
-        { text: 'No', order: 2, score: 0 },
+        { id: createClientUuid(), text: 'Yes', order: 1, score: 1 },
+        { id: createClientUuid(), text: 'No', order: 2, score: 0 },
       ]
     case 'image_choice':
       return [
-        { text: 'Image option 1', order: 1, image_url: '' },
-        { text: 'Image option 2', order: 2, image_url: '' },
+        { id: createClientUuid(), text: 'Image option 1', order: 1, image_url: '' },
+        { id: createClientUuid(), text: 'Image option 2', order: 2, image_url: '' },
       ]
     default:
       return [
-        { text: 'Option 1', order: 1 },
-        { text: 'Option 2', order: 2 },
+        { id: createClientUuid(), text: 'Option 1', order: 1 },
+        { id: createClientUuid(), text: 'Option 2', order: 2 },
       ]
   }
 }
@@ -445,4 +457,3 @@ export function resolveNextPreviewStep({ pages, currentPageIndex, answers }) {
 export function questionSupportsLogicChoices(questionType) {
   return questionHasChoices(questionType) || ['rating_scale', 'star_rating', 'nps'].includes(questionType)
 }
-

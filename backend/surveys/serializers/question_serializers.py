@@ -87,7 +87,10 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
                     setattr(choice, attr, value)
                 choice.save()
             else:
-                choice = Choice.objects.create(question=question, **defaults)
+                create_kwargs = {"question": question, **defaults}
+                if choice_id:
+                    create_kwargs["id"] = choice_id
+                choice = Choice.objects.create(**create_kwargs)
 
             retained_ids.append(choice.id)
 

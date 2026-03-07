@@ -75,22 +75,22 @@ export default function SurveyBuilder() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-4 py-6">
-      <div className="mx-auto max-w-[1800px] space-y-5">
-        <header className="sticky top-4 z-20 rounded-[2rem] border border-white/70 bg-white/90 px-6 py-5 shadow-xl shadow-slate-900/10 backdrop-blur">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-start gap-4">
+    <div className="min-h-[calc(100vh-4rem)] bg-[linear-gradient(180deg,_#f8fafc_0%,_#eef2ff_100%)] px-3 py-3 xl:h-[calc(100vh-4rem)] xl:overflow-hidden">
+      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 xl:h-full">
+        <header className="rounded-[1.75rem] border border-white/70 bg-white/90 px-5 py-4 shadow-xl shadow-slate-900/10 backdrop-blur">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                className="rounded-2xl"
+                className="h-11 w-11 shrink-0 rounded-2xl"
                 onClick={() => navigate('/dashboard')}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
 
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={STATUS_BADGE_VARIANTS[survey.status]}>
                     {getStatusLabel(survey.status)}
@@ -104,16 +104,13 @@ export default function SurveyBuilder() {
                 <input
                   value={survey.title}
                   onChange={(event) => updateSurveyField('title', event.target.value)}
-                  className="w-full border-none bg-transparent p-0 text-4xl font-semibold tracking-tight text-slate-950 focus:outline-none"
+                  className="w-full max-w-[44rem] border-none bg-transparent p-0 text-3xl font-semibold tracking-tight text-slate-950 focus:outline-none md:text-[2.65rem]"
                 />
-                <p className="text-sm text-slate-500">
-                  {isSaving ? 'Autosaving changes...' : 'All changes synced with the API.'}
-                </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-2">
+            <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+              <div className="flex h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4">
                 {isSaving ? (
                   <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
                 ) : (
@@ -127,7 +124,7 @@ export default function SurveyBuilder() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-2xl"
+                className="h-11 rounded-2xl"
                 onClick={() => navigate(`/surveys/${survey.id}/preview`)}
               >
                 <Eye className="mr-2 h-4 w-4" />
@@ -135,12 +132,12 @@ export default function SurveyBuilder() {
               </Button>
 
               {survey.status === 'active' ? (
-                <Button type="button" variant="outline" className="rounded-2xl" onClick={closeCurrentSurvey}>
+                <Button type="button" variant="outline" className="h-11 rounded-2xl" onClick={closeCurrentSurvey}>
                   <XCircle className="mr-2 h-4 w-4" />
                   Close
                 </Button>
               ) : (
-                <Button type="button" className="rounded-2xl" onClick={publishCurrentSurvey}>
+                <Button type="button" className="h-11 rounded-2xl" onClick={publishCurrentSurvey}>
                   <Rocket className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
@@ -149,31 +146,37 @@ export default function SurveyBuilder() {
           </div>
         </header>
 
-        <div className="grid gap-5 xl:grid-cols-[290px_minmax(0,1fr)_360px]">
-          <div className="h-[calc(100vh-10.5rem)]">
+        <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[260px_minmax(0,1fr)_320px]">
+          <div className="xl:min-h-0">
             <QuestionTypePalette />
           </div>
 
-          <div className="h-[calc(100vh-10.5rem)] overflow-y-auto rounded-[2rem] border border-slate-200 bg-white/50 p-4 shadow-xl shadow-slate-900/5">
-            <SurveyBuilderCanvas
-              survey={survey}
-              selectedQuestionId={selectedQuestionId}
-              selectedPageId={selectedPageId}
-              onSelectQuestion={setSelectedQuestionId}
-              onSelectPage={setSelectedPageId}
-              onPageFieldChange={updatePageField}
-              onQuestionFieldChange={updateQuestionField}
-              onAddPage={createNewPage}
-              onMovePage={movePage}
-              onDeletePage={removePage}
-              onAddQuestion={createNewQuestion}
-              onMoveQuestion={moveQuestion}
-              onDuplicateQuestion={duplicateQuestionById}
-              onDeleteQuestion={removeQuestion}
-            />
+          <div className="min-h-[26rem] overflow-hidden rounded-[2rem] border border-slate-200 bg-white/50 shadow-xl shadow-slate-900/5 xl:min-h-0 xl:h-full">
+            <div className="h-full overflow-y-auto p-4">
+              <SurveyBuilderCanvas
+                survey={survey}
+                selectedQuestionId={selectedQuestionId}
+                selectedPageId={selectedPageId}
+                onSelectQuestion={setSelectedQuestionId}
+                onSelectPage={setSelectedPageId}
+                onPageFieldChange={updatePageField}
+                onQuestionFieldChange={updateQuestionField}
+                onAddPage={createNewPage}
+                onMovePage={movePage}
+                onDeletePage={removePage}
+                onAddQuestion={createNewQuestion}
+                onMoveQuestion={moveQuestion}
+                onDuplicateQuestion={duplicateQuestionById}
+                onDeleteQuestion={removeQuestion}
+                onChoiceFieldChange={updateChoiceField}
+                onAddChoice={addChoice}
+                onRemoveChoice={removeChoice}
+                onMoveChoice={moveChoice}
+              />
+            </div>
           </div>
 
-          <div className="h-[calc(100vh-10.5rem)]">
+          <div className="xl:min-h-0">
             <QuestionSettingsPanel
               survey={survey}
               selectedPage={selectedPage}
@@ -181,10 +184,6 @@ export default function SurveyBuilder() {
               onSurveyFieldChange={updateSurveyField}
               onPageFieldChange={updatePageField}
               onQuestionFieldChange={updateQuestionField}
-              onChoiceFieldChange={updateChoiceField}
-              addChoice={addChoice}
-              removeChoice={removeChoice}
-              moveChoice={moveChoice}
             />
           </div>
         </div>
@@ -192,4 +191,3 @@ export default function SurveyBuilder() {
     </div>
   )
 }
-
