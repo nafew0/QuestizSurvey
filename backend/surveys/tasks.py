@@ -5,7 +5,14 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from surveys.models import Collector, EmailInvitation
+from surveys.models import Collector, EmailInvitation, ExportJob
+from surveys.services.exports import (
+    PDFExportService,
+    PPTXExportService,
+    XLSXExportService,
+    build_export_context,
+    save_export_file,
+)
 
 
 def get_public_app_url():
@@ -20,6 +27,16 @@ def dispatch_task(task, *args, **kwargs):
     if getattr(settings, "CELERY_TASK_ALWAYS_EAGER", False):
         return task.apply(args=args, kwargs=kwargs)
     return task.delay(*args, **kwargs)
+
+
+def dispatch_export_job(export_job):
+    if export_job.format == ExportJob.ExportFormat.PDF:
+        return dispatch_task(generate_pdf_report, str(export_job.id))
+    if export_job.format == ExportJob.ExportFormat.XLSX:
+        return dispatch_task(generate_xlsx_report, str(export_job.id))
+    if export_job.format == ExportJob.ExportFormat.PPTX:
+        return dispatch_task(generate_pptx_report, str(export_job.id))
+    raise ValueError(f"Unsupported export format: {export_job.format}")
 
 
 def upsert_email_invitations(collector, emails):
@@ -148,3 +165,45 @@ def send_reminder(collector_id, invitation_ids=None, subject="", message=""):
         )
 
     return reminder_ids
+
+
+def _run_export(export_job_id, service, extension):
+    export_job = ExportJob.objects.select_related("survey", "user").get(id=export_job_id)
+    export_job.status = ExportJob.Status.PROCESSING
+    export_job.error_message = ""
+    export_job.save(update_fields=["status", "error_message"])
+
+    try:
+        analytics_data = build_export_context(export_job)
+        content = service.generate(export_job.survey, analytics_data, export_job.config or {})
+        export_job.file_url = save_export_file(export_job, content, extension)
+        export_job.status = ExportJob.Status.COMPLETED
+        export_job.completed_at = timezone.now()
+        export_job.error_message = ""
+        export_job.save(
+            update_fields=["file_url", "status", "completed_at", "error_message"]
+        )
+        return export_job.file_url
+    except Exception as exc:
+        export_job.status = ExportJob.Status.FAILED
+        export_job.error_message = str(exc)
+        export_job.completed_at = timezone.now()
+        export_job.save(
+            update_fields=["status", "error_message", "completed_at"]
+        )
+        raise
+
+
+@shared_task
+def generate_pdf_report(export_job_id):
+    return _run_export(export_job_id, PDFExportService(), "pdf")
+
+
+@shared_task
+def generate_xlsx_report(export_job_id):
+    return _run_export(export_job_id, XLSXExportService(), "xlsx")
+
+
+@shared_task
+def generate_pptx_report(export_job_id):
+    return _run_export(export_job_id, PPTXExportService(), "pptx")

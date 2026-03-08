@@ -5,6 +5,7 @@ from .collector_serializers import (
     CollectorSerializer,
     EmailInvitationSerializer,
 )
+from .export_serializers import ExportJobCreateSerializer, ExportJobSerializer
 from .page_serializers import PageSerializer
 from .question_serializers import (
     QuestionCreateSerializer,
@@ -30,6 +31,8 @@ __all__ = [
     "CollectorSendEmailsSerializer",
     "CollectorSendRemindersSerializer",
     "CollectorSerializer",
+    "ExportJobCreateSerializer",
+    "ExportJobSerializer",
     "BulkDeleteResponsesSerializer",
     "EmailInvitationSerializer",
     "PageSerializer",

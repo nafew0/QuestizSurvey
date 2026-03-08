@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from surveys.views import (
     CollectorViewSet,
     EmailOpenTrackingView,
+    ExportJobViewSet,
     PageViewSet,
     PublicSurveyView,
     QuestionViewSet,
@@ -150,6 +151,16 @@ urlpatterns = [
             }
         ),
         name="saved-report-detail",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/exports/",
+        ExportJobViewSet.as_view({"post": "create"}),
+        name="export-job-list",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/exports/<uuid:pk>/",
+        ExportJobViewSet.as_view({"get": "retrieve"}),
+        name="export-job-detail",
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"

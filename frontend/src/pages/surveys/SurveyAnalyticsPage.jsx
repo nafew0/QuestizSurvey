@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
+import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/useToast'
 import {
@@ -44,7 +45,9 @@ import {
 } from '@/lib/analytics'
 import {
   createSavedReport,
+  createExportJob,
   deleteSavedReport,
+  fetchExportJob,
   fetchAnalyticsSummary,
   fetchQuestionAnalytics,
   listSavedReports,
@@ -70,12 +73,80 @@ function isCrossTabEligible(question) {
   ].includes(question.question_type)
 }
 
+const EXPORT_STATUS_PROGRESS = {
+  pending: 18,
+  processing: 68,
+  completed: 100,
+  failed: 100,
+}
+
+function ExportToastDescription({ format, status, progress, detail }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-[0.18em] opacity-80">
+        {format.toUpperCase()} export · {status.replaceAll('_', ' ')}
+      </p>
+      <Progress value={progress} className="h-2" />
+      <p className="text-sm opacity-80">{detail}</p>
+    </div>
+  )
+}
+
+function buildExportConfig({
+  activeReportId,
+  cardPreferences,
+  crossTabState,
+  filters,
+  isResponsesTab,
+  survey,
+}) {
+  const chartTypes = Object.fromEntries(
+    Object.entries(cardPreferences).flatMap(([questionId, preference]) =>
+      preference?.chartType ? [[questionId, preference.chartType]] : []
+    )
+  )
+
+  const includeCrossTabs =
+    crossTabState.row && crossTabState.col
+      ? [
+          {
+            row_question_id: crossTabState.row,
+            col_question_id: crossTabState.col,
+          },
+        ]
+      : []
+
+  return {
+    filters,
+    question_ids: null,
+    chart_types: chartTypes,
+    card_preferences: cardPreferences,
+    report_id: activeReportId || null,
+    include_cross_tabs: includeCrossTabs,
+    include_individual_responses: Boolean(isResponsesTab),
+    branding: {
+      company_name: '',
+      color: survey?.theme?.primary_color || '',
+      logo_url: survey?.theme?.logo_url || '',
+    },
+  }
+}
+
+function triggerDownload(fileUrl) {
+  const anchor = document.createElement('a')
+  anchor.href = fileUrl
+  anchor.target = '_blank'
+  anchor.rel = 'noreferrer'
+  anchor.click()
+}
+
 export default function SurveyAnalyticsPage() {
   const { surveyId = '' } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const { toast } = useToast()
+  const exportPollersRef = useRef(new Map())
+  const { toast, update } = useToast()
 
   const isResponsesTab = location.pathname.endsWith('/responses')
 
@@ -88,6 +159,16 @@ export default function SurveyAnalyticsPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [newReportName, setNewReportName] = useState('')
   const [appliedReportId, setAppliedReportId] = useState('')
+
+  useEffect(() => {
+    const pollers = exportPollersRef.current
+    return () => {
+      for (const timeoutId of pollers.values()) {
+        window.clearTimeout(timeoutId)
+      }
+      pollers.clear()
+    }
+  }, [])
 
   const surveyQuery = useQuery({
     queryKey: ['survey', surveyId],
@@ -298,12 +379,167 @@ export default function SurveyAnalyticsPage() {
     })
   }
 
-  const handleExport = (format) => {
-    toast({
-      title: `${format.toUpperCase()} export is a Phase 7 flow`,
-      description: 'The export dropdown is wired, but file generation is implemented in the next phase.',
-      variant: 'warning',
+  const clearExportPoller = (jobId) => {
+    const timeoutId = exportPollersRef.current.get(jobId)
+    if (timeoutId) {
+      window.clearTimeout(timeoutId)
+      exportPollersRef.current.delete(jobId)
+    }
+  }
+
+  const scheduleExportPoll = (jobId, toastId, format) => {
+    clearExportPoller(jobId)
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const job = await fetchExportJob(surveyId, jobId)
+        const progress = EXPORT_STATUS_PROGRESS[job.status] || 40
+
+        if (job.status === 'completed') {
+          clearExportPoller(jobId)
+          update(toastId, {
+            title: `${format.toUpperCase()} export ready`,
+            description: (
+              <ExportToastDescription
+                format={format}
+                status={job.status}
+                progress={progress}
+                detail="The download is ready and will open now."
+              />
+            ),
+            variant: 'success',
+            duration: 4200,
+          })
+          if (job.file_url) {
+            triggerDownload(job.file_url)
+          }
+          return
+        }
+
+        if (job.status === 'failed') {
+          clearExportPoller(jobId)
+          update(toastId, {
+            title: `${format.toUpperCase()} export failed`,
+            description: job.error_message || 'The export job failed before a file could be generated.',
+            variant: 'error',
+            duration: 5200,
+          })
+          return
+        }
+
+        update(toastId, {
+          title: `${format.toUpperCase()} export in progress`,
+          description: (
+            <ExportToastDescription
+              format={format}
+              status={job.status}
+              progress={progress}
+              detail="Questiz is generating the file in the background."
+            />
+          ),
+          variant: 'info',
+          duration: 0,
+        })
+        scheduleExportPoll(jobId, toastId, format)
+      } catch (error) {
+        clearExportPoller(jobId)
+        update(toastId, {
+          title: `${format.toUpperCase()} export failed`,
+          description:
+            error.response?.data?.detail ||
+            error.message ||
+            'The export job could not be checked.',
+          variant: 'error',
+          duration: 5200,
+        })
+      }
+    }, 2000)
+
+    exportPollersRef.current.set(jobId, timeoutId)
+  }
+
+  const handleExport = async (format) => {
+    const toastId = toast({
+      title: `Preparing ${format.toUpperCase()} export`,
+      description: (
+        <ExportToastDescription
+          format={format}
+          status="pending"
+          progress={EXPORT_STATUS_PROGRESS.pending}
+          detail="The export job is being queued."
+        />
+      ),
+      variant: 'info',
+      duration: 0,
     })
+
+    try {
+      const job = await createExportJob(surveyId, {
+        format,
+        config: buildExportConfig({
+          activeReportId,
+          cardPreferences,
+          crossTabState,
+          filters,
+          isResponsesTab,
+          survey,
+        }),
+      })
+
+      if (job.status === 'completed') {
+        update(toastId, {
+          title: `${format.toUpperCase()} export ready`,
+          description: (
+            <ExportToastDescription
+              format={format}
+              status={job.status}
+              progress={EXPORT_STATUS_PROGRESS.completed}
+              detail="The file finished immediately and will open now."
+            />
+          ),
+          variant: 'success',
+          duration: 4200,
+        })
+        if (job.file_url) {
+          triggerDownload(job.file_url)
+        }
+        return
+      }
+
+      if (job.status === 'failed') {
+        update(toastId, {
+          title: `${format.toUpperCase()} export failed`,
+          description: job.error_message || 'The export job failed before a file could be generated.',
+          variant: 'error',
+          duration: 5200,
+        })
+        return
+      }
+
+      update(toastId, {
+        title: `${format.toUpperCase()} export queued`,
+        description: (
+          <ExportToastDescription
+            format={format}
+            status={job.status}
+            progress={EXPORT_STATUS_PROGRESS[job.status] || 24}
+            detail="Questiz will keep checking until the file is ready."
+          />
+        ),
+        variant: 'info',
+        duration: 0,
+      })
+      scheduleExportPoll(job.id, toastId, format)
+    } catch (error) {
+      update(toastId, {
+        title: `${format.toUpperCase()} export failed`,
+        description:
+          error.response?.data?.detail ||
+          error.message ||
+          'The export job could not be created.',
+        variant: 'error',
+        duration: 5200,
+      })
+    }
   }
 
   if (surveyQuery.isLoading) {

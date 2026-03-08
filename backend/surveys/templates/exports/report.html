@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ survey.title }} Report</title>
+  <style>
+    {{ css_content|safe }}
+  </style>
+</head>
+<body>
+  <section class="cover-page">
+    <div class="cover-header">
+      <div>
+        <p class="eyebrow">Questiz Report</p>
+        <h1>{{ survey.title }}</h1>
+        {% if survey.description %}
+          <p class="lede">{{ survey.description }}</p>
+        {% endif %}
+      </div>
+      {% if export.branding.company_name %}
+        <div class="brand-block">
+          <span>Prepared for</span>
+          <strong>{{ export.branding.company_name }}</strong>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="summary-grid">
+      <article class="metric-card">
+        <span>Total responses</span>
+        <strong>{{ export.summary.total_responses }}</strong>
+      </article>
+      <article class="metric-card">
+        <span>Completion rate</span>
+        <strong>{{ export.summary.completion_rate }}%</strong>
+      </article>
+      <article class="metric-card">
+        <span>Average duration</span>
+        <strong>{{ export.summary.average_duration_seconds }}s</strong>
+      </article>
+      <article class="metric-card">
+        <span>Generated</span>
+        <strong>{{ export.generated_at|date:"Y-m-d H:i" }} UTC</strong>
+      </article>
+    </div>
+
+    {% if export.filter_descriptions %}
+      <div class="filters">
+        <h2>Applied filters</h2>
+        <ul>
+          {% for filter in export.filter_descriptions %}
+            <li><strong>{{ filter.label }}:</strong> {{ filter.value }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+    {% endif %}
+  </section>
+
+  <section class="page-break-before">
+    <h2>Executive Summary</h2>
+    <table class="report-table compact">
+      <tbody>
+        <tr>
+          <th>Total responses</th>
+          <td>{{ export.summary.total_responses }}</td>
+          <th>Completed</th>
+          <td>{{ export.summary.completed_count }}</td>
+        </tr>
+        <tr>
+          <th>In progress</th>
+          <td>{{ export.summary.in_progress_count }}</td>
+          <th>Average duration</th>
+          <td>{{ export.summary.average_duration_seconds }}s</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  {% for section in export.questions %}
+    <section class="question-block">
+      <div class="section-header">
+        <div>
+          <p class="eyebrow">{{ section.question_type|default:section.analytics_type|cut:"_"|title }}</p>
+          <h2>{{ section.text }}</h2>
+        </div>
+        <div class="stat-pills">
+          {% for metric in section.highlights %}
+            <span>{{ metric.label }}: {{ metric.value }}</span>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if section.analytics_type == "text" and section.text_responses %}
+        <div class="text-response-list">
+          {% for response in section.text_responses %}
+            <div class="text-response-item">{{ response }}</div>
+          {% endfor %}
+        </div>
+      {% elif section.analytics_type == "matrix" %}
+        <table class="report-table">
+          <thead>
+            <tr>
+              {% for column in section.table_columns %}
+                <th>{{ column }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in section.table_rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                {% for value in row.values %}
+                  <td>{{ value }}</td>
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% elif section.analytics_type == "demographics" %}
+        {% for field in section.field_sections %}
+          <h3>{{ field.field_name|title }}</h3>
+          <table class="report-table compact">
+            <thead>
+              <tr>
+                <th>Value</th>
+                <th>Count</th>
+                <th>Percentage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in field.rows %}
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.count }}</td>
+                  <td>{{ row.percentage }}%</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+      {% else %}
+        {% if section.table_rows %}
+          <div class="bar-chart">
+            {% for row in section.table_rows %}
+              <div class="bar-row">
+                <div class="bar-label">{{ row.label }}</div>
+                <div class="bar-track">
+                  <div class="bar-fill" style="width: {% if row.percentage != '' and row.percentage != None %}{{ row.percentage }}{% else %}{% widthratio row.count 1 1 %}{% endif %}%"></div>
+                </div>
+                <div class="bar-value">
+                  {{ row.count }}
+                  {% if row.percentage != '' and row.percentage != None %}
+                    <span>({{ row.percentage }}%)</span>
+                  {% endif %}
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <table class="report-table compact">
+            <thead>
+              <tr>
+                {% for column in section.table_columns %}
+                  <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in section.table_rows %}
+                <tr>
+                  <td>{{ row.label }}</td>
+                  <td>{{ row.count }}</td>
+                  <td>{% if row.percentage != '' and row.percentage != None %}{{ row.percentage }}%{% endif %}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% endif %}
+    </section>
+  {% endfor %}
+
+  {% if export.cross_tabs %}
+    <section class="page-break-before">
+      <h2>Cross-tabulations</h2>
+      {% for cross_tab in export.cross_tabs %}
+        <div class="cross-tab-block">
+          <h3>{{ cross_tab.title }}</h3>
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Row label</th>
+                {% for column in cross_tab.col_totals %}
+                  <th>{{ column.col_label }}</th>
+                {% endfor %}
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in cross_tab.matrix %}
+                <tr>
+                  <td>{{ row.row_label }}</td>
+                  {% for cell in row.cells %}
+                    <td>{{ cell.count }}</td>
+                  {% endfor %}
+                  <td>{{ row.row_total }}</td>
+                </tr>
+              {% endfor %}
+              <tr>
+                <td><strong>Column total</strong></td>
+                {% for column in cross_tab.col_totals %}
+                  <td><strong>{{ column.total }}</strong></td>
+                {% endfor %}
+                <td><strong>{{ cross_tab.grand_total }}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="chi-square">Chi-square: {{ cross_tab.chi_square.statistic }} | p-value: {{ cross_tab.chi_square.p_value }}</p>
+        </div>
+      {% endfor %}
+    </section>
+  {% endif %}
+</body>
+</html>

@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { isValidElement } from 'react'
 import { CheckCircle2, Info, TriangleAlert, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -36,34 +37,73 @@ export function ToastProvider({ children }) {
     }
   }, [])
 
-  const toast = useCallback(
-    ({ title, description, variant = 'default', duration = 3200 }) => {
-      const id = crypto.randomUUID()
+  const scheduleDismiss = useCallback((id, duration) => {
+    const timeoutId = timeoutMap.current.get(id)
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+      timeoutMap.current.delete(id)
+    }
 
-      setToasts((current) => [
-        ...current,
-        {
+    if (!duration || duration <= 0) {
+      return
+    }
+
+    const nextTimeoutId = window.setTimeout(() => dismiss(id), duration)
+    timeoutMap.current.set(id, nextTimeoutId)
+  }, [dismiss])
+
+  const toast = useCallback(
+    ({ id: providedId, title, description, variant = 'default', duration = 3200 }) => {
+      const id = providedId || crypto.randomUUID()
+
+      setToasts((current) => {
+        const nextToast = {
           id,
           title,
           description,
           variant,
-        },
-      ])
+        }
 
-      const timeoutId = window.setTimeout(() => dismiss(id), duration)
-      timeoutMap.current.set(id, timeoutId)
+        if (current.some((toastItem) => toastItem.id === id)) {
+          return current.map((toastItem) => (toastItem.id === id ? nextToast : toastItem))
+        }
+
+        return [...current, nextToast]
+      })
+      scheduleDismiss(id, duration)
 
       return id
     },
-    [dismiss]
+    [scheduleDismiss]
+  )
+
+  const update = useCallback(
+    (id, patch = {}) => {
+      setToasts((current) =>
+        current.map((toastItem) =>
+          toastItem.id === id
+            ? {
+                ...toastItem,
+                ...patch,
+                id,
+              }
+            : toastItem
+        )
+      )
+      if (Object.prototype.hasOwnProperty.call(patch, 'duration')) {
+        scheduleDismiss(id, patch.duration)
+      }
+    },
+    [scheduleDismiss]
   )
 
   const value = useMemo(
     () => ({
       toast,
       dismiss,
+      update,
     }),
-    [dismiss, toast]
+    [dismiss, toast, update]
   )
 
   return (
@@ -88,7 +128,11 @@ export function ToastProvider({ children }) {
                       <p className="text-sm font-semibold tracking-tight">{item.title}</p>
                     ) : null}
                     {item.description ? (
-                      <p className="mt-1 text-sm opacity-80">{item.description}</p>
+                      isValidElement(item.description) ? (
+                        <div className="mt-1 text-sm opacity-80">{item.description}</div>
+                      ) : (
+                        <p className="mt-1 text-sm opacity-80">{item.description}</p>
+                      )
                     ) : null}
                   </div>
                   <button

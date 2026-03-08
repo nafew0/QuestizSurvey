@@ -92,3 +92,13 @@ export async function updateSavedReport(surveyId, reportId, payload) {
 export async function deleteSavedReport(surveyId, reportId) {
   await api.delete(`/surveys/${surveyId}/reports/${reportId}/`)
 }
+
+export async function createExportJob(surveyId, payload) {
+  const response = await api.post(`/surveys/${surveyId}/exports/`, payload)
+  return response.data
+}
+
+export async function fetchExportJob(surveyId, jobId) {
+  const response = await api.get(`/surveys/${surveyId}/exports/${jobId}/`)
+  return response.data
+}
