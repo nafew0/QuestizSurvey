@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { Eye, Printer, Search, Trash2 } from 'lucide-react'
+import { AlertTriangle, Eye, Printer, Search, Trash2 } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,33 @@ import { formatDuration } from '@/lib/analytics'
 const STATUS_VARIANTS = {
   completed: 'success',
   in_progress: 'warning',
+}
+
+function normalizeResponseListPayload(payload) {
+  if (Array.isArray(payload)) {
+    return {
+      count: payload.length,
+      next: null,
+      previous: null,
+      results: payload,
+    }
+  }
+
+  if (payload && Array.isArray(payload.results)) {
+    return {
+      count: Number(payload.count || 0),
+      next: payload.next || null,
+      previous: payload.previous || null,
+      results: payload.results,
+    }
+  }
+
+  return {
+    count: 0,
+    next: null,
+    previous: null,
+    results: [],
+  }
 }
 
 function RenderAnswer({ answer }) {
@@ -139,11 +166,13 @@ export default function ResponseBrowser({
     enabled: Boolean(selectedResponseId),
   })
 
+  const listData = useMemo(() => normalizeResponseListPayload(listQuery.data), [listQuery.data])
+
   useEffect(() => {
-    if (!selectedResponseId && listQuery.data?.results?.length) {
-      setSelectedResponseId(listQuery.data.results[0].id)
+    if (!selectedResponseId && listData.results.length) {
+      setSelectedResponseId(listData.results[0].id)
     }
-  }, [listQuery.data, selectedResponseId])
+  }, [listData.results, selectedResponseId])
 
   const deleteMutation = useMutation({
     mutationFn: (responseId) => deleteSurveyResponse(surveyId, responseId),
@@ -162,7 +191,7 @@ export default function ResponseBrowser({
     },
   })
 
-  const rows = useMemo(() => listQuery.data?.results ?? [], [listQuery.data])
+  const rows = useMemo(() => listData.results, [listData.results])
   const detailData = selectedResponseId ? detailQuery.data : null
 
   const columns = useMemo(
@@ -289,6 +318,18 @@ export default function ResponseBrowser({
               <Skeleton className="h-12 w-full" />
               <Skeleton className="h-12 w-full" />
             </div>
+          ) : listQuery.isError ? (
+            <div className="flex min-h-[320px] items-center justify-center p-6">
+              <div className="max-w-md text-center">
+                <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
+                <p className="mt-3 text-sm font-semibold text-foreground">Responses failed to load</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {listQuery.error?.response?.data?.detail ||
+                    listQuery.error?.message ||
+                    'The response list request failed.'}
+                </p>
+              </div>
+            </div>
           ) : (
             <>
               <div className="overflow-x-auto">
@@ -328,14 +369,14 @@ export default function ResponseBrowser({
 
               <div className="flex items-center justify-between border-t border-[rgb(var(--theme-border-rgb)/0.72)] px-5 py-4 text-sm">
                 <span className="text-muted-foreground">
-                  {listQuery.data?.count ?? 0} total responses
+                  {listData.count} total responses
                 </span>
                 <div className="flex items-center gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     className="rounded-full"
-                    disabled={!listQuery.data?.previous}
+                    disabled={!listData.previous}
                     onClick={() => setPage((current) => Math.max(1, current - 1))}
                   >
                     Previous
@@ -345,7 +386,7 @@ export default function ResponseBrowser({
                     type="button"
                     variant="outline"
                     className="rounded-full"
-                    disabled={!listQuery.data?.next}
+                    disabled={!listData.next}
                     onClick={() => setPage((current) => current + 1)}
                   >
                     Next
@@ -391,6 +432,18 @@ export default function ResponseBrowser({
               <Skeleton className="h-20 w-full" />
               <Skeleton className="h-32 w-full" />
             </>
+          ) : detailQuery.isError ? (
+            <div className="flex min-h-[320px] items-center justify-center rounded-[1.5rem] border border-dashed border-[rgb(var(--theme-border-rgb)/0.78)] p-6">
+              <div className="max-w-md text-center">
+                <AlertTriangle className="mx-auto h-8 w-8 text-destructive" />
+                <p className="mt-3 text-sm font-semibold text-foreground">Response detail failed to load</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {detailQuery.error?.response?.data?.detail ||
+                    detailQuery.error?.message ||
+                    'The response detail request failed.'}
+                </p>
+              </div>
+            </div>
           ) : detailData ? (
             <>
               <div className="grid gap-3 rounded-[1.5rem] bg-[rgb(var(--theme-neutral-rgb)/0.7)] p-4 md:grid-cols-2">
