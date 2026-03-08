@@ -1,5 +1,10 @@
 from .choice_serializers import ChoiceSerializer
-from .collector_serializers import CollectorSerializer
+from .collector_serializers import (
+    CollectorSendEmailsSerializer,
+    CollectorSendRemindersSerializer,
+    CollectorSerializer,
+    EmailInvitationSerializer,
+)
 from .page_serializers import PageSerializer
 from .question_serializers import (
     QuestionCreateSerializer,
@@ -20,7 +25,10 @@ from .survey_serializers import (
 
 __all__ = [
     "ChoiceSerializer",
+    "CollectorSendEmailsSerializer",
+    "CollectorSendRemindersSerializer",
     "CollectorSerializer",
+    "EmailInvitationSerializer",
     "PageSerializer",
     "PublicSurveySerializer",
     "QuestionCreateSerializer",

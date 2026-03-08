@@ -1,7 +1,14 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from surveys.models import Answer, Collector, Page, Question, SurveyResponse
+from surveys.models import (
+    Answer,
+    Collector,
+    EmailInvitation,
+    Page,
+    Question,
+    SurveyResponse,
+)
 
 
 class AnswerSerializer(serializers.ModelSerializer):
@@ -41,6 +48,7 @@ class SurveyResponseSerializer(serializers.ModelSerializer):
 
 class SurveyResponseDetailSerializer(serializers.ModelSerializer):
     answers = AnswerSerializer(many=True, read_only=True)
+    email_invitation = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = SurveyResponse
@@ -48,6 +56,7 @@ class SurveyResponseDetailSerializer(serializers.ModelSerializer):
             "id",
             "survey",
             "collector",
+            "email_invitation",
             "respondent_email",
             "status",
             "ip_address",
@@ -106,6 +115,8 @@ class SubmitAnswerSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
     )
+    invitation_token = serializers.CharField(required=False, allow_blank=True)
+    access_key = serializers.CharField(required=False, allow_blank=True)
     resume_token = serializers.CharField(required=False, allow_blank=True)
     answers = SubmitAnswerItemSerializer(many=True, required=False, default=list)
 
@@ -113,6 +124,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
         survey = self.context["survey"]
         collector = attrs.get("collector")
         current_page = attrs.get("current_page")
+        invitation_token = attrs.get("invitation_token", "").strip()
 
         if collector and collector.survey_id != survey.id:
             raise serializers.ValidationError(
@@ -143,6 +155,18 @@ class SubmitAnswerSerializer(serializers.Serializer):
                     {"answers": "Choice does not belong to the supplied question."}
                 )
 
+        if invitation_token:
+            invitation = EmailInvitation.objects.select_related(
+                "collector__survey"
+            ).filter(token=invitation_token).first()
+            if not invitation or invitation.collector.survey_id != survey.id:
+                raise serializers.ValidationError(
+                    {"invitation_token": "Invitation token is invalid for this survey."}
+                )
+
+            attrs["email_invitation"] = invitation
+            attrs["collector"] = invitation.collector
+
         return attrs
 
     def create_response(self):
@@ -150,6 +174,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
         validated_data = dict(self.validated_data)
         response = SurveyResponse.objects.create(
             survey=survey,
+            collector=self.context.get("default_collector"),
             ip_address=self.context.get("ip_address"),
             user_agent=self.context.get("user_agent", ""),
         )
@@ -164,6 +189,12 @@ class SubmitAnswerSerializer(serializers.Serializer):
 
         if "collector" in validated_data:
             response.collector = validated_data["collector"]
+        elif not response.collector and self.context.get("default_collector"):
+            response.collector = self.context["default_collector"]
+
+        if "email_invitation" in validated_data:
+            response.email_invitation = validated_data["email_invitation"]
+            response.collector = validated_data["email_invitation"].collector
 
         if "respondent_email" in validated_data:
             response.respondent_email = validated_data["respondent_email"]
@@ -190,6 +221,18 @@ class SubmitAnswerSerializer(serializers.Serializer):
             )
 
         response.save()
+
+        if response.status == SurveyResponse.Status.COMPLETED and response.email_invitation:
+            invitation = response.email_invitation
+            invitation.status = EmailInvitation.Status.COMPLETED
+            if invitation.opened_at is None:
+                invitation.opened_at = timezone.now()
+            if invitation.sent_at is None:
+                invitation.sent_at = timezone.now()
+            invitation.completed_at = response.completed_at or timezone.now()
+            invitation.save(
+                update_fields=["status", "sent_at", "opened_at", "completed_at"]
+            )
 
         for answer_data in answers_data:
             question = answer_data.pop("question")

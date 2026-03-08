@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from surveys.models import Collector, Survey, SurveyResponse
+from surveys.models import Collector, EmailInvitation, Survey, SurveyResponse
 from surveys.serializers import (
     PublicSurveySerializer,
     SubmitAnswerSerializer,
@@ -114,7 +114,34 @@ class PublicSurveyView(APIView):
             status=error_status,
         )
 
-    def get_public_block(self, survey, collector, *, resume_token=None, request=None):
+    def get_requested_invitation(self, survey, invitation_token):
+        if not invitation_token:
+            return None
+
+        invitation = EmailInvitation.objects.select_related(
+            "collector__survey"
+        ).filter(token=invitation_token).first()
+        if not invitation or invitation.collector.survey_id != survey.id:
+            return None
+
+        return invitation
+
+    def get_access_key(self, request):
+        return (
+            request.query_params.get("access_key")
+            or request.data.get("access_key")
+            or ""
+        ).strip()
+
+    def get_public_block(
+        self,
+        survey,
+        collector,
+        *,
+        resume_token=None,
+        request=None,
+        access_key="",
+    ):
         if survey.status != Survey.Status.ACTIVE:
             return self.build_block_response(
                 "This survey is not accepting responses right now.",
@@ -123,6 +150,22 @@ class PublicSurveyView(APIView):
             )
 
         settings = self.get_public_settings(survey, collector)
+
+        password = (settings.get("password") or "").strip()
+        if settings.get("password_enabled") and password:
+            if not access_key:
+                return self.build_block_response(
+                    "This survey link is password protected.",
+                    status.HTTP_403_FORBIDDEN,
+                    "password_required",
+                )
+
+            if access_key != password:
+                return self.build_block_response(
+                    "The password for this survey link is incorrect.",
+                    status.HTTP_403_FORBIDDEN,
+                    "password_invalid",
+                )
 
         close_date = settings.get("close_date")
         parsed_close_date = parse_datetime(close_date) if close_date else None
@@ -180,12 +223,40 @@ class PublicSurveyView(APIView):
 
     def get(self, request, slug):
         survey = self.get_survey(slug)
-        collector = self.get_public_collector(survey)
+        invite_token = request.query_params.get("invite")
+        invitation = self.get_requested_invitation(survey, invite_token)
+        if invite_token and not invitation:
+            return self.build_block_response(
+                "This invitation link is invalid.",
+                status.HTTP_404_NOT_FOUND,
+                "invalid_invitation",
+            )
+        resume_token = request.query_params.get("resume_token")
+        survey_response = None
+
+        if resume_token:
+            survey_response = get_object_or_404(
+                SurveyResponse.objects.select_related(
+                    "collector",
+                    "email_invitation",
+                ).prefetch_related("answers"),
+                survey=survey,
+                resume_token=resume_token,
+            )
+
+        collector = (
+            survey_response.collector
+            if survey_response and survey_response.collector_id
+            else invitation.collector
+            if invitation
+            else self.get_public_collector(survey)
+        )
         block_response = self.get_public_block(
             survey,
             collector,
-            resume_token=request.query_params.get("resume_token"),
+            resume_token=resume_token,
             request=request,
+            access_key=self.get_access_key(request),
         )
         if block_response:
             return block_response
@@ -193,13 +264,7 @@ class PublicSurveyView(APIView):
         serializer = PublicSurveySerializer(survey)
         response_data = serializer.data
 
-        resume_token = request.query_params.get("resume_token")
-        if resume_token:
-            survey_response = get_object_or_404(
-                SurveyResponse.objects.prefetch_related("answers"),
-                survey=survey,
-                resume_token=resume_token,
-            )
+        if survey_response:
             response_data["response"] = SurveyResponseDetailSerializer(
                 survey_response
             ).data
@@ -208,8 +273,16 @@ class PublicSurveyView(APIView):
 
     def post(self, request, slug):
         survey = self.get_survey(slug)
-        collector = self.get_public_collector(survey)
-        block_response = self.get_public_block(survey, collector, request=request)
+        invitation = self.get_requested_invitation(
+            survey, request.data.get("invitation_token")
+        )
+        collector = invitation.collector if invitation else self.get_public_collector(survey)
+        block_response = self.get_public_block(
+            survey,
+            collector,
+            request=request,
+            access_key=self.get_access_key(request),
+        )
         if block_response:
             return block_response
 
@@ -217,6 +290,7 @@ class PublicSurveyView(APIView):
             data=request.data,
             context={
                 "survey": survey,
+                "default_collector": collector,
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },
@@ -240,25 +314,37 @@ class PublicSurveyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        collector = self.get_public_collector(survey)
+        survey_response = get_object_or_404(
+            SurveyResponse.objects.select_related(
+                "collector",
+                "email_invitation",
+            ).prefetch_related("answers"),
+            survey=survey,
+            resume_token=resume_token,
+        )
+        invitation = self.get_requested_invitation(
+            survey, request.data.get("invitation_token")
+        )
+        collector = (
+            survey_response.collector
+            or (invitation.collector if invitation else None)
+            or self.get_public_collector(survey)
+        )
         block_response = self.get_public_block(
             survey,
             collector,
             resume_token=resume_token,
             request=request,
+            access_key=self.get_access_key(request),
         )
         if block_response:
             return block_response
 
-        survey_response = get_object_or_404(
-            SurveyResponse.objects.prefetch_related("answers"),
-            survey=survey,
-            resume_token=resume_token,
-        )
         serializer = SubmitAnswerSerializer(
             data=request.data,
             context={
                 "survey": survey,
+                "default_collector": collector,
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },

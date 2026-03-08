@@ -1,8 +1,25 @@
 import api from '@/services/api'
 
-export async function fetchPublicSurvey(slug, resumeToken = '') {
+export async function fetchPublicSurvey(
+  slug,
+  { resumeToken = '', invitationToken = '', accessKey = '' } = {}
+) {
+  const params = {}
+
+  if (resumeToken) {
+    params.resume_token = resumeToken
+  }
+
+  if (invitationToken) {
+    params.invite = invitationToken
+  }
+
+  if (accessKey) {
+    params.access_key = accessKey
+  }
+
   const response = await api.get(`/public/surveys/${slug}/`, {
-    params: resumeToken ? { resume_token: resumeToken } : undefined,
+    params: Object.keys(params).length ? params : undefined,
   })
   return response.data
 }

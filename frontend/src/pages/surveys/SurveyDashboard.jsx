@@ -5,6 +5,7 @@ import {
   MoreHorizontal,
   Plus,
   Search,
+  Share2,
   Sparkle,
   Trash2,
 } from 'lucide-react'
@@ -382,6 +383,10 @@ export default function SurveyDashboard() {
                       <DropdownMenuContent align="end" className="rounded-2xl">
                         <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/edit`)}>
                           Open builder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/distribute`)}>
+                          <Share2 className="mr-2 h-4 w-4" />
+                          Distribute
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDuplicateSurvey(survey.id)}>
                           <Copy className="mr-2 h-4 w-4" />

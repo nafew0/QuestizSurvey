@@ -82,6 +82,14 @@ const BLOCKED_STATE_MAP = {
       'The public link may be incorrect, expired, or removed by the survey owner.',
     Icon: AlertCircle,
   },
+  invalid_invitation: {
+    badge: 'Invitation link',
+    badgeVariant: 'outline',
+    title: 'This invitation link is invalid.',
+    description:
+      'Ask the survey owner for a fresh invitation link or open the public survey link instead.',
+    Icon: AlertCircle,
+  },
   unavailable: {
     badge: 'Unavailable',
     badgeVariant: 'outline',
@@ -99,7 +107,13 @@ function getBlockedState(error, resumeToken = '') {
 
   if (status === 404) {
     return {
-      ...(BLOCKED_STATE_MAP[resumeToken ? 'invalid_resume' : 'not_found']),
+      ...(BLOCKED_STATE_MAP[
+        code === 'invalid_invitation'
+          ? 'invalid_invitation'
+          : resumeToken
+            ? 'invalid_resume'
+            : 'not_found'
+      ]),
       detail,
     }
   }
@@ -150,6 +164,52 @@ function LoadingState() {
   )
 }
 
+function PasswordGate({ password, setPassword, errorMessage, onUnlock, loading }) {
+  return (
+    <div className="theme-app-gradient min-h-screen px-4 py-10 text-foreground">
+      <div className="mx-auto max-w-2xl">
+        <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
+          <div className="theme-icon-secondary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
+          <Badge variant="outline" className="mt-5">
+            Password required
+          </Badge>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+            This survey link is protected.
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+            Enter the survey password to continue.
+          </p>
+          <div className="mx-auto mt-6 max-w-md space-y-3 text-left">
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Enter password"
+              className="h-12 w-full rounded-2xl border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {errorMessage ? (
+              <p className="text-sm font-medium text-rose-500">{errorMessage}</p>
+            ) : null}
+            <Button
+              type="button"
+              className="w-full rounded-2xl"
+              disabled={loading}
+              onClick={onUnlock}
+            >
+              {loading ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Unlock survey
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PublicSurveyPage() {
   const { slug = '' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -166,9 +226,13 @@ export default function PublicSurveyPage() {
   const [resumeToken, setResumeToken] = useState('')
   const [blockedState, setBlockedState] = useState(null)
   const [disqualifyMessage, setDisqualifyMessage] = useState('')
+  const [accessKey, setAccessKey] = useState('')
+  const [passwordDraft, setPasswordDraft] = useState('')
+  const [passwordError, setPasswordError] = useState('')
   const skipSearchReloadRef = useRef(false)
 
   const resumeParam = searchParams.get('resume')?.trim() || ''
+  const inviteParam = searchParams.get('invite')?.trim() || ''
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
 
@@ -221,6 +285,7 @@ export default function PublicSurveyPage() {
     const loadSurvey = async () => {
       setLoading(true)
       setBlockedState(null)
+      setPasswordError('')
 
       if (hasRespondedCookie(slug) && !resumeParam) {
         if (!cancelled) {
@@ -232,7 +297,11 @@ export default function PublicSurveyPage() {
       }
 
       try {
-        const responseData = await fetchPublicSurvey(slug, resumeParam)
+        const responseData = await fetchPublicSurvey(slug, {
+          resumeToken: resumeParam,
+          invitationToken: inviteParam,
+          accessKey,
+        })
         if (cancelled) {
           return
         }
@@ -260,6 +329,7 @@ export default function PublicSurveyPage() {
         setDisqualifyMessage('')
         setResumeToken(nextResumeToken)
         setPageHistory(nextHistory)
+        setPasswordError('')
 
         if (responseData.response?.status === 'completed') {
           setRespondedCookie(nextSurvey.slug)
@@ -279,6 +349,17 @@ export default function PublicSurveyPage() {
           return
         }
 
+        const code = error?.response?.data?.code
+        if (code === 'password_required' || code === 'password_invalid') {
+          setStage('password')
+          setPasswordError(
+            error?.response?.data?.detail ||
+              'The password for this survey link is incorrect.'
+          )
+          setLoading(false)
+          return
+        }
+
         setSurvey(null)
         setStage('blocked')
         setBlockedState(getBlockedState(error, resumeParam))
@@ -294,7 +375,7 @@ export default function PublicSurveyPage() {
     return () => {
       cancelled = true
     }
-  }, [resumeParam, slug, syncResumeParam])
+  }, [accessKey, inviteParam, resumeParam, slug, syncResumeParam])
 
   useEffect(() => {
     if (stage === 'loading') {
@@ -338,6 +419,8 @@ export default function PublicSurveyPage() {
         status: nextStatus,
         current_page: currentPageId || null,
         answers: serializePublicAnswers(survey, answers),
+        invitation_token: inviteParam || undefined,
+        access_key: accessKey || undefined,
       }
 
       let responseData = null
@@ -373,10 +456,14 @@ export default function PublicSurveyPage() {
       }
 
       if (copyResumeLink && nextToken) {
-        const resumeUrl = `${window.location.origin}/s/${survey.slug}?resume=${nextToken}`
+        const resumeUrl = new URL(`${window.location.origin}/s/${survey.slug}`)
+        resumeUrl.searchParams.set('resume', nextToken)
+        if (inviteParam) {
+          resumeUrl.searchParams.set('invite', inviteParam)
+        }
 
         try {
-          await navigator.clipboard.writeText(resumeUrl)
+          await navigator.clipboard.writeText(resumeUrl.toString())
           toast({
             title: 'Resume link copied',
             description: 'The survey link with your saved progress is on your clipboard.',
@@ -512,12 +599,34 @@ export default function PublicSurveyPage() {
     })
   }
 
+  const handleUnlock = () => {
+    if (!passwordDraft.trim()) {
+      setPasswordError('Enter the survey password to continue.')
+      return
+    }
+
+    setPasswordError('')
+    setAccessKey(passwordDraft.trim())
+  }
+
   if (loading) {
     return <LoadingState />
   }
 
   if (blockedState) {
     return <PublicStateCard state={blockedState} />
+  }
+
+  if (stage === 'password') {
+    return (
+      <PasswordGate
+        password={passwordDraft}
+        setPassword={setPasswordDraft}
+        errorMessage={passwordError}
+        onUnlock={handleUnlock}
+        loading={loading}
+      />
+    )
   }
 
   if (!survey) {

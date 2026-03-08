@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from surveys.views import (
     CollectorViewSet,
+    EmailOpenTrackingView,
     PageViewSet,
     PublicSurveyView,
     QuestionViewSet,
@@ -79,6 +80,21 @@ urlpatterns = [
         name="collector-detail",
     ),
     path(
+        "surveys/<uuid:survey_pk>/collectors/<uuid:pk>/invitations/",
+        CollectorViewSet.as_view({"get": "invitations"}),
+        name="collector-invitations",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/collectors/<uuid:pk>/send-emails/",
+        CollectorViewSet.as_view({"post": "send_emails"}),
+        name="collector-send-emails",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/collectors/<uuid:pk>/send-reminders/",
+        CollectorViewSet.as_view({"post": "send_reminders"}),
+        name="collector-send-reminders",
+    ),
+    path(
         "surveys/<uuid:survey_pk>/responses/",
         SurveyResponseViewSet.as_view({"get": "list"}),
         name="response-list",
@@ -90,5 +106,10 @@ urlpatterns = [
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"
+    ),
+    path(
+        "track/open/<str:token>/",
+        EmailOpenTrackingView.as_view(),
+        name="track-open",
     ),
 ]

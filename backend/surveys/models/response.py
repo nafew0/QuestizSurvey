@@ -23,6 +23,13 @@ class SurveyResponse(models.Model):
         null=True,
         blank=True,
     )
+    email_invitation = models.ForeignKey(
+        "surveys.EmailInvitation",
+        on_delete=models.SET_NULL,
+        related_name="responses",
+        null=True,
+        blank=True,
+    )
     respondent_email = models.EmailField(blank=True, null=True)
     status = models.CharField(
         max_length=20,

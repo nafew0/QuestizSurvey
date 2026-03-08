@@ -14,6 +14,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const SurveyBuilder = lazy(() => import('./pages/surveys/SurveyBuilder'))
 const SurveyPreviewPage = lazy(() => import('./pages/surveys/SurveyPreviewPage'))
 const PublicSurveyPage = lazy(() => import('./pages/surveys/PublicSurveyPage'))
+const SurveyDistributePage = lazy(() => import('./pages/surveys/SurveyDistributePage'))
 
 function AppFallback() {
   return (
@@ -74,6 +75,14 @@ function App() {
                     element={
                       <ProtectedRoute>
                         <SurveyPreviewPage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/surveys/:surveyId/distribute"
+                    element={
+                      <ProtectedRoute>
+                        <SurveyDistributePage />
                       </ProtectedRoute>
                     }
                   />

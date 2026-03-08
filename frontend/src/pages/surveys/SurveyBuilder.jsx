@@ -1,4 +1,4 @@
-import { ArrowLeft, Eye, LoaderCircle, Rocket, Save, XCircle } from 'lucide-react'
+import { ArrowLeft, Eye, LoaderCircle, Rocket, Save, Share2, XCircle } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import QuestionSettingsPanel from '@/components/builder/QuestionSettingsPanel'
@@ -120,6 +120,16 @@ export default function SurveyBuilder() {
                   {isSaving ? 'Saving' : 'Synced'}
                 </span>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 rounded-xl"
+                onClick={() => navigate(`/surveys/${survey.id}/distribute`)}
+              >
+                <Share2 className="mr-2 h-4 w-4" />
+                Distribute
+              </Button>
 
               <Button
                 type="button"
