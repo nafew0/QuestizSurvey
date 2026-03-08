@@ -1,21 +1,36 @@
 import { Button } from '@/components/ui/button'
 
-export default function YesNoRenderer({ value, onChange, disabled = false }) {
+export default function YesNoRenderer({
+  question,
+  value,
+  onChange,
+  disabled = false,
+}) {
+  const options =
+    question?.choices?.length >= 2
+      ? question.choices.map((choice) => ({
+          id: choice.id,
+          label: choice.text,
+        }))
+      : [
+          { id: 'yes', label: 'Yes' },
+          { id: 'no', label: 'No' },
+        ]
+
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {['Yes', 'No'].map((label) => (
+    <div className={`grid gap-3 ${options.length === 3 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+      {options.map((option) => (
         <Button
-          key={label}
+          key={option.id}
           type="button"
-          variant={value === label ? 'default' : 'outline'}
+          variant={value === option.id ? 'default' : 'outline'}
           disabled={disabled}
-          onClick={() => onChange(label)}
-          className="h-14 rounded-2xl text-base"
+          onClick={() => onChange(option.id)}
+          className="h-12 rounded-2xl text-sm"
         >
-          {label}
+          {option.label}
         </Button>
       ))}
     </div>
   )
 }
-

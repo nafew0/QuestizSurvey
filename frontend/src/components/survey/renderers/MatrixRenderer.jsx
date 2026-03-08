@@ -2,10 +2,14 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
   const rows = question.settings?.rows ?? []
   const columns = question.settings?.columns ?? []
   const cellType = question.settings?.cell_type ?? 'radio'
+  const gridTemplateColumns = `minmax(10rem,1.5fr) repeat(${Math.max(columns.length, 1)}, minmax(5rem,1fr))`
 
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
-      <div className="grid grid-cols-[1.5fr_repeat(2,minmax(0,1fr))] gap-px bg-slate-200 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+      <div
+        className="grid gap-px bg-slate-200 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
+        style={{ gridTemplateColumns }}
+      >
         <div className="bg-slate-50 px-4 py-3">Row</div>
         {columns.map((column) => (
           <div key={column} className="bg-slate-50 px-4 py-3 text-center">
@@ -16,7 +20,8 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
       {rows.map((row) => (
         <div
           key={row}
-          className="grid grid-cols-[1.5fr_repeat(2,minmax(0,1fr))] gap-px border-t border-slate-200 bg-slate-200"
+          className="grid gap-px border-t border-slate-200 bg-slate-200"
+          style={{ gridTemplateColumns }}
         >
           <div className="bg-white px-4 py-4 text-sm font-medium text-slate-700">{row}</div>
           {columns.map((column) => {
@@ -61,4 +66,3 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
     </div>
   )
 }
-

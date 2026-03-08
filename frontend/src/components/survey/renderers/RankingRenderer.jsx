@@ -5,17 +5,18 @@ import { Button } from '@/components/ui/button'
 export default function RankingRenderer({ question, value = [], onChange, disabled = false }) {
   const orderedItems = value.length
     ? value
-    : (question.choices ?? []).map((choice) => ({
-        id: choice.id,
-        text: choice.text,
-      }))
+        .map((choiceId) =>
+          (question.choices ?? []).find((choice) => choice.id === choiceId)
+        )
+        .filter(Boolean)
+    : question.choices ?? []
 
   const moveItem = (index, direction) => {
     const nextItems = [...orderedItems]
     const targetIndex = index + direction
     const [item] = nextItems.splice(index, 1)
     nextItems.splice(targetIndex, 0, item)
-    onChange(nextItems)
+    onChange(nextItems.map((choice) => choice.id))
   }
 
   return (
@@ -54,4 +55,3 @@ export default function RankingRenderer({ question, value = [], onChange, disabl
     </div>
   )
 }
-
