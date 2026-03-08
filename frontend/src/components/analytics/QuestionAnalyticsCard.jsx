@@ -426,6 +426,7 @@ export default function QuestionAnalyticsCard({
   preference,
   onPreferenceChange,
   onWordClick,
+  readOnly = false,
 }) {
   const cardRef = useRef(null)
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
@@ -489,80 +490,84 @@ export default function QuestionAnalyticsCard({
             </h3>
           </div>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="outline" size="icon" className="rounded-2xl">
-                <Expand className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-2xl">
-              <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!readOnly ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="outline" size="icon" className="rounded-2xl">
+                  <Expand className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-2xl">
+                <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          {chartOptions.map((option) => {
-            const Icon = option.icon
-            return (
-              <Button
-                key={option.value}
-                type="button"
-                variant={localPreference.chartType === option.value ? 'default' : 'outline'}
-                className="rounded-full"
-                onClick={() =>
-                  applyPreference({
-                    ...localPreference,
-                    chartType: option.value,
-                  })
-                }
-              >
-                <Icon className="mr-2 h-4 w-4" />
-                {option.label}
-              </Button>
-            )
-          })}
+        {!readOnly ? (
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {chartOptions.map((option) => {
+              const Icon = option.icon
+              return (
+                <Button
+                  key={option.value}
+                  type="button"
+                  variant={localPreference.chartType === option.value ? 'default' : 'outline'}
+                  className="rounded-full"
+                  onClick={() =>
+                    applyPreference({
+                      ...localPreference,
+                      chartType: option.value,
+                    })
+                  }
+                >
+                  <Icon className="mr-2 h-4 w-4" />
+                  {option.label}
+                </Button>
+              )
+            })}
 
-          <div className="ml-auto flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Show table</span>
-              <Switch
-                checked={localPreference.showTable}
-                onCheckedChange={(checked) =>
+            <div className="ml-auto flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Show table</span>
+                <Switch
+                  checked={localPreference.showTable}
+                  onCheckedChange={(checked) =>
+                    applyPreference({
+                      ...localPreference,
+                      showTable: checked,
+                    })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">Show labels</span>
+                <Switch
+                  checked={localPreference.showLabels}
+                  onCheckedChange={(checked) =>
+                    applyPreference({
+                      ...localPreference,
+                      showLabels: checked,
+                    })
+                  }
+                />
+              </div>
+              <CustomSelect
+                value={localPreference.colorScheme}
+                onChange={(value) =>
                   applyPreference({
                     ...localPreference,
-                    showTable: checked,
+                    colorScheme: value,
                   })
                 }
+                options={COLOR_OPTIONS}
+                triggerClassName="h-10 w-[11rem] rounded-full"
+                contentClassName="rounded-2xl"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-muted-foreground">Show labels</span>
-              <Switch
-                checked={localPreference.showLabels}
-                onCheckedChange={(checked) =>
-                  applyPreference({
-                    ...localPreference,
-                    showLabels: checked,
-                  })
-                }
-              />
-            </div>
-            <CustomSelect
-              value={localPreference.colorScheme}
-              onChange={(value) =>
-                applyPreference({
-                  ...localPreference,
-                  colorScheme: value,
-                })
-              }
-              options={COLOR_OPTIONS}
-              triggerClassName="h-10 w-[11rem] rounded-full"
-              contentClassName="rounded-2xl"
-            />
           </div>
-        </div>
+        ) : null}
 
         <div className="mt-5">{content}</div>
 
@@ -622,7 +627,7 @@ export default function QuestionAnalyticsCard({
         ) : null}
       </div>
 
-      <Dialog open={fullScreenOpen} onOpenChange={setFullScreenOpen}>
+      <Dialog open={!readOnly && fullScreenOpen} onOpenChange={setFullScreenOpen}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
             <DialogTitle>{analytics.question.text}</DialogTitle>

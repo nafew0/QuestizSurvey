@@ -16,6 +16,7 @@ const SurveyPreviewPage = lazy(() => import('./pages/surveys/SurveyPreviewPage')
 const PublicSurveyPage = lazy(() => import('./pages/surveys/PublicSurveyPage'))
 const SurveyDistributePage = lazy(() => import('./pages/surveys/SurveyDistributePage'))
 const SurveyAnalyticsPage = lazy(() => import('./pages/surveys/SurveyAnalyticsPage'))
+const PublicReportPage = lazy(() => import('./pages/reports/PublicReportPage'))
 
 function AppFallback() {
   return (
@@ -31,8 +32,9 @@ function App() {
   const location = useLocation()
   const isBuilderRoute = /^\/surveys\/[^/]+\/edit\/?$/.test(location.pathname)
   const isPublicSurveyRoute = /^\/s\/[^/]+\/?$/.test(location.pathname)
+  const isPublicReportRoute = /^\/reports\/[^/]+\/?$/.test(location.pathname)
   const hideNavbar =
-    location.pathname.includes('/preview') || isPublicSurveyRoute
+    location.pathname.includes('/preview') || isPublicSurveyRoute || isPublicReportRoute
 
   return (
     <AuthProvider>
@@ -104,6 +106,7 @@ function App() {
                     }
                   />
                   <Route path="/s/:slug" element={<PublicSurveyPage />} />
+                  <Route path="/reports/:reportId" element={<PublicReportPage />} />
                   <Route
                     path="/profile"
                     element={

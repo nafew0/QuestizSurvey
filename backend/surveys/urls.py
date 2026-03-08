@@ -7,6 +7,7 @@ from surveys.views import (
     ExportJobViewSet,
     PageViewSet,
     PublicSurveyView,
+    PublicSavedReportDataView,
     QuestionViewSet,
     SavedReportViewSet,
     SurveyAnalyticsCrossTabView,
@@ -161,6 +162,11 @@ urlpatterns = [
         "surveys/<uuid:survey_pk>/exports/<uuid:pk>/",
         ExportJobViewSet.as_view({"get": "retrieve"}),
         name="export-job-detail",
+    ),
+    path(
+        "reports/<uuid:report_pk>/data/",
+        PublicSavedReportDataView.as_view(),
+        name="public-report-data",
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"

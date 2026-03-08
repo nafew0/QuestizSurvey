@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   BarChart3,
+  Globe2,
   Copy,
   FileDown,
   Filter,
+  Link2,
   LoaderCircle,
+  LockKeyhole,
   Rows3,
   Save,
   Share2,
@@ -25,6 +28,7 @@ import { CustomSelect } from '@/components/ui/custom-select'
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -38,10 +42,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/useToast'
 import {
   buildResponseFilterChips,
-  createDefaultReportConfig,
+  buildReportSaveConfig,
+  normalizeReportConfig,
 } from '@/lib/analytics'
 import {
   createSavedReport,
@@ -159,6 +165,10 @@ export default function SurveyAnalyticsPage() {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false)
   const [newReportName, setNewReportName] = useState('')
   const [appliedReportId, setAppliedReportId] = useState('')
+  const [shareDialogOpen, setShareDialogOpen] = useState(false)
+  const [shareEnabled, setShareEnabled] = useState(false)
+  const [sharePasswordEnabled, setSharePasswordEnabled] = useState(false)
+  const [sharePasswordInput, setSharePasswordInput] = useState('')
 
   useEffect(() => {
     const pollers = exportPollersRef.current
@@ -217,6 +227,23 @@ export default function SurveyAnalyticsPage() {
     },
   })
 
+  const shareReportMutation = useMutation({
+    mutationFn: ({ reportId, payload }) => updateSavedReport(surveyId, reportId, payload),
+    onSuccess: (report) => {
+      setActiveReportId(report.id)
+      setAppliedReportId(report.id)
+      setShareDialogOpen(false)
+      queryClient.invalidateQueries({ queryKey: ['saved-reports', surveyId] })
+      toast({
+        title: report.is_shared ? 'Share settings updated' : 'Sharing disabled',
+        description: report.is_shared
+          ? 'The public report link is ready to share.'
+          : 'The public report link is no longer available.',
+        variant: 'success',
+      })
+    },
+  })
+
   const deleteReportMutation = useMutation({
     mutationFn: (reportId) => deleteSavedReport(surveyId, reportId),
     onSuccess: () => {
@@ -234,6 +261,10 @@ export default function SurveyAnalyticsPage() {
   const survey = surveyQuery.data
   const collectors = useMemo(() => collectorsQuery.data ?? [], [collectorsQuery.data])
   const questions = useMemo(() => extractQuestions(survey), [survey])
+  const activeReport = useMemo(
+    () => (reportsQuery.data ?? []).find((entry) => entry.id === activeReportId) || null,
+    [activeReportId, reportsQuery.data]
+  )
 
   const questionLookup = useMemo(
     () => Object.fromEntries(questions.map((question) => [question.id, question.text])),
@@ -257,6 +288,19 @@ export default function SurveyAnalyticsPage() {
         })),
     [questions]
   )
+  const sharedReportUrl = activeReport
+    ? activeReport.public_url || `${window.location.origin}/reports/${activeReport.id}`
+    : ''
+
+  useEffect(() => {
+    if (!shareDialogOpen) {
+      return
+    }
+
+    setShareEnabled(Boolean(activeReport?.is_shared))
+    setSharePasswordEnabled(Boolean(activeReport?.has_share_password))
+    setSharePasswordInput('')
+  }, [activeReport, shareDialogOpen])
 
   useEffect(() => {
     if (!activeReportId || !reportsQuery.data?.length || appliedReportId === activeReportId) {
@@ -268,7 +312,7 @@ export default function SurveyAnalyticsPage() {
       return
     }
 
-    const config = report.config || createDefaultReportConfig()
+    const config = normalizeReportConfig(report.config)
     setFilters(config.filters || {})
     setCardPreferences(config.card_preferences || {})
     setCrossTabState(config.cross_tab || { row: '', col: '', view: 'table' })
@@ -332,13 +376,15 @@ export default function SurveyAnalyticsPage() {
   }
 
   const currentConfig = useMemo(
-    () => ({
-      filters,
-      card_preferences: cardPreferences,
-      cross_tab: crossTabState,
-      active_tab: isResponsesTab ? 'responses' : 'overview',
-    }),
-    [cardPreferences, crossTabState, filters, isResponsesTab]
+    () =>
+      buildReportSaveConfig({
+        filters,
+        cardPreferences,
+        crossTabState,
+        isResponsesTab,
+        existingConfig: activeReport?.config || {},
+      }),
+    [activeReport?.config, cardPreferences, crossTabState, filters, isResponsesTab]
   )
 
   const handleSaveReport = () => {
@@ -370,12 +416,66 @@ export default function SurveyAnalyticsPage() {
   }
 
   const handleShareResults = async () => {
-    const shareUrl = `${window.location.origin}${location.pathname}`
-    await navigator.clipboard.writeText(shareUrl)
+    if (!activeReportId) {
+      toast({
+        title: 'Save a report first',
+        description: 'Shared links are generated from a saved analytics report.',
+        variant: 'warning',
+      })
+      return
+    }
+
+    setShareDialogOpen(true)
+  }
+
+  const handleCopySharedLink = async () => {
+    if (!activeReport?.is_shared || !sharedReportUrl) {
+      toast({
+        title: 'Enable sharing first',
+        description: 'Turn on public sharing to generate a report URL.',
+        variant: 'warning',
+      })
+      return
+    }
+
+    await navigator.clipboard.writeText(sharedReportUrl)
     toast({
-      title: 'Analytics link copied',
-      description: 'The current analytics route was copied to the clipboard.',
+      title: 'Shared link copied',
+      description: 'The public report URL is ready to paste.',
       variant: 'success',
+    })
+  }
+
+  const handleSaveShareSettings = () => {
+    if (!activeReport) {
+      return
+    }
+
+    if (shareEnabled && sharePasswordEnabled) {
+      const nextPassword = sharePasswordInput.trim()
+      if (!nextPassword && !activeReport.has_share_password) {
+        toast({
+          title: 'Password required',
+          description: 'Enter a password or turn password protection off.',
+          variant: 'warning',
+        })
+        return
+      }
+    }
+
+    const payload = {
+      is_shared: shareEnabled,
+    }
+
+    if (!shareEnabled || !sharePasswordEnabled) {
+      payload.share_password = ''
+    } else if (sharePasswordInput.trim()) {
+      payload.share_password = sharePasswordInput.trim()
+    }
+
+    shareReportMutation.mutate({
+      reportId: activeReport.id,
+      payload,
     })
   }
 
@@ -588,6 +688,7 @@ export default function SurveyAnalyticsPage() {
                 <Badge variant="secondary">{survey.status}</Badge>
                 <Badge variant="outline">/{survey.slug}</Badge>
                 <Badge variant="outline">{survey.pages.length} pages</Badge>
+                {activeReport?.is_shared ? <Badge variant="success">Shared</Badge> : null}
               </div>
               <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
                 {survey.title}
@@ -603,7 +704,7 @@ export default function SurveyAnalyticsPage() {
                 }}
                 options={(reportsQuery.data ?? []).map((report) => ({
                   value: report.id,
-                  label: report.name,
+                  label: report.is_shared ? `${report.name} · shared` : report.name,
                 }))}
                 placeholder="Saved reports"
                 triggerClassName="h-10 w-[12rem] rounded-full"
@@ -645,7 +746,7 @@ export default function SurveyAnalyticsPage() {
 
               <Button type="button" variant="outline" className="rounded-full" onClick={handleShareResults}>
                 <Share2 className="mr-2 h-4 w-4" />
-                Share Results
+                Share Report
               </Button>
 
               <Button type="button" className="rounded-full" onClick={handleSaveReport}>
@@ -790,6 +891,128 @@ export default function SurveyAnalyticsPage() {
             </Button>
             <Button type="button" onClick={handleCreateReport}>
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Share saved report</DialogTitle>
+            <DialogDescription>
+              Publish the selected saved report as a read-only analytics page. Save report changes first if you want the shared view to match your latest edits.
+            </DialogDescription>
+          </DialogHeader>
+
+          {activeReport ? (
+            <div className="space-y-4">
+              <div className="theme-panel-soft rounded-[1.5rem] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">{activeReport.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Public sharing is {activeReport.is_shared ? 'currently enabled' : 'currently off'}.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">Public link</span>
+                    <Switch checked={shareEnabled} onCheckedChange={setShareEnabled} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.78)] p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Password protect</p>
+                    <p className="text-xs text-muted-foreground">
+                      Require a password before the shared report opens.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={sharePasswordEnabled}
+                    onCheckedChange={setSharePasswordEnabled}
+                    disabled={!shareEnabled}
+                  />
+                </div>
+
+                {shareEnabled && sharePasswordEnabled ? (
+                  <div className="space-y-2">
+                    <label className="block space-y-2">
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        {activeReport.has_share_password ? 'Replace password' : 'Set password'}
+                      </span>
+                      <Input
+                        type="password"
+                        value={sharePasswordInput}
+                        onChange={(event) => setSharePasswordInput(event.target.value)}
+                        placeholder={
+                          activeReport.has_share_password
+                            ? 'Leave blank to keep the current password'
+                            : 'Create a password'
+                        }
+                        className="h-11 rounded-2xl"
+                      />
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {activeReport.has_share_password
+                        ? 'Leave the field empty to keep the existing password, or type a new one to replace it.'
+                        : 'Anyone with the link will need this password before viewing the report.'}
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="space-y-3 rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.78)] p-4">
+                <div className="flex items-center gap-2">
+                  <Globe2 className="h-4 w-4 text-[rgb(var(--theme-primary-rgb))]" />
+                  <p className="text-sm font-semibold text-foreground">Public report link</p>
+                </div>
+                <div className="rounded-2xl bg-[rgb(var(--theme-neutral-rgb))] px-4 py-3 text-sm text-muted-foreground">
+                  {sharedReportUrl || 'Save a report to generate a link.'}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={handleCopySharedLink}
+                    disabled={!activeReport.is_shared}
+                  >
+                    <Link2 className="mr-2 h-4 w-4" />
+                    Copy link
+                  </Button>
+                  {activeReport.has_share_password || sharePasswordEnabled ? (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--theme-border-rgb)/0.82)] px-3 py-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                      <LockKeyhole className="h-3.5 w-3.5" />
+                      Password protected
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-[1.5rem] border border-dashed border-[rgb(var(--theme-border-rgb)/0.78)] px-5 py-6 text-sm text-muted-foreground">
+              Select a saved report first.
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setShareDialogOpen(false)}>
+              Close
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSaveShareSettings}
+              disabled={!activeReport || shareReportMutation.isPending}
+            >
+              {shareReportMutation.isPending ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Share2 className="mr-2 h-4 w-4" />
+              )}
+              Save share settings
             </Button>
           </DialogFooter>
         </DialogContent>

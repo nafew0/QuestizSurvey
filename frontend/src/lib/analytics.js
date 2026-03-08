@@ -182,12 +182,125 @@ export function buildResponseFilterChips(filters, questionLookup = {}, collector
 export function createDefaultReportConfig(filters = {}) {
   return {
     filters,
+    question_ids: null,
+    chart_overrides: {},
     card_preferences: {},
+    cross_tabs: [],
     cross_tab: {
       row: '',
       col: '',
       view: 'table',
     },
+    layout: 'summary',
     active_tab: 'overview',
   }
+}
+
+export function normalizeReportConfig(config = {}) {
+  const next = {
+    ...createDefaultReportConfig(),
+    ...config,
+  }
+
+  if (
+    (!next.chart_overrides || !Object.keys(next.chart_overrides).length) &&
+    next.card_preferences &&
+    Object.keys(next.card_preferences).length
+  ) {
+    next.chart_overrides = Object.fromEntries(
+      Object.entries(next.card_preferences).map(([questionId, preference]) => [
+        questionId,
+        {
+          chart_type: preference?.chartType || preference?.chart_type || null,
+          color_scheme: preference?.colorScheme || preference?.color_scheme || 'default',
+          show_table: preference?.showTable ?? preference?.show_table ?? false,
+          show_labels: preference?.showLabels ?? preference?.show_labels ?? false,
+        },
+      ])
+    )
+  }
+
+  if (
+    (!next.card_preferences || !Object.keys(next.card_preferences).length) &&
+    next.chart_overrides &&
+    Object.keys(next.chart_overrides).length
+  ) {
+    next.card_preferences = Object.fromEntries(
+      Object.entries(next.chart_overrides).map(([questionId, preference]) => [
+        questionId,
+        {
+          chartType: preference?.chart_type || preference?.chartType || null,
+          colorScheme: preference?.color_scheme || preference?.colorScheme || 'default',
+          showTable: preference?.show_table ?? preference?.showTable ?? false,
+          showLabels: preference?.show_labels ?? preference?.showLabels ?? false,
+        },
+      ])
+    )
+  }
+
+  if ((!next.cross_tabs || !next.cross_tabs.length) && next.cross_tab?.row && next.cross_tab?.col) {
+    next.cross_tabs = [
+      {
+        row_question_id: next.cross_tab.row,
+        col_question_id: next.cross_tab.col,
+        view: next.cross_tab.view || 'table',
+      },
+    ]
+  }
+
+  if ((!next.cross_tab || !next.cross_tab.row || !next.cross_tab.col) && next.cross_tabs?.length) {
+    const first = next.cross_tabs[0]
+    next.cross_tab = {
+      row: first?.row_question_id || first?.row_q_id || first?.row || '',
+      col: first?.col_question_id || first?.col_q_id || first?.col || '',
+      view: first?.view || 'table',
+    }
+  }
+
+  return next
+}
+
+export function buildReportSaveConfig({
+  filters = {},
+  cardPreferences = {},
+  crossTabState = {},
+  isResponsesTab = false,
+  existingConfig = {},
+}) {
+  const normalizedCrossTab = {
+    row: crossTabState.row || '',
+    col: crossTabState.col || '',
+    view: crossTabState.view || 'table',
+  }
+  const baseConfig = normalizeReportConfig(existingConfig)
+
+  return normalizeReportConfig({
+    ...baseConfig,
+    filters,
+    chart_overrides: Object.fromEntries(
+      Object.entries(cardPreferences).map(([questionId, preference]) => [
+        questionId,
+        {
+          chart_type: preference?.chartType || preference?.chart_type || null,
+          color_scheme: preference?.colorScheme || preference?.color_scheme || 'default',
+          show_table: preference?.showTable ?? preference?.show_table ?? false,
+          show_labels: preference?.showLabels ?? preference?.show_labels ?? false,
+        },
+      ])
+    ),
+    card_preferences: cardPreferences,
+    cross_tabs:
+      normalizedCrossTab.row && normalizedCrossTab.col
+        ? [
+            {
+              row_question_id: normalizedCrossTab.row,
+              col_question_id: normalizedCrossTab.col,
+              view: normalizedCrossTab.view,
+            },
+          ]
+        : [],
+    cross_tab: normalizedCrossTab,
+    layout: baseConfig.layout || 'summary',
+    active_tab: isResponsesTab ? 'responses' : 'overview',
+  })
 }
