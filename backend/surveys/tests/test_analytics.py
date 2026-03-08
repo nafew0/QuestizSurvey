@@ -351,3 +351,40 @@ class AnalyticsApiTests(TestCase):
         self.assertEqual(bulk_delete_response.status_code, status.HTTP_200_OK)
         self.assertEqual(bulk_delete_response.data["deleted_count"], 2)
         self.assertEqual(self.survey.responses.count(), 0)
+
+    def test_saved_report_crud(self):
+        create_response = self.client.post(
+            f"/api/surveys/{self.survey.id}/reports/",
+            {
+                "name": "Weekly overview",
+                "config": {
+                    "filters": {"status": "completed"},
+                    "card_preferences": {
+                        str(self.choice_question.id): {
+                            "chartType": "pie",
+                        }
+                    },
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
+        report_id = create_response.data["id"]
+
+        list_response = self.client.get(f"/api/surveys/{self.survey.id}/reports/")
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(list_response.data), 1)
+
+        update_response = self.client.patch(
+            f"/api/surveys/{self.survey.id}/reports/{report_id}/",
+            {"name": "Updated overview"},
+            format="json",
+        )
+        self.assertEqual(update_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(update_response.data["name"], "Updated overview")
+
+        delete_response = self.client.delete(
+            f"/api/surveys/{self.survey.id}/reports/{report_id}/"
+        )
+        self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)

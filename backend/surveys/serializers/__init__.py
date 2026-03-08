@@ -11,6 +11,7 @@ from .question_serializers import (
     QuestionSerializer,
     QuestionWithChoicesSerializer,
 )
+from .report_serializers import SavedReportSerializer
 from .response_serializers import (
     BulkDeleteResponsesSerializer,
     SubmitAnswerSerializer,
@@ -36,6 +37,7 @@ __all__ = [
     "QuestionCreateSerializer",
     "QuestionSerializer",
     "QuestionWithChoicesSerializer",
+    "SavedReportSerializer",
     "SubmitAnswerSerializer",
     "SurveyCreateUpdateSerializer",
     "SurveyDetailSerializer",

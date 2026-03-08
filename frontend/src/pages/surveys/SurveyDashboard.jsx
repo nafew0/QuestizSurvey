@@ -1,5 +1,6 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
 import {
+  BarChart3,
   Copy,
   Layers3,
   MoreHorizontal,
@@ -383,6 +384,10 @@ export default function SurveyDashboard() {
                       <DropdownMenuContent align="end" className="rounded-2xl">
                         <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/edit`)}>
                           Open builder
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/analyze`)}>
+                          <BarChart3 className="mr-2 h-4 w-4" />
+                          Analyze
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/distribute`)}>
                           <Share2 className="mr-2 h-4 w-4" />

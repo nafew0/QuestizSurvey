@@ -115,6 +115,9 @@ class AnswerDetailSerializer(serializers.ModelSerializer):
     question_text = serializers.CharField(source="question.text", read_only=True)
     question_type = serializers.CharField(source="question.question_type", read_only=True)
     choice_texts = serializers.SerializerMethodField()
+    ranking_texts = serializers.SerializerMethodField()
+    constant_sum_items = serializers.SerializerMethodField()
+    question_choices = serializers.SerializerMethodField()
 
     class Meta:
         model = Answer
@@ -125,6 +128,9 @@ class AnswerDetailSerializer(serializers.ModelSerializer):
             "question_type",
             "choice_ids",
             "choice_texts",
+            "ranking_texts",
+            "constant_sum_items",
+            "question_choices",
             "text_value",
             "numeric_value",
             "date_value",
@@ -143,6 +149,35 @@ class AnswerDetailSerializer(serializers.ModelSerializer):
         return [
             choice_map.get(str(choice_id), str(choice_id))
             for choice_id in obj.choice_ids
+        ]
+
+    def get_ranking_texts(self, obj):
+        question = obj.question
+        choice_map = {str(choice.id): choice.text for choice in question.choices.all()}
+        return [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in (obj.ranking_data or [])
+        ]
+
+    def get_constant_sum_items(self, obj):
+        question = obj.question
+        choice_map = {str(choice.id): choice.text for choice in question.choices.all()}
+        return [
+            {
+                "choice_id": choice_id,
+                "text": choice_map.get(str(choice_id), str(choice_id)),
+                "value": value,
+            }
+            for choice_id, value in (obj.constant_sum_data or {}).items()
+        ]
+
+    def get_question_choices(self, obj):
+        return [
+            {
+                "id": str(choice.id),
+                "text": choice.text,
+            }
+            for choice in obj.question.choices.all()
         ]
 
 

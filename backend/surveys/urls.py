@@ -7,6 +7,7 @@ from surveys.views import (
     PageViewSet,
     PublicSurveyView,
     QuestionViewSet,
+    SavedReportViewSet,
     SurveyAnalyticsCrossTabView,
     SurveyAnalyticsQuestionDetailView,
     SurveyAnalyticsQuestionListView,
@@ -132,6 +133,23 @@ urlpatterns = [
         "surveys/<uuid:survey_pk>/analytics/crosstab/",
         SurveyAnalyticsCrossTabView.as_view(),
         name="analytics-crosstab",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/reports/",
+        SavedReportViewSet.as_view({"get": "list", "post": "create"}),
+        name="saved-report-list",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/reports/<uuid:pk>/",
+        SavedReportViewSet.as_view(
+            {
+                "get": "retrieve",
+                "patch": "partial_update",
+                "put": "update",
+                "delete": "destroy",
+            }
+        ),
+        name="saved-report-detail",
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"

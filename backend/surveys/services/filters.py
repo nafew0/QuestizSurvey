@@ -205,7 +205,9 @@ class ResponseFilterService:
 
         if self.filters.text_search:
             queryset = queryset.filter(
-                Q(answers__text_value__icontains=self.filters.text_search)
+                Q(respondent_email__icontains=self.filters.text_search)
+                | Q(ip_address__icontains=self.filters.text_search)
+                | Q(answers__text_value__icontains=self.filters.text_search)
                 | Q(answers__other_text__icontains=self.filters.text_search)
             ).distinct()
 
