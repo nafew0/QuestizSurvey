@@ -11,6 +11,54 @@ from surveys.models import (
 )
 
 
+def _truncate_text(value, *, limit=48):
+    if len(value) <= limit:
+        return value
+    return f"{value[: limit - 1].rstrip()}…"
+
+
+def build_answer_summary(answer):
+    question = getattr(answer, "question", None)
+    question_type = getattr(question, "question_type", "")
+    choice_map = {
+        str(choice.id): choice.text for choice in getattr(question, "choices", []).all()
+    } if question is not None else {}
+
+    if answer.choice_ids:
+        selected_labels = [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in answer.choice_ids
+        ]
+        summary = ", ".join(selected_labels)
+    elif answer.text_value:
+        summary = answer.text_value
+    elif answer.numeric_value is not None:
+        summary = str(answer.numeric_value)
+    elif answer.date_value:
+        summary = answer.date_value.isoformat()
+    elif answer.file_url:
+        summary = answer.file_url
+    elif answer.ranking_data:
+        ranked_labels = [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in answer.ranking_data
+        ]
+        summary = " > ".join(ranked_labels)
+    elif answer.constant_sum_data:
+        summary = f"{len(answer.constant_sum_data)} allocations"
+    elif answer.matrix_data:
+        if question_type == Question.QuestionType.DEMOGRAPHICS:
+            summary = ", ".join(
+                f"{field}: {value}" for field, value in answer.matrix_data.items() if value
+            )
+        else:
+            summary = f"{len(answer.matrix_data)} rows answered"
+    else:
+        summary = ""
+
+    return _truncate_text(summary)
+
+
 class AnswerSerializer(serializers.ModelSerializer):
     question = serializers.PrimaryKeyRelatedField(read_only=True)
 
@@ -34,20 +82,72 @@ class AnswerSerializer(serializers.ModelSerializer):
 
 
 class SurveyResponseSerializer(serializers.ModelSerializer):
+    collector = serializers.PrimaryKeyRelatedField(read_only=True)
+    answer_summaries = serializers.SerializerMethodField()
+
     class Meta:
         model = SurveyResponse
         fields = [
             "id",
+            "collector",
             "status",
             "started_at",
             "completed_at",
             "duration_seconds",
             "respondent_email",
+            "answer_summaries",
+        ]
+
+    def get_answer_summaries(self, obj):
+        answers = list(getattr(obj, "answers", []).all())[:3]
+        return [
+            {
+                "question_id": str(answer.question_id),
+                "question_text": answer.question.text,
+                "summary": build_answer_summary(answer),
+            }
+            for answer in answers
+        ]
+
+
+class AnswerDetailSerializer(serializers.ModelSerializer):
+    question_id = serializers.UUIDField(source="question.id", read_only=True)
+    question_text = serializers.CharField(source="question.text", read_only=True)
+    question_type = serializers.CharField(source="question.question_type", read_only=True)
+    choice_texts = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Answer
+        fields = [
+            "id",
+            "question_id",
+            "question_text",
+            "question_type",
+            "choice_ids",
+            "choice_texts",
+            "text_value",
+            "numeric_value",
+            "date_value",
+            "file_url",
+            "matrix_data",
+            "ranking_data",
+            "constant_sum_data",
+            "other_text",
+            "comment_text",
+            "answered_at",
+        ]
+
+    def get_choice_texts(self, obj):
+        question = obj.question
+        choice_map = {str(choice.id): choice.text for choice in question.choices.all()}
+        return [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in obj.choice_ids
         ]
 
 
 class SurveyResponseDetailSerializer(serializers.ModelSerializer):
-    answers = AnswerSerializer(many=True, read_only=True)
+    answers = AnswerDetailSerializer(many=True, read_only=True)
     email_invitation = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
@@ -69,6 +169,13 @@ class SurveyResponseDetailSerializer(serializers.ModelSerializer):
             "resume_token",
             "answers",
         ]
+
+
+class BulkDeleteResponsesSerializer(serializers.Serializer):
+    ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False,
+    )
 
 
 class SubmitAnswerItemSerializer(serializers.Serializer):

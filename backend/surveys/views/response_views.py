@@ -1,13 +1,18 @@
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from surveys.models import Collector, EmailInvitation, Survey, SurveyResponse
+from django.db.models import Prefetch
+
+from surveys.models import Answer, Collector, EmailInvitation, Survey, SurveyResponse
+from surveys.services import ResponseFilterService
 from surveys.serializers import (
+    BulkDeleteResponsesSerializer,
     PublicSurveySerializer,
     SubmitAnswerSerializer,
     SurveyResponseDetailSerializer,
@@ -16,9 +21,14 @@ from surveys.serializers import (
 
 from .common import get_owned_survey
 
-
-class SurveyResponseViewSet(viewsets.ReadOnlyModelViewSet):
+class SurveyResponseViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
     permission_classes = [IsAuthenticated]
+    ordering_fields = {"started_at", "completed_at", "duration_seconds"}
 
     def get_survey(self):
         return get_owned_survey(self.request.user, self.kwargs["survey_pk"])
@@ -29,37 +39,45 @@ class SurveyResponseViewSet(viewsets.ReadOnlyModelViewSet):
             .responses.select_related(
                 "collector",
                 "current_page",
+                "email_invitation",
             )
-            .prefetch_related("answers")
+            .prefetch_related(
+                Prefetch(
+                    "answers",
+                    queryset=Answer.objects.select_related("question", "question__page")
+                    .prefetch_related("question__choices")
+                    .order_by("question__page__order", "question__order"),
+                )
+            )
         )
-
-        status_filter = self.request.query_params.get("status")
-        collector_filter = self.request.query_params.get("collector")
-        completed_after = self.request.query_params.get("completed_after")
-        completed_before = self.request.query_params.get("completed_before")
-
-        if status_filter:
-            queryset = queryset.filter(status=status_filter)
-
-        if collector_filter:
-            queryset = queryset.filter(collector_id=collector_filter)
-
-        if completed_after:
-            parsed_after = parse_datetime(completed_after)
-            if parsed_after:
-                queryset = queryset.filter(completed_at__gte=parsed_after)
-
-        if completed_before:
-            parsed_before = parse_datetime(completed_before)
-            if parsed_before:
-                queryset = queryset.filter(completed_at__lte=parsed_before)
-
-        return queryset
+        filtered = ResponseFilterService.from_query_params(
+            queryset,
+            self.request.query_params,
+        ).apply()
+        return filtered.order_by(self.get_ordering())
 
     def get_serializer_class(self):
         if self.action == "retrieve":
             return SurveyResponseDetailSerializer
         return SurveyResponseSerializer
+
+    def get_ordering(self):
+        ordering = self.request.query_params.get("ordering", "-started_at")
+        normalized = ordering.lstrip("-")
+        if normalized not in self.ordering_fields:
+            return "-started_at"
+        return ordering
+
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete(self, request, survey_pk=None):
+        serializer = BulkDeleteResponsesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        queryset = self.get_survey().responses.filter(id__in=serializer.validated_data["ids"])
+        deleted_count = queryset.count()
+        queryset.delete()
+
+        return Response({"deleted_count": deleted_count}, status=status.HTTP_200_OK)
 
 
 class PublicSurveyView(APIView):

@@ -7,6 +7,10 @@ from surveys.views import (
     PageViewSet,
     PublicSurveyView,
     QuestionViewSet,
+    SurveyAnalyticsCrossTabView,
+    SurveyAnalyticsQuestionDetailView,
+    SurveyAnalyticsQuestionListView,
+    SurveyAnalyticsSummaryView,
     SurveyResponseViewSet,
     SurveyViewSet,
 )
@@ -100,9 +104,34 @@ urlpatterns = [
         name="response-list",
     ),
     path(
+        "surveys/<uuid:survey_pk>/responses/bulk-delete/",
+        SurveyResponseViewSet.as_view({"post": "bulk_delete"}),
+        name="response-bulk-delete",
+    ),
+    path(
         "surveys/<uuid:survey_pk>/responses/<uuid:pk>/",
-        SurveyResponseViewSet.as_view({"get": "retrieve"}),
+        SurveyResponseViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
         name="response-detail",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/analytics/summary/",
+        SurveyAnalyticsSummaryView.as_view(),
+        name="analytics-summary",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/analytics/questions/",
+        SurveyAnalyticsQuestionListView.as_view(),
+        name="analytics-question-list",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/analytics/questions/<uuid:question_pk>/",
+        SurveyAnalyticsQuestionDetailView.as_view(),
+        name="analytics-question-detail",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/analytics/crosstab/",
+        SurveyAnalyticsCrossTabView.as_view(),
+        name="analytics-crosstab",
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"

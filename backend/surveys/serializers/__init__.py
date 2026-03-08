@@ -12,6 +12,7 @@ from .question_serializers import (
     QuestionWithChoicesSerializer,
 )
 from .response_serializers import (
+    BulkDeleteResponsesSerializer,
     SubmitAnswerSerializer,
     SurveyResponseDetailSerializer,
     SurveyResponseSerializer,
@@ -28,6 +29,7 @@ __all__ = [
     "CollectorSendEmailsSerializer",
     "CollectorSendRemindersSerializer",
     "CollectorSerializer",
+    "BulkDeleteResponsesSerializer",
     "EmailInvitationSerializer",
     "PageSerializer",
     "PublicSurveySerializer",
