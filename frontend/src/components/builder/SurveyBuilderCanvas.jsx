@@ -426,14 +426,21 @@ function QuestionCard({
       }}
     >
       <div className="flex items-start gap-3">
-        <button
-          type="button"
-          draggable
-          onDragStart={onDragStart}
-          className="theme-panel-soft mt-1 rounded-2xl p-2 text-muted-foreground hover:text-foreground"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          {questionNumber ? (
+            <span className="theme-panel-soft inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
+              {questionNumber}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            draggable
+            onDragStart={onDragStart}
+            className="theme-panel-soft rounded-2xl p-2 text-muted-foreground hover:text-foreground"
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        </div>
 
         <div className="min-w-0 flex-1 space-y-5">
           <div className="flex items-start justify-between gap-3">
@@ -446,11 +453,6 @@ function QuestionCard({
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-start gap-2">
-                  {questionNumber ? (
-                    <span className="mt-0.5 inline-flex min-w-8 items-center justify-center rounded-full border border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb))] px-2 py-0.5 text-xs font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
-                      {questionNumber}
-                    </span>
-                  ) : null}
                   <Input
                     value={question.text}
                     onChange={(event) => onTitleChange(event.target.value)}
