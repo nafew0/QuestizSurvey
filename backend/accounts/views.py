@@ -1,9 +1,11 @@
+from django.contrib.auth.models import update_last_login
+from django.db.models import Q
 from rest_framework import status, generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenRefreshView
 from django.contrib.auth import get_user_model
 
 from .serializers import (
@@ -52,19 +54,39 @@ class RegisterView(generics.CreateAPIView):
 def login_view(request):
     """
     User login endpoint.
-    Uses TokenObtainPairView internally but returns user data as well.
+    Accepts either username or email and returns user data with JWT tokens.
     """
-    from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+    identifier = (request.data.get("username") or request.data.get("identifier") or "").strip()
+    password = request.data.get("password") or ""
 
-    serializer = TokenObtainPairSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
+    if not identifier or not password:
+        return Response(
+            {"detail": "Username/email and password are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    user = User.objects.get(username=request.data["username"])
+    user = (
+        User.objects.filter(Q(username__iexact=identifier) | Q(email__iexact=identifier))
+        .distinct()
+        .first()
+    )
+
+    if not user or not user.check_password(password) or not user.is_active:
+        return Response(
+            {"detail": "No active account found with the given credentials."},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
+    refresh = RefreshToken.for_user(user)
+    update_last_login(None, user)
 
     return Response(
         {
             "user": UserSerializer(user).data,
-            "tokens": serializer.validated_data,
+            "tokens": {
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+            },
             "message": "Login successful.",
         },
         status=status.HTTP_200_OK,

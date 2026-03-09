@@ -6,9 +6,40 @@ Template created from AniFight project.
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
+
+from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
+
+def env_bool(name, default=False):
+    return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_list(name, default=None):
+    raw_value = os.environ.get(name)
+    values = raw_value.split(",") if raw_value is not None else (default or [])
+    return [value.strip() for value in values if value and value.strip()]
+
+
+def unique_items(values):
+    seen = set()
+    result = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def origin_to_host(value):
+    if not value:
+        return ""
+    parsed = urlparse(value)
+    return parsed.hostname or value.split(":")[0].strip("/")
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
@@ -16,9 +47,38 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DEBUG", "True") == "True"
+DEBUG = env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+APP_ORIGIN = os.environ.get("APP_ORIGIN", "").rstrip("/")
+API_ORIGIN = os.environ.get("API_ORIGIN", "").rstrip("/")
+
+PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", APP_ORIGIN).rstrip("/")
+API_BASE_URL = os.environ.get(
+    "API_BASE_URL",
+    f"{API_ORIGIN}/api" if API_ORIGIN else (f"{PUBLIC_APP_URL}/api" if PUBLIC_APP_URL else ""),
+).rstrip("/")
+
+default_allowed_hosts = [
+    host
+    for host in {
+        origin_to_host(APP_ORIGIN),
+        origin_to_host(API_ORIGIN),
+        origin_to_host(PUBLIC_APP_URL),
+        origin_to_host(API_BASE_URL),
+    }
+    if host
+]
+if DEBUG:
+    default_allowed_hosts.extend(["localhost", "127.0.0.1"])
+
+ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", default_allowed_hosts or ["localhost", "127.0.0.1"])
+
+default_dev_frontend_origins = (
+    ["http://localhost:5555", "http://127.0.0.1:5555"] if DEBUG else []
+)
+default_dev_backend_origins = (
+    ["http://localhost:8000", "http://127.0.0.1:8000"] if DEBUG else []
+)
 
 # Application definition
 INSTALLED_APPS = [
@@ -116,11 +176,11 @@ USE_I18N = True
 USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = "static/"
+STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Media files
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # Default primary key field type
@@ -161,19 +221,24 @@ SIMPLE_JWT = {
 }
 
 # CORS Settings
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5555",
-    "http://127.0.0.1:5555",
-]
+CORS_ALLOWED_ORIGINS = env_list(
+    "CORS_ALLOWED_ORIGINS",
+    unique_items(
+        [origin for origin in [APP_ORIGIN, PUBLIC_APP_URL] if origin]
+        + default_dev_frontend_origins
+    ),
+)
 
 CORS_ALLOW_CREDENTIALS = True
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5555",
-    "http://127.0.0.1:5555",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-]
+CSRF_TRUSTED_ORIGINS = env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    unique_items(
+        [origin for origin in [APP_ORIGIN, API_ORIGIN, PUBLIC_APP_URL] if origin]
+        + default_dev_frontend_origins
+        + default_dev_backend_origins
+    ),
+)
 
 # Channels
 CHANNEL_LAYERS = {
@@ -193,10 +258,6 @@ CACHES = {
     }
 }
 
-# Public URLs
-PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", "http://localhost:5555")
-API_BASE_URL = os.environ.get("API_BASE_URL", "http://localhost:8000/api")
-
 # Email
 EMAIL_BACKEND = os.environ.get(
     "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
@@ -205,18 +266,19 @@ EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "False") == "True"
-EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "False") == "True"
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", False)
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@questiz.local")
 
 # Celery
 CELERY_BROKER_URL = os.environ.get(
     "CELERY_BROKER_URL", "redis://127.0.0.1:6379/2"
 )
-CELERY_RESULT_BACKEND = os.environ.get(
-    "CELERY_RESULT_BACKEND", CELERY_BROKER_URL
-)
-CELERY_TASK_ALWAYS_EAGER = os.environ.get("CELERY_TASK_ALWAYS_EAGER", "False") == "True"
-CELERY_TASK_EAGER_PROPAGATES = (
-    os.environ.get("CELERY_TASK_EAGER_PROPAGATES", "True") == "True"
-)
+CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
+CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
+CELERY_TASK_EAGER_PROPAGATES = env_bool("CELERY_TASK_EAGER_PROPAGATES", True)
+
+USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
+SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)

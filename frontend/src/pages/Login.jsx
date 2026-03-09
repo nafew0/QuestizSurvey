@@ -55,7 +55,7 @@ const Login = () => {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
           <CardDescription className="text-center">
-            Enter your credentials to access your account
+            Enter your username or email to access your account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -68,12 +68,12 @@ const Login = () => {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">Username or email</Label>
               <Input
                 id="username"
                 name="username"
                 type="text"
-                placeholder="Enter your username"
+                placeholder="Enter your username or email"
                 value={formData.username}
                 onChange={handleChange}
                 required

@@ -144,31 +144,35 @@ pip install -r requirements.txt
 pip install gunicorn
 ```
 
-Create the backend env file:
+Create the production backend env file from the repo template:
 
 ```bash
-cp .env.example .env
+cp .env.production.example .env
 ```
 
-Edit `/srv/questizsurvey/app/backend/.env`:
+Edit `/srv/questizsurvey/app/backend/.env` and fill in the secrets:
 
 ```env
 DJANGO_SECRET_KEY=CHANGE_THIS_TO_A_LONG_RANDOM_SECRET
 DEBUG=False
+
+APP_ORIGIN=https://survey.mindspear.app
+API_ORIGIN=https://survey.mindspear.app
+PUBLIC_APP_URL=https://survey.mindspear.app
+API_BASE_URL=https://survey.mindspear.app/api
 ALLOWED_HOSTS=survey.mindspear.app
+CORS_ALLOWED_ORIGINS=https://survey.mindspear.app
+CSRF_TRUSTED_ORIGINS=https://survey.mindspear.app
 
 DB_ENGINE=django.db.backends.postgresql
 DB_NAME=questizsurvey_db
 DB_USER=questizsurvey_user
 DB_PASSWORD=CHANGE_THIS_TO_A_STRONG_PASSWORD
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_PORT=5432
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-
-PUBLIC_APP_URL=https://survey.mindspear.app
-API_BASE_URL=https://survey.mindspear.app/api
 
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
 EMAIL_HOST=YOUR_SMTP_HOST
@@ -183,10 +187,18 @@ CELERY_BROKER_URL=redis://127.0.0.1:6379/2
 CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/2
 CELERY_TASK_ALWAYS_EAGER=False
 CELERY_TASK_EAGER_PROPAGATES=True
+USE_X_FORWARDED_HOST=True
+CSRF_COOKIE_SECURE=True
+SESSION_COOKIE_SECURE=True
+GUNICORN_BIND=127.0.0.1:8010
+GUNICORN_WORKERS=3
+GUNICORN_TIMEOUT=120
 
 OPENAI_API_KEY=
 OPENAI_RESPONSES_MODEL=
 ```
+
+Questiz now loads `backend/.env` automatically through Django settings, so `manage.py`, Gunicorn, and Celery all read the same env file.
 
 Lock down the env file:
 
@@ -203,19 +215,19 @@ cd /srv/questizsurvey/app/frontend
 npm install
 ```
 
-Create the frontend env file:
+Create the production frontend env file from the repo template:
 
 ```bash
-cp .env.example .env
+cp .env.production.example .env.production
 ```
 
-Edit `/srv/questizsurvey/app/frontend/.env`:
+`/srv/questizsurvey/app/frontend/.env.production` should contain:
 
 ```env
 VITE_API_URL=/api
 ```
 
-Using `/api` is recommended because Nginx will serve the frontend and reverse proxy the API on the same domain.
+Using `/api` keeps the React build portable across staging and production because Nginx serves the frontend and reverse proxies the API on the same host.
 
 Build the frontend:
 
@@ -261,70 +273,21 @@ Expected:
 PONG
 ```
 
-## 10. Create systemd Service for Gunicorn
+## 10. Install the systemd Service for Gunicorn
 
-Create:
-
-```bash
-sudo nano /etc/systemd/system/questiz-gunicorn.service
-```
-
-Paste:
-
-```ini
-[Unit]
-Description=Questiz Gunicorn
-After=network.target
-
-[Service]
-User=YOUR_LINUX_USER
-Group=www-data
-WorkingDirectory=/srv/questizsurvey/app/backend
-EnvironmentFile=/srv/questizsurvey/app/backend/.env
-ExecStart=/srv/questizsurvey/app/backend/venv/bin/gunicorn \
-    questizsurvey.wsgi:application \
-    --bind 127.0.0.1:8010 \
-    --workers 3 \
-    --timeout 120
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Replace `YOUR_LINUX_USER` with the actual Linux user that owns the app files.
-
-## 11. Create systemd Service for Celery
-
-Create:
+Copy the repo template and replace `__LINUX_USER__`:
 
 ```bash
-sudo nano /etc/systemd/system/questiz-celery.service
+sed "s/__LINUX_USER__/$USER/g" /srv/questizsurvey/app/deploy/systemd/questiz-gunicorn.service | sudo tee /etc/systemd/system/questiz-gunicorn.service >/dev/null
 ```
+Gunicorn reads its runtime config from [backend/gunicorn.conf.py](/Users/nafew/Documents/Web%20Projects/QuestizSurvey/backend/gunicorn.conf.py), so you do not need to hardcode worker counts or ports in the service file.
 
-Paste:
+## 11. Install the systemd Service for Celery
 
-```ini
-[Unit]
-Description=Questiz Celery Worker
-After=network.target redis-server.service
-Requires=redis-server.service
+Copy the repo template and replace `__LINUX_USER__`:
 
-[Service]
-User=YOUR_LINUX_USER
-Group=www-data
-WorkingDirectory=/srv/questizsurvey/app/backend
-EnvironmentFile=/srv/questizsurvey/app/backend/.env
-ExecStart=/srv/questizsurvey/app/backend/venv/bin/celery \
-    -A questizsurvey worker \
-    -l info \
-    --concurrency=2
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
+```bash
+sed "s/__LINUX_USER__/$USER/g" /srv/questizsurvey/app/deploy/systemd/questiz-celery.service | sudo tee /etc/systemd/system/questiz-celery.service >/dev/null
 ```
 
 On Ubuntu Linux, Celery can use the normal prefork worker pool. The macOS `-P solo` workaround is not needed here.
@@ -366,81 +329,13 @@ Rules:
 - Do not use `default_server`
 - Do not overwrite the other app's Nginx file
 
-Create:
+Copy the repo Nginx template:
 
 ```bash
-sudo nano /etc/nginx/sites-available/questizsurvey
+sudo cp /srv/questizsurvey/app/deploy/nginx/questizsurvey.conf /etc/nginx/sites-available/questizsurvey
 ```
 
-Paste:
-
-```nginx
-upstream questiz_backend {
-    server 127.0.0.1:8010;
-    keepalive 32;
-}
-
-server {
-    listen 80;
-    server_name survey.mindspear.app;
-
-    client_max_body_size 25M;
-    root /srv/questizsurvey/app/frontend/dist;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://questiz_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300;
-        proxy_connect_timeout 300;
-        proxy_redirect off;
-    }
-
-    location /admin/ {
-        proxy_pass http://questiz_backend;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 300;
-        proxy_connect_timeout 300;
-        proxy_redirect off;
-    }
-
-    location /static/ {
-        alias /srv/questizsurvey/app/backend/staticfiles/;
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    location /media/ {
-        alias /srv/questizsurvey/app/backend/media/;
-        expires 7d;
-        add_header Cache-Control "public";
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Optional future websocket support if you add realtime features later:
-    # location /ws/ {
-    #     proxy_pass http://questiz_backend;
-    #     proxy_http_version 1.1;
-    #     proxy_set_header Upgrade $http_upgrade;
-    #     proxy_set_header Connection "upgrade";
-    #     proxy_set_header Host $host;
-    #     proxy_set_header X-Real-IP $remote_addr;
-    #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    #     proxy_set_header X-Forwarded-Proto $scheme;
-    # }
-}
-```
+If you changed `GUNICORN_BIND` to a port other than `8010`, update the `server 127.0.0.1:8010;` line in `/etc/nginx/sites-available/questizsurvey` to match before enabling the site.
 
 Enable the site:
 

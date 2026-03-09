@@ -1,0 +1,17 @@
+[Unit]
+Description=Questiz Gunicorn
+After=network.target
+
+[Service]
+User=__LINUX_USER__
+Group=www-data
+WorkingDirectory=/srv/questizsurvey/app/backend
+EnvironmentFile=/srv/questizsurvey/app/backend/.env
+ExecStart=/srv/questizsurvey/app/backend/venv/bin/gunicorn \
+    -c /srv/questizsurvey/app/backend/gunicorn.conf.py \
+    questizsurvey.wsgi:application
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

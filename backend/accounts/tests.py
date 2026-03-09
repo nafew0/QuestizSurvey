@@ -58,6 +58,27 @@ class UserLoginTestCase(TestCase):
         self.assertIn("tokens", response.data)
         self.assertIn("user", response.data)
 
+    def test_user_login_success_with_email(self):
+        """Test successful user login with email."""
+        data = {"username": "test@example.com", "password": "TestPass123!"}
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("tokens", response.data)
+        self.assertEqual(response.data["user"]["username"], "testuser")
+
+    def test_superuser_login_success(self):
+        """Test successful superuser login from the app login endpoint."""
+        admin = User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="AdminPass123!"
+        )
+        response = self.client.post(
+            self.login_url,
+            {"username": admin.username, "password": "AdminPass123!"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["user"]["username"], "admin")
+        self.assertTrue(response.data["user"]["is_staff"])
+
     def test_user_login_invalid_credentials(self):
         """Test login with invalid credentials."""
         data = {"username": "testuser", "password": "WrongPassword"}

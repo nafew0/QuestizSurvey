@@ -21,7 +21,7 @@ STRUCTURAL_TYPES = {
 
 
 def get_backend_origin():
-    api_base = getattr(settings, "API_BASE_URL", "http://localhost:8000/api").rstrip("/")
+    api_base = getattr(settings, "API_BASE_URL", "").rstrip("/")
     parsed = urlparse(api_base)
     if parsed.scheme and parsed.netloc:
         return f"{parsed.scheme}://{parsed.netloc}"

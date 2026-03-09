@@ -1,0 +1,16 @@
+[Unit]
+Description=Questiz Celery Worker
+After=network.target redis-server.service
+Requires=redis-server.service
+
+[Service]
+User=__LINUX_USER__
+Group=www-data
+WorkingDirectory=/srv/questizsurvey/app/backend
+EnvironmentFile=/srv/questizsurvey/app/backend/.env
+ExecStart=/srv/questizsurvey/app/backend/venv/bin/celery -A questizsurvey worker -l info --concurrency=2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

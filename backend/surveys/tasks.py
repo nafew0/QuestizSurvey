@@ -16,11 +16,11 @@ from surveys.services.exports import (
 
 
 def get_public_app_url():
-    return getattr(settings, "PUBLIC_APP_URL", "http://localhost:5555").rstrip("/")
+    return getattr(settings, "PUBLIC_APP_URL", "").rstrip("/")
 
 
 def get_api_base_url():
-    return getattr(settings, "API_BASE_URL", "http://localhost:8000/api").rstrip("/")
+    return getattr(settings, "API_BASE_URL", "").rstrip("/")
 
 
 def dispatch_task(task, *args, **kwargs):
