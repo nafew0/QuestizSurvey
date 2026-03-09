@@ -89,9 +89,9 @@ export default function ThemeStudioDialog() {
           Theme
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-4xl pr-16 sm:pr-20">
         <DialogHeader className="space-y-0">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 pr-2">
             <div className="flex flex-wrap items-center gap-2">
               <DialogTitle className="text-lg font-semibold tracking-tight">
                 Theme Studio

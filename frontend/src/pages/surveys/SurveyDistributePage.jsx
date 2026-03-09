@@ -8,7 +8,6 @@ import {
   LoaderCircle,
   Mail,
   MonitorSmartphone,
-  QrCode,
   Send,
   Share2,
 } from 'lucide-react'
@@ -55,7 +54,6 @@ const DISTRIBUTION_TABS = [
   { id: 'email', label: 'Email', icon: Mail },
   { id: 'embed', label: 'Embed', icon: MonitorSmartphone },
   { id: 'social', label: 'Social', icon: Share2 },
-  { id: 'qr', label: 'QR Code', icon: QrCode },
 ]
 
 const DEFAULT_COLLECTORS = [
@@ -600,37 +598,119 @@ export default function SurveyDistributePage() {
 
         {selectedTab === 'web_link' ? (
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_380px]">
-            <Card className="theme-panel rounded-[2rem]">
-              <CardHeader>
-                <CardTitle>Public survey link</CardTitle>
-                <CardDescription>
-                  This is the shareable respondent URL for your survey.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Public URL
-                  </p>
-                  <p className="mt-2 break-all text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
-                    {publicUrl}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  className="rounded-2xl"
-                  onClick={() =>
-                    copyText(publicUrl, toast, {
-                      title: 'Public link copied',
-                      description: 'The shareable survey link is on your clipboard.',
-                    })
-                  }
-                >
-                  <Copy className="mr-2 h-4 w-4" />
-                  Copy link
-                </Button>
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="theme-panel rounded-[2rem]">
+                <CardHeader>
+                  <CardTitle>Public survey link</CardTitle>
+                  <CardDescription>
+                    This is the shareable respondent URL for your survey.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Public URL
+                    </p>
+                    <p className="mt-2 break-all text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
+                      {publicUrl}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    className="rounded-2xl"
+                    onClick={() =>
+                      copyText(publicUrl, toast, {
+                        title: 'Public link copied',
+                        description: 'The shareable survey link is on your clipboard.',
+                      })
+                    }
+                  >
+                    <Copy className="mr-2 h-4 w-4" />
+                    Copy link
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card className="theme-panel rounded-[2rem]">
+                <CardHeader>
+                  <CardTitle>QR code</CardTitle>
+                  <CardDescription>
+                    Generate and export a QR that points to the same public link.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+                  <div className="space-y-4">
+                    <HexColorPicker color={qrColor} onChange={setQrColor} />
+                    <div className="flex items-center justify-between rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-4 py-3">
+                      <span className="text-sm font-medium text-foreground">
+                        Current color
+                      </span>
+                      <span className="text-sm text-muted-foreground">{qrColor}</span>
+                    </div>
+                    <Button
+                      type="button"
+                      className="w-full rounded-2xl"
+                      disabled={savingTab === 'qr'}
+                      onClick={() =>
+                        saveCollectorSettings('qr', { foreground_color: qrColor })
+                      }
+                    >
+                      {savingTab === 'qr' ? (
+                        <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      Save QR color
+                    </Button>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div
+                      ref={qrRef}
+                      className="flex flex-col items-center justify-center rounded-[2rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white p-8"
+                    >
+                      <QRCodeSVG
+                        value={publicUrl}
+                        size={240}
+                        fgColor={qrColor}
+                        bgColor="#ffffff"
+                        includeMargin
+                      />
+                      <p className="mt-5 text-sm font-medium text-foreground">
+                        {survey.title}
+                      </p>
+                      <p className="mt-2 break-all text-center text-xs text-muted-foreground">
+                        {publicUrl}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        type="button"
+                        className="rounded-2xl"
+                        onClick={handleDownloadQrPng}
+                      >
+                        Download PNG
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-2xl"
+                        onClick={handleDownloadQrSvg}
+                      >
+                        Download SVG
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-2xl"
+                        onClick={handlePrintQr}
+                      >
+                        Print layout
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             <Card className="theme-panel rounded-[2rem]">
               <CardHeader>
@@ -1095,106 +1175,6 @@ export default function SurveyDistributePage() {
           </div>
         ) : null}
 
-        {selectedTab === 'qr' ? (
-          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-            <Card className="theme-panel rounded-[2rem]">
-              <CardHeader>
-                <CardTitle>QR code</CardTitle>
-                <CardDescription>
-                  Customize the QR foreground color and export PNG or SVG assets.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-                <div className="space-y-4">
-                  <HexColorPicker color={qrColor} onChange={setQrColor} />
-                  <div className="flex items-center justify-between rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-4 py-3">
-                    <span className="text-sm font-medium text-foreground">
-                      Current color
-                    </span>
-                    <span className="text-sm text-muted-foreground">{qrColor}</span>
-                  </div>
-                  <Button
-                    type="button"
-                    className="w-full rounded-2xl"
-                    disabled={savingTab === 'qr'}
-                    onClick={() =>
-                      saveCollectorSettings('qr', { foreground_color: qrColor })
-                    }
-                  >
-                    {savingTab === 'qr' ? (
-                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Save QR color
-                  </Button>
-                </div>
-
-                <div className="space-y-5">
-                  <div
-                    ref={qrRef}
-                    className="flex flex-col items-center justify-center rounded-[2rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white p-8"
-                  >
-                    <QRCodeSVG
-                      value={publicUrl}
-                      size={240}
-                      fgColor={qrColor}
-                      bgColor="#ffffff"
-                      includeMargin
-                    />
-                    <p className="mt-5 text-sm font-medium text-foreground">
-                      {survey.title}
-                    </p>
-                    <p className="mt-2 break-all text-center text-xs text-muted-foreground">
-                      {publicUrl}
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      className="rounded-2xl"
-                      onClick={handleDownloadQrPng}
-                    >
-                      Download PNG
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-2xl"
-                      onClick={handleDownloadQrSvg}
-                    >
-                      Download SVG
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="rounded-2xl"
-                      onClick={handlePrintQr}
-                    >
-                      Print layout
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="theme-panel rounded-[2rem]">
-              <CardHeader>
-                <CardTitle>Usage</CardTitle>
-                <CardDescription>
-                  Printed materials can route respondents directly to the live public link.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm leading-7 text-muted-foreground">
-                <p>Use the saved QR in posters, flyers, tables, and event handouts.</p>
-                <p>
-                  The generated code always points to the public survey URL for this
-                  survey.
-                </p>
-                <p>Current destination: {publicUrl}</p>
-              </CardContent>
-            </Card>
-          </div>
-        ) : null}
       </div>
     </div>
   )

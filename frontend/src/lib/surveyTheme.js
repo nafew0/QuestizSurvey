@@ -23,7 +23,7 @@ export const SURVEY_LOGO_POSITION_OPTIONS = [
 
 export const SURVEY_SPACING_OPTIONS = [
   { value: 'compact', label: 'Compact' },
-  { value: 'comfortable', label: 'Comfortable' },
+  { value: 'comfortable', label: 'Balanced' },
   { value: 'spacious', label: 'Spacious' },
 ]
 

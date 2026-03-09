@@ -29,6 +29,7 @@ import {
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Switch } from '@/components/ui/switch'
 import {
+  ANALYTICS_COLOR_SCHEMES,
   buildCategoricalTableRows,
   buildMatrixHeatmapData,
   buildNumericDistributionRows,
@@ -36,14 +37,10 @@ import {
   getQuestionTypeLabel,
 } from '@/lib/analytics'
 
-const COLOR_OPTIONS = [
-  { value: 'default', label: 'Default Blue' },
-  { value: 'warm', label: 'Warm' },
-  { value: 'cool', label: 'Cool' },
-  { value: 'monochrome', label: 'Monochrome' },
-  { value: 'pastel', label: 'Pastel' },
-  { value: 'vibrant', label: 'Vibrant' },
-]
+const COLOR_OPTIONS = Object.entries(ANALYTICS_COLOR_SCHEMES).map(([value, scheme]) => ({
+  value,
+  label: scheme.label,
+}))
 
 function getDefaultChartType(analytics) {
   switch (analytics.type) {
@@ -553,23 +550,28 @@ export default function QuestionAnalyticsCard({
                   }
                 />
               </div>
-              <CustomSelect
-                value={localPreference.colorScheme}
-                onChange={(value) =>
-                  applyPreference({
-                    ...localPreference,
-                    colorScheme: value,
-                  })
-                }
-                options={COLOR_OPTIONS}
-                triggerClassName="h-10 w-[11rem] rounded-full"
-                contentClassName="rounded-2xl"
-              />
             </div>
           </div>
         ) : null}
 
         <div className="mt-5">{content}</div>
+
+        {!readOnly ? (
+          <div className="mt-4 flex justify-end">
+            <CustomSelect
+              value={localPreference.colorScheme}
+              onChange={(value) =>
+                applyPreference({
+                  ...localPreference,
+                  colorScheme: value,
+                })
+              }
+              options={COLOR_OPTIONS}
+              triggerClassName="h-10 w-[12rem] rounded-full"
+              contentClassName="rounded-2xl"
+            />
+          </div>
+        ) : null}
 
         {analytics.insights?.available ? (
           <div className="mt-5 rounded-[1.5rem] border border-[rgb(var(--theme-secondary-strong-rgb)/0.85)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.75)] p-4">

@@ -25,6 +25,9 @@ class XLSXExportService:
         raw_sheet = workbook.create_sheet("Raw Responses")
         self._build_raw_sheet(raw_sheet, analytics_data, brand_color)
 
+        transposed_raw_sheet = workbook.create_sheet("Raw Questions")
+        self._build_transposed_raw_sheet(transposed_raw_sheet, analytics_data, brand_color)
+
         for index, cross_tab in enumerate(analytics_data["cross_tabs"], start=1):
             cross_tab_sheet = workbook.create_sheet(f"Cross Tab {index}")
             self._build_cross_tab_sheet(cross_tab_sheet, cross_tab, brand_color)
@@ -171,6 +174,62 @@ class XLSXExportService:
                 worksheet.cell(row_index, column_index, value)
 
         worksheet.freeze_panes = "A2"
+        worksheet.auto_filter.ref = worksheet.dimensions
+        self._autofit_columns(worksheet)
+
+    def _build_transposed_raw_sheet(self, worksheet, analytics_data, brand_color):
+        questions = analytics_data["raw_questions"]
+        responses = analytics_data["raw_responses"]
+        header_font = Font(color="FFFFFF", bold=True)
+        fill = PatternFill("solid", fgColor=brand_color)
+
+        headers = ["Field", *[row["id"] for row in responses]]
+        for index, title in enumerate(headers, start=1):
+            cell = worksheet.cell(1, index, title)
+            cell.font = header_font
+            cell.fill = fill
+            cell.alignment = Alignment(wrap_text=True, vertical="center")
+
+        metadata_rows = [
+            ("Status", [row["status"] for row in responses]),
+            (
+                "Started",
+                [
+                    row["started_at"].strftime("%Y-%m-%d %H:%M:%S")
+                    if row["started_at"]
+                    else ""
+                    for row in responses
+                ],
+            ),
+            (
+                "Completed",
+                [
+                    row["completed_at"].strftime("%Y-%m-%d %H:%M:%S")
+                    if row["completed_at"]
+                    else ""
+                    for row in responses
+                ],
+            ),
+            ("Duration (sec)", [row["duration_seconds"] or "" for row in responses]),
+            ("Collector", [row["collector_name"] for row in responses]),
+            ("Email", [row["respondent_email"] for row in responses]),
+            ("IP Address", [row["ip_address"] for row in responses]),
+        ]
+
+        question_rows = [
+            (
+                question.text,
+                [row["values"].get(str(question.id), "") for row in responses],
+            )
+            for question in questions
+        ]
+
+        for row_index, (label, values) in enumerate([*metadata_rows, *question_rows], start=2):
+            worksheet.cell(row_index, 1, label)
+            for column_index, value in enumerate(values, start=2):
+                worksheet.cell(row_index, column_index, value)
+
+        worksheet.freeze_panes = "B2"
         worksheet.auto_filter.ref = worksheet.dimensions
         self._autofit_columns(worksheet)
 

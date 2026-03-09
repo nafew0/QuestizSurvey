@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from openpyxl import load_workbook
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -133,6 +134,11 @@ class ExportJobApiTests(TestCase):
         self.assertTrue(file_path.exists())
         with ZipFile(file_path) as archive:
             self.assertIn("xl/workbook.xml", archive.namelist())
+        workbook = load_workbook(file_path)
+        self.assertIn("Summary", workbook.sheetnames)
+        self.assertIn("Raw Responses", workbook.sheetnames)
+        self.assertIn("Raw Questions", workbook.sheetnames)
+        self.assertEqual(workbook["Raw Questions"]["A2"].value, "Status")
 
     def test_pptx_export_job_generates_presentation_file(self):
         job = self._create_export("pptx")

@@ -263,7 +263,7 @@ export default function QuestionSettingsPanel({
               <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
                 {[
                   ['progress_bar', 'Show progress bar'],
-                  ['numbering', 'Display page numbering'],
+                  ['numbering', 'Show numbering'],
                   ['save_continue', 'Allow save and continue'],
                   ['multi_response', 'Allow multiple responses'],
                 ].map(([settingKey, label]) => (

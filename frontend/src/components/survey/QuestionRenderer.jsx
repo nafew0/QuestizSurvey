@@ -26,6 +26,7 @@ function BaseQuestionFrame({
   showPrompt = true,
   showDescription = true,
   frameClassName = '',
+  numberLabel = null,
 }) {
   const isStructural = ['section_heading', 'instructional_text'].includes(question.question_type)
 
@@ -43,10 +44,17 @@ function BaseQuestionFrame({
       {showPrompt || (showDescription && question.description) ? (
         <div className="space-y-2">
           {showPrompt ? (
-            <h3 className="text-sm font-semibold tracking-tight text-foreground">
-              {question.text}
-              {required ? <span className="ml-1 text-rose-500">*</span> : null}
-            </h3>
+            <div className="flex items-start gap-2">
+              {numberLabel ? (
+                <span className="inline-flex min-w-7 items-center justify-center rounded-full border border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb))] px-2 py-0.5 text-[11px] font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
+                  {numberLabel}
+                </span>
+              ) : null}
+              <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                {question.text}
+                {required ? <span className="ml-1 text-rose-500">*</span> : null}
+              </h3>
+            </div>
           ) : null}
           {showDescription && question.description ? (
             <p className="survey-theme-muted text-[13px]">{question.description}</p>
@@ -66,6 +74,7 @@ export default function QuestionRenderer({
   showPrompt = true,
   showDescription = true,
   frameClassName = '',
+  numberLabel = null,
 }) {
   const rendererProps = {
     question,
@@ -143,6 +152,7 @@ export default function QuestionRenderer({
       showPrompt={showPrompt}
       showDescription={showDescription}
       frameClassName={frameClassName}
+      numberLabel={numberLabel}
     >
       {renderer}
     </BaseQuestionFrame>

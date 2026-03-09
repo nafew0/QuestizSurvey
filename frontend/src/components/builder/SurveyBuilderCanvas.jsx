@@ -21,24 +21,33 @@ import { Textarea } from '@/components/ui/textarea'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 import { buildSurveyThemeCss } from '@/lib/surveyTheme'
 import { cn } from '@/lib/utils'
+import { buildQuestionNumberLookup, isStructuralQuestion } from '@/utils/questionNumbers'
 import {
   createClientUuid,
   getInitialQuestionValue,
   questionHasChoices,
 } from '@/utils/surveyBuilder'
 
-function PageDropSlot({ onDrop, label }) {
+function PageDropSlot({ onDrop, label, onAddPage }) {
   return (
     <div
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
-      className="group flex items-center gap-3 py-2"
+      className="group flex flex-col items-center gap-3 py-2"
     >
-      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
-      <div className="rounded-full border border-dashed border-[rgb(var(--theme-border-rgb)/0.92)] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground transition group-hover:border-primary/40 group-hover:text-primary">
-        {label}
+      <div className="flex w-full items-center gap-3">
+        <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
+        <div className="rounded-full border border-dashed border-[rgb(var(--theme-border-rgb)/0.92)] bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground transition group-hover:border-primary/40 group-hover:text-primary">
+          {label}
+        </div>
+        <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
       </div>
-      <div className="theme-divider h-px flex-1 transition group-hover:bg-primary/50" />
+      {onAddPage ? (
+        <Button type="button" variant="outline" className="survey-theme-control h-10" onClick={onAddPage}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add page
+        </Button>
+      ) : null}
     </div>
   )
 }
@@ -144,7 +153,7 @@ function QuestionInsertMenu({ onInsert }) {
                       }}
                       className="flex items-center gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-3 py-3 text-left transition hover:border-primary/40 hover:bg-primary/5"
                     >
-                      <div className="theme-icon-secondary flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl">
+                      <div className="theme-icon-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl">
                         <Icon className="h-4 w-4" />
                       </div>
                       <span className="text-sm font-semibold text-foreground">
@@ -385,6 +394,7 @@ function ChoiceEditor({
 
 function QuestionCard({
   question,
+  questionNumber,
   selected,
   previewValue,
   onSelect,
@@ -401,7 +411,7 @@ function QuestionCard({
 }) {
   const isChoiceQuestion = questionHasChoices(question.question_type)
   const isInstructional = question.question_type === 'instructional_text'
-  const isStructural = ['section_heading', 'instructional_text'].includes(question.question_type)
+  const isStructural = isStructuralQuestion(question)
 
   return (
     <article
@@ -436,6 +446,11 @@ function QuestionCard({
                 />
               ) : (
                 <div className="flex min-w-0 flex-1 items-start gap-2">
+                  {questionNumber ? (
+                    <span className="mt-0.5 inline-flex min-w-8 items-center justify-center rounded-full border border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb))] px-2 py-0.5 text-xs font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
+                      {questionNumber}
+                    </span>
+                  ) : null}
                   <Input
                     value={question.text}
                     onChange={(event) => onTitleChange(event.target.value)}
@@ -544,6 +559,7 @@ export default function SurveyBuilderCanvas({
       })),
     [survey.pages]
   )
+  const questionNumbers = useMemo(() => buildQuestionNumberLookup(survey.pages), [survey.pages])
 
   useEffect(() => {
     setPreviewAnswers((current) => {
@@ -577,7 +593,7 @@ export default function SurveyBuilderCanvas({
   }
 
   return (
-    <div className="builder-survey-theme survey-theme-root space-y-4 rounded-[2rem]">
+    <div className="space-y-4">
       <style>{themeCss}</style>
       <PageDropSlot
         label="Move or drop a page here"
@@ -721,6 +737,7 @@ export default function SurveyBuilderCanvas({
                   <div key={question.id} className="space-y-3">
                     <QuestionCard
                       question={question}
+                      questionNumber={questionNumbers[question.id]}
                       selected={selectedQuestionId === question.id}
                       previewValue={previewAnswers[question.id]}
                       onSelect={() => {
@@ -801,6 +818,11 @@ export default function SurveyBuilderCanvas({
                 onMovePage(payload.pageId, pageIndex + 1)
               }
             }}
+            onAddPage={
+              pageIndex === survey.pages.length - 1
+                ? () => onAddPage(page.id)
+                : undefined
+            }
           />
         </div>
       ))}

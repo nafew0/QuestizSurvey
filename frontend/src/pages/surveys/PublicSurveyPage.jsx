@@ -22,6 +22,7 @@ import {
   submitPublicSurvey,
   updatePublicSurvey,
 } from '@/services/publicSurveys'
+import { buildQuestionNumberLookup } from '@/utils/questionNumbers'
 import { normalizeSurvey, resolveNextPreviewStep } from '@/utils/surveyBuilder'
 import {
   buildInitialPublicAnswers,
@@ -257,6 +258,10 @@ export default function PublicSurveyPage() {
 
     return ((currentPageIndex + 1) / survey.pages.length) * 100
   }, [currentPageIndex, stage, survey?.pages])
+  const questionNumbers = useMemo(
+    () => buildQuestionNumberLookup(survey?.pages ?? []),
+    [survey?.pages]
+  )
 
   const syncResumeParam = useCallback(
     (nextToken) => {
@@ -758,6 +763,9 @@ export default function PublicSurveyPage() {
                       value={answers[question.id]}
                       onChange={(value) => updateAnswer(question.id, value)}
                       disabled={saving}
+                      numberLabel={
+                        survey.settings?.numbering !== false ? questionNumbers[question.id] : null
+                      }
                       frameClassName={
                         errors[question.id]
                           ? 'border-rose-300 bg-rose-50/40 shadow-none'

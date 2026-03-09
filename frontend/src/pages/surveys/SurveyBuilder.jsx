@@ -171,7 +171,7 @@ export default function SurveyBuilder() {
             <QuestionTypePalette />
           </div>
 
-          <div className="theme-panel min-h-0 overflow-hidden rounded-[2rem] bg-white/55">
+          <div className="builder-survey-theme survey-theme-root theme-panel min-h-0 overflow-hidden rounded-[2rem] bg-transparent">
             <div className="h-full overflow-y-auto p-4">
               <SurveyBuilderCanvas
                 survey={survey}

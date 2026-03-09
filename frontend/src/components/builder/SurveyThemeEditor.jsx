@@ -20,8 +20,12 @@ import { uploadSurveyThemeAsset } from '@/services/surveys'
 
 function ActiveChip() {
   return (
-    <span className="rounded-full border border-[rgb(var(--theme-primary-strong-rgb)/0.88)] bg-[rgb(var(--theme-primary-soft-rgb)/0.88)] px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[rgb(var(--theme-primary-ink-rgb))]">
-      Active
+    <span
+      className="inline-flex h-4 w-4 shrink-0 rounded-full border-2 border-white bg-emerald-500 shadow-[0_0_0_4px_rgb(16_185_129/0.16),0_0_18px_rgb(16_185_129/0.55)]"
+      aria-label="Active"
+      title="Active"
+    >
+      <span className="sr-only">Active</span>
     </span>
   )
 }

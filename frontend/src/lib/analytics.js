@@ -2,13 +2,14 @@ import { QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 
 export const ANALYTICS_COLOR_SCHEMES = {
   default: {
-    label: 'Default Blue',
+    label: 'Signature Mix',
     colors: [
-      'rgb(var(--theme-primary-rgb))',
-      'rgb(var(--theme-secondary-rgb))',
-      'rgb(var(--theme-accent-rgb))',
-      'rgb(var(--theme-primary-strong-rgb))',
-      'rgb(var(--theme-secondary-strong-rgb))',
+      '#2563eb',
+      '#0f766e',
+      '#f97316',
+      '#8b5cf6',
+      '#ef4444',
+      '#14b8a6',
     ],
   },
   warm: {

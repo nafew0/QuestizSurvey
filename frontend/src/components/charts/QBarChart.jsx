@@ -2,6 +2,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   LabelList,
   ResponsiveContainer,
   Tooltip,
@@ -29,6 +30,7 @@ export default function QBarChart({
   const barSeries = series?.length
     ? series
     : [{ dataKey, name: dataKey, fill: palette[0] }]
+  const useDistributedCells = barSeries.length === 1 && !stacked
 
   return (
     <div className="h-[300px] w-full" style={{ height }}>
@@ -60,6 +62,14 @@ export default function QBarChart({
               radius={orientation === 'horizontal' ? [0, 10, 10, 0] : [10, 10, 0, 0]}
               stackId={stacked ? 'stack' : undefined}
             >
+              {useDistributedCells
+                ? data.map((entry, index) => (
+                    <Cell
+                      key={`${item.dataKey}-${entry[nameKey] ?? index}`}
+                      fill={palette[index % palette.length]}
+                    />
+                  ))
+                : null}
               {showLabels ? <LabelList dataKey={item.dataKey} position="top" fontSize={11} /> : null}
             </Bar>
           ))}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { SURVEY_DEVICE_MODES } from '@/constants/surveyBuilder'
 import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
+import { buildQuestionNumberLookup } from '@/utils/questionNumbers'
 import {
   getInitialQuestionValue,
   questionValueHasContent,
@@ -53,6 +54,7 @@ export default function SurveyPreview({ survey }) {
 
     return ((currentPageIndex + 1) / survey.pages.length) * 100
   }, [currentPageIndex, stage, survey.pages.length])
+  const questionNumbers = useMemo(() => buildQuestionNumberLookup(survey.pages), [survey.pages])
 
   const updateAnswer = (questionId, value) => {
     setAnswers((current) => ({
@@ -243,11 +245,14 @@ export default function SurveyPreview({ survey }) {
                 <div className="survey-theme-questions">
                   {currentPage.questions.map((question) => (
                     <div key={question.id} className="space-y-2">
-                      <QuestionRenderer
-                        question={question}
-                        value={answers[question.id]}
-                        onChange={(value) => updateAnswer(question.id, value)}
-                      />
+                    <QuestionRenderer
+                      question={question}
+                      value={answers[question.id]}
+                      onChange={(value) => updateAnswer(question.id, value)}
+                      numberLabel={
+                        survey.settings?.numbering !== false ? questionNumbers[question.id] : null
+                      }
+                    />
                       {errors[question.id] ? (
                         <p className="text-sm font-medium text-rose-500">{errors[question.id]}</p>
                       ) : null}

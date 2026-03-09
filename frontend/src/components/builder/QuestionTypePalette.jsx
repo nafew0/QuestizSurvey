@@ -74,7 +74,7 @@ export default function QuestionTypePalette() {
                       }}
                       className="flex w-full items-center gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white px-3 py-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
                     >
-                      <div className="theme-icon-secondary flex h-10 w-10 items-center justify-center rounded-2xl">
+                      <div className="theme-icon-primary flex h-10 w-10 items-center justify-center rounded-2xl">
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">

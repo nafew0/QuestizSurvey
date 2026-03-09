@@ -263,14 +263,14 @@
 
   .survey-theme-card {
     border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
-    background: rgb(var(--survey-card-rgb) / 0.94);
+    background: #ffffff;
     box-shadow: 0 18px 36px rgb(var(--survey-shadow-rgb) / 0.06);
     border-radius: var(--survey-card-radius);
   }
 
   .survey-theme-choice {
     border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
-    background: rgb(var(--survey-card-rgb));
+    background: #ffffff;
     color: rgb(var(--survey-text-rgb));
     border-radius: calc(var(--survey-button-radius) + 0.2rem);
     transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease,
@@ -294,7 +294,7 @@
 
   .survey-theme-input {
     border-color: rgb(var(--survey-border-rgb) / 0.86) !important;
-    background: rgb(var(--survey-input-rgb)) !important;
+    background: #ffffff !important;
     color: rgb(var(--survey-text-rgb)) !important;
     border-radius: var(--survey-button-radius) !important;
   }
