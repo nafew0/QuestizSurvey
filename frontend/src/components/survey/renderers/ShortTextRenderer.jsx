@@ -7,8 +7,7 @@ export default function ShortTextRenderer({ value, onChange, disabled = false })
       disabled={disabled}
       onChange={(event) => onChange(event.target.value)}
       placeholder="Type your answer"
-      className="h-12 rounded-2xl"
+      className="survey-theme-control survey-theme-input h-12"
     />
   )
 }
-

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Open+Sans:wght@400;600;700&family=Lato:wght@400;700&family=Merriweather:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -203,5 +205,145 @@
     border-color: rgb(var(--theme-accent-strong-rgb) / 0.85);
     background: rgb(var(--theme-accent-soft-rgb) / 0.9);
     color: rgb(var(--theme-accent-rgb));
+  }
+
+  .theme-color-shell {
+    overflow: hidden;
+    border: 1px solid rgb(var(--theme-border-rgb) / 0.82);
+    border-radius: 1rem;
+    background: rgb(255 255 255);
+  }
+
+  .theme-color-input {
+    display: block;
+    height: 2.75rem;
+    width: 100%;
+    cursor: pointer;
+    appearance: none;
+    border: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  .theme-color-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+
+  .theme-color-input::-webkit-color-swatch {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .theme-color-input::-moz-color-swatch {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .survey-theme-root {
+    color: rgb(var(--survey-text-rgb));
+    font-family: var(--survey-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI',
+      sans-serif;
+  }
+
+  .survey-theme-shell {
+    border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
+    background: rgb(var(--survey-background-rgb) / 0.76);
+    backdrop-filter: blur(10px);
+    border-radius: calc(var(--survey-card-radius) + 0.2rem);
+    box-shadow: 0 24px 56px rgb(var(--survey-shadow-rgb) / 0.1);
+  }
+
+  .survey-theme-panel {
+    border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
+    background: rgb(var(--survey-panel-rgb) / 0.9);
+    box-shadow: 0 18px 44px rgb(var(--survey-shadow-rgb) / 0.08);
+    backdrop-filter: blur(12px);
+    border-radius: var(--survey-card-radius);
+  }
+
+  .survey-theme-card {
+    border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
+    background: rgb(var(--survey-card-rgb) / 0.94);
+    box-shadow: 0 18px 36px rgb(var(--survey-shadow-rgb) / 0.06);
+    border-radius: var(--survey-card-radius);
+  }
+
+  .survey-theme-choice {
+    border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
+    background: rgb(var(--survey-card-rgb));
+    color: rgb(var(--survey-text-rgb));
+    border-radius: calc(var(--survey-button-radius) + 0.2rem);
+    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+
+  .survey-theme-choice:hover {
+    border-color: rgb(var(--survey-primary-rgb) / 0.45);
+    background: rgb(var(--survey-primary-soft-rgb) / 0.34);
+  }
+
+  .survey-theme-choice-active {
+    border-color: rgb(var(--survey-primary-rgb));
+    background: rgb(var(--survey-primary-soft-rgb) / 0.54);
+    box-shadow: 0 18px 32px rgb(var(--survey-primary-rgb) / 0.14);
+  }
+
+  .survey-theme-control {
+    border-radius: var(--survey-button-radius) !important;
+  }
+
+  .survey-theme-input {
+    border-color: rgb(var(--survey-border-rgb) / 0.86) !important;
+    background: rgb(var(--survey-input-rgb)) !important;
+    color: rgb(var(--survey-text-rgb)) !important;
+    border-radius: var(--survey-button-radius) !important;
+  }
+
+  .survey-theme-input::placeholder {
+    color: rgb(var(--survey-muted-foreground-rgb));
+  }
+
+  .survey-theme-questions {
+    display: grid;
+    gap: var(--survey-question-gap);
+  }
+
+  .survey-theme-muted {
+    color: rgb(var(--survey-muted-foreground-rgb));
+  }
+
+  .survey-theme-progress-track {
+    background: rgb(var(--survey-border-rgb) / 0.65);
+  }
+
+  .survey-theme-progress-track > div {
+    background: rgb(var(--survey-progress-rgb));
+  }
+
+  .survey-theme-logo-row {
+    display: flex;
+  }
+
+  .survey-theme-logo {
+    max-height: 56px;
+    width: auto;
+    max-width: min(220px, 100%);
+    object-fit: contain;
+  }
+
+  .survey-theme-structural {
+    border: 1px solid rgb(var(--survey-border-rgb) / 0.72);
+    background: rgb(var(--survey-card-soft-rgb) / 0.62);
+    border-radius: var(--survey-card-radius);
+  }
+
+  .survey-theme-filedrop {
+    border: 1px dashed rgb(var(--survey-border-rgb) / 0.95);
+    background: rgb(var(--survey-panel-rgb) / 0.72);
+    border-radius: var(--survey-card-radius);
+  }
+
+  .survey-theme-divider {
+    background: rgb(var(--survey-border-rgb) / 0.82);
   }
 }

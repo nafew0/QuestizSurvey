@@ -36,7 +36,7 @@ function BaseQuestionFrame({
   return (
     <div
       className={cn(
-        'theme-panel space-y-4 rounded-3xl p-6',
+        'survey-theme-card space-y-4 p-6',
         frameClassName
       )}
     >
@@ -49,7 +49,7 @@ function BaseQuestionFrame({
             </h3>
           ) : null}
           {showDescription && question.description ? (
-            <p className="text-[13px] text-muted-foreground">{question.description}</p>
+            <p className="survey-theme-muted text-[13px]">{question.description}</p>
           ) : null}
         </div>
       ) : null}

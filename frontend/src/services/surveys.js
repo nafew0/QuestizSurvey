@@ -20,6 +20,23 @@ export async function updateSurvey(surveyId, payload) {
   return response.data
 }
 
+export async function uploadSurveyThemeAsset(surveyId, { assetType, file, clear = false }) {
+  const formData = new FormData()
+  formData.append('asset_type', assetType)
+  formData.append('clear', clear ? 'true' : 'false')
+
+  if (file) {
+    formData.append('asset', file)
+  }
+
+  const response = await api.post(`/surveys/${surveyId}/theme-assets/`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data
+}
+
 export async function deleteSurvey(surveyId) {
   await api.delete(`/surveys/${surveyId}/`)
 }

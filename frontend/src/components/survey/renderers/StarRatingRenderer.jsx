@@ -19,17 +19,16 @@ export default function StarRatingRenderer({ question, value, onChange, disabled
               className="rounded-full p-2 transition hover:bg-amber-100 disabled:cursor-not-allowed"
             >
               <Star
-                className={`h-8 w-8 ${active ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`}
+                className={`h-8 w-8 ${active ? 'fill-amber-400 text-amber-400' : 'text-[rgb(var(--survey-border-rgb))]'}`}
               />
             </button>
           )
         })}
       </div>
-      <div className="flex justify-between text-xs text-slate-500">
+      <div className="survey-theme-muted flex justify-between text-xs">
         <span>{question.settings?.labels?.low || 'Low'}</span>
         <span>{question.settings?.labels?.high || 'High'}</span>
       </div>
     </div>
   )
 }
-

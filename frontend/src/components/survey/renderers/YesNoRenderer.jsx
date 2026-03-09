@@ -26,7 +26,7 @@ export default function YesNoRenderer({
           variant={value === option.id ? 'default' : 'outline'}
           disabled={disabled}
           onClick={() => onChange(option.id)}
-          className="h-12 rounded-2xl text-sm"
+          className="survey-theme-control h-12 text-sm"
         >
           {option.label}
         </Button>

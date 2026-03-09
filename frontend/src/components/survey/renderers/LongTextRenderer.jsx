@@ -10,9 +10,9 @@ export default function LongTextRenderer({ value, onChange, disabled = false }) 
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Write your answer"
-        className="min-h-[140px] rounded-2xl"
+        className="survey-theme-control survey-theme-input min-h-[140px]"
       />
-      <p className="text-right text-xs text-muted-foreground">
+      <p className="survey-theme-muted text-right text-xs">
         {characterCount} characters
       </p>
     </div>

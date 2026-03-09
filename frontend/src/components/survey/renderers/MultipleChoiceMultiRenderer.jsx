@@ -11,7 +11,9 @@ export default function MultipleChoiceMultiRenderer({
         return (
           <label
             key={choice.id ?? choice.order}
-            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-primary/40 hover:bg-primary/5"
+            className={`survey-theme-choice flex cursor-pointer items-center gap-3 px-4 py-3 ${
+              checked ? 'survey-theme-choice-active' : ''
+            }`}
           >
             <input
               type="checkbox"
@@ -26,11 +28,10 @@ export default function MultipleChoiceMultiRenderer({
               }}
               className="h-4 w-4 rounded accent-primary"
             />
-            <span className="text-sm font-medium text-slate-700">{choice.text}</span>
+            <span className="text-sm font-medium text-foreground">{choice.text}</span>
           </label>
         )
       })}
     </div>
   )
 }
-

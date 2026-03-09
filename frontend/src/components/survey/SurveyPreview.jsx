@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { SURVEY_DEVICE_MODES } from '@/constants/surveyBuilder'
+import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
 import {
   getInitialQuestionValue,
   questionValueHasContent,
@@ -39,6 +40,11 @@ export default function SurveyPreview({ survey }) {
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey.pages[currentPageIndex]
   const deviceClass = SURVEY_DEVICE_MODES.find((mode) => mode.value === deviceMode)?.className
+  const theme = useMemo(() => normalizeSurveyTheme(survey.theme), [survey.theme])
+  const themeCss = useMemo(
+    () => buildSurveyThemeCss(theme, '.preview-survey-theme'),
+    [theme]
+  )
 
   const progressValue = useMemo(() => {
     if (stage !== 'page' || !survey.pages.length) {
@@ -133,14 +139,20 @@ export default function SurveyPreview({ survey }) {
   }
 
   return (
-    <div className="theme-app-gradient min-h-screen px-4 py-8 text-foreground">
+    <div className="preview-survey-theme survey-theme-root theme-app-gradient min-h-screen px-4 py-8 text-foreground">
+      <style>{themeCss}</style>
       <div className="mx-auto max-w-6xl space-y-6">
-        <header className="theme-panel flex flex-col gap-4 rounded-[2rem] p-6 md:flex-row md:items-center md:justify-between">
+        <header className="survey-theme-shell flex flex-col gap-4 rounded-[2rem] p-6 md:flex-row md:items-center md:justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
               <Badge variant="warning">Preview Mode</Badge>
               <p className="text-sm text-muted-foreground">Responses are not saved</p>
             </div>
+            {theme.logo_url ? (
+              <div className="survey-theme-logo-row pt-1">
+                <img src={theme.logo_url} alt={`${survey.title} logo`} className="survey-theme-logo" />
+              </div>
+            ) : null}
             <h1 className="text-2xl font-semibold tracking-tight">{survey.title}</h1>
             <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
               Review branching, pacing, and question layout across device widths before going live.
@@ -170,7 +182,7 @@ export default function SurveyPreview({ survey }) {
         </header>
 
         {stage === 'page' ? (
-          <div className="theme-panel rounded-[2rem] p-6">
+          <div className="survey-theme-panel p-6">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -182,12 +194,12 @@ export default function SurveyPreview({ survey }) {
               </div>
               <p className="text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">{Math.round(progressValue)}%</p>
             </div>
-            <Progress value={progressValue} />
+            <Progress value={progressValue} className="survey-theme-progress-track" />
           </div>
         ) : null}
 
         <div className={`mx-auto transition-all ${deviceClass}`}>
-          <div className="theme-panel rounded-[2rem] p-6 md:p-8">
+          <div className="survey-theme-shell p-6 md:p-8">
             {stage === 'welcome' ? (
               <div className="space-y-6 text-center">
                 <Badge variant="default" className="mx-auto">
@@ -203,7 +215,7 @@ export default function SurveyPreview({ survey }) {
                       'Preview the survey introduction exactly as respondents will see it.'}
                   </p>
                 </div>
-                <Button type="button" size="lg" className="rounded-2xl px-8" onClick={handleNext}>
+                <Button type="button" size="lg" className="survey-theme-control px-8" onClick={handleNext}>
                   Start preview
                 </Button>
               </div>
@@ -228,7 +240,7 @@ export default function SurveyPreview({ survey }) {
                   ) : null}
                 </div>
 
-                <div className="space-y-5">
+                <div className="survey-theme-questions">
                   {currentPage.questions.map((question) => (
                     <div key={question.id} className="space-y-2">
                       <QuestionRenderer
@@ -249,12 +261,12 @@ export default function SurveyPreview({ survey }) {
                     variant="outline"
                     onClick={handlePrevious}
                     disabled={!survey.welcome_page?.enabled && pageHistory.length === 1}
-                    className="rounded-2xl"
+                    className="survey-theme-control"
                   >
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Previous
                   </Button>
-                  <Button type="button" onClick={handleNext} className="rounded-2xl">
+                  <Button type="button" onClick={handleNext} className="survey-theme-control">
                     {currentPageIndex >= survey.pages.length - 1 ? 'Finish preview' : 'Next page'}
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
@@ -277,12 +289,12 @@ export default function SurveyPreview({ survey }) {
                   </p>
                 </div>
                 <div className="flex justify-center gap-3">
-                  <Button type="button" variant="outline" className="rounded-2xl" onClick={handlePrevious}>
+                  <Button type="button" variant="outline" className="survey-theme-control" onClick={handlePrevious}>
                     Review last page
                   </Button>
                   <Button
                     type="button"
-                    className="rounded-2xl"
+                    className="survey-theme-control"
                     onClick={() => {
                       setAnswers(buildInitialAnswers(survey))
                       setErrors({})
@@ -309,7 +321,7 @@ export default function SurveyPreview({ survey }) {
                     {disqualifyMessage}
                   </p>
                 </div>
-                <Button type="button" variant="outline" className="rounded-2xl" onClick={handlePrevious}>
+                <Button type="button" variant="outline" className="survey-theme-control" onClick={handlePrevious}>
                   Return to survey
                 </Button>
               </div>

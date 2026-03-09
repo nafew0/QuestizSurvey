@@ -18,6 +18,7 @@ export function CustomSelect({
   triggerClassName = '',
   contentClassName = '',
   align = 'start',
+  portal = true,
 }) {
   const normalizedValue = value ?? ''
   const selectedOption =
@@ -48,6 +49,7 @@ export function CustomSelect({
       <DropdownMenuContent
         align={align}
         sideOffset={8}
+        portal={portal}
         className={cn(
           'theme-panel w-[var(--radix-dropdown-menu-trigger-width)] min-w-[14rem] rounded-2xl p-2',
           'max-h-72 overflow-y-auto',

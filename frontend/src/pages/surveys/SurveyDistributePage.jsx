@@ -315,7 +315,7 @@ export default function SurveyDistributePage() {
         }))
         setQrColor(
           nextQrCollector?.settings?.foreground_color ||
-            nextSurvey.theme?.primary ||
+            nextSurvey.theme?.primary_color ||
             activeColors.primary
         )
 

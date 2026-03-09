@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import { buildSurveyThemeCss } from '@/lib/surveyTheme'
 import { cn } from '@/lib/utils'
 import {
   createClientUuid,
@@ -404,7 +405,7 @@ function QuestionCard({
 
   return (
     <article
-      className={`theme-panel rounded-[1.75rem] p-5 transition ${
+      className={`survey-theme-card p-5 transition ${
         selected
           ? 'border-primary shadow-lg shadow-primary/10'
           : 'hover:border-[rgb(var(--theme-mix-strong-rgb)/0.95)]'
@@ -530,6 +531,10 @@ export default function SurveyBuilderCanvas({
     buildInitialPreviewAnswers(survey.pages)
   )
   const [pendingDeleteQuestion, setPendingDeleteQuestion] = useState(null)
+  const themeCss = useMemo(
+    () => buildSurveyThemeCss(survey.theme, '.builder-survey-theme'),
+    [survey.theme]
+  )
 
   const pageOptions = useMemo(
     () =>
@@ -572,7 +577,8 @@ export default function SurveyBuilderCanvas({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="builder-survey-theme survey-theme-root space-y-4 rounded-[2rem]">
+      <style>{themeCss}</style>
       <PageDropSlot
         label="Move or drop a page here"
         onDrop={(event) => {
@@ -586,7 +592,7 @@ export default function SurveyBuilderCanvas({
       {survey.pages.map((page, pageIndex) => (
         <div key={page.id} className="space-y-4">
           <section
-            className={`theme-panel rounded-[2rem] p-5 transition ${
+            className={`survey-theme-shell p-5 transition ${
               selectedPageId === page.id && !selectedQuestionId
                 ? 'border-primary shadow-primary/10'
                 : ''
@@ -616,6 +622,15 @@ export default function SurveyBuilderCanvas({
                 </button>
 
                 <div className="flex-1 space-y-3">
+                  {survey.theme?.logo_url ? (
+                    <div className="survey-theme-logo-row">
+                      <img
+                        src={survey.theme.logo_url}
+                        alt={`${survey.title} logo`}
+                        className="survey-theme-logo"
+                      />
+                    </div>
+                  ) : null}
                   <div className="flex items-center gap-3">
                     <Badge variant="secondary">Page {page.order}</Badge>
                     <Badge variant="outline">{page.questions.length} questions</Badge>
@@ -631,7 +646,7 @@ export default function SurveyBuilderCanvas({
                     onChange={(event) => onPageFieldChange(page.id, 'description', event.target.value)}
                     onClick={(event) => event.stopPropagation()}
                     placeholder="Page description"
-                    className="min-h-[72px] w-full rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] px-3 py-3 text-[13px] text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    className="survey-theme-control survey-theme-input min-h-[72px] w-full px-3 py-3 text-[13px] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   />
                 </div>
               </div>
@@ -662,19 +677,20 @@ export default function SurveyBuilderCanvas({
                         })),
                     ]}
                     placeholder="Continue to next page"
+                    triggerClassName="survey-theme-control survey-theme-input"
                   />
                 </label>
                 <div className="flex gap-2">
                   <Button
                     type="button"
                     variant="outline"
-                    className="flex-1 rounded-2xl"
+                    className="survey-theme-control flex-1"
                     onClick={() => onAddPage(page.id)}
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add page after
                   </Button>
-                  <Button type="button" variant="outline" size="icon" onClick={() => onDeletePage(page.id)}>
+                  <Button type="button" variant="outline" size="icon" className="survey-theme-control" onClick={() => onDeletePage(page.id)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
@@ -700,7 +716,7 @@ export default function SurveyBuilderCanvas({
                 }}
               />
 
-              <div className="space-y-3">
+              <div className="survey-theme-questions">
                 {page.questions.map((question, questionIndex) => (
                   <div key={question.id} className="space-y-3">
                     <QuestionCard
@@ -763,7 +779,7 @@ export default function SurveyBuilderCanvas({
                 ))}
 
                 {!page.questions.length ? (
-                  <div className="theme-panel-soft rounded-[1.75rem] border-dashed px-6 py-10 text-center">
+                  <div className="survey-theme-panel rounded-[1.75rem] border-dashed px-6 py-10 text-center">
                     <LayoutPanelTop className="mx-auto h-8 w-8 text-muted-foreground" />
                     <p className="mt-3 text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
                       Drop your first question into this page
@@ -790,12 +806,12 @@ export default function SurveyBuilderCanvas({
       ))}
 
       {!survey.pages.length ? (
-        <div className="theme-panel rounded-[2rem] border-dashed px-6 py-12 text-center">
+        <div className="survey-theme-panel rounded-[2rem] border-dashed px-6 py-12 text-center">
           <p className="text-lg font-semibold text-foreground">No pages yet</p>
           <p className="mt-2 text-sm text-muted-foreground">
             Start by creating a page, then drag question blocks from the palette.
           </p>
-          <Button type="button" className="mt-4 rounded-2xl" onClick={() => onAddPage()}>
+          <Button type="button" className="survey-theme-control mt-4" onClick={() => onAddPage()}>
             <Plus className="mr-2 h-4 w-4" />
             Create first page
           </Button>
@@ -825,7 +841,7 @@ export default function SurveyBuilderCanvas({
             <Button
               type="button"
               variant="outline"
-              className="rounded-2xl"
+              className="survey-theme-control"
               onClick={() => setPendingDeleteQuestion(null)}
             >
               Cancel
@@ -833,7 +849,7 @@ export default function SurveyBuilderCanvas({
             <Button
               type="button"
               variant="destructive"
-              className="rounded-2xl"
+              className="survey-theme-control"
               onClick={async () => {
                 if (!pendingDeleteQuestion) {
                   return

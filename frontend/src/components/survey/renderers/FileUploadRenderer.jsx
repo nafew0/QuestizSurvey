@@ -1,10 +1,10 @@
 export default function FileUploadRenderer({ value, onChange, disabled = false }) {
   return (
-    <label className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 px-6 text-center">
-      <span className="text-sm font-semibold text-slate-700">
+    <label className="survey-theme-filedrop flex min-h-[160px] cursor-pointer flex-col items-center justify-center px-6 text-center">
+      <span className="text-sm font-semibold text-foreground">
         {value?.name || 'Choose a file'}
       </span>
-      <span className="mt-1 text-sm text-slate-500">PDF, PNG, JPG, or DOC</span>
+      <span className="survey-theme-muted mt-1 text-sm">PDF, PNG, JPG, or DOC</span>
       <input
         type="file"
         disabled={disabled}
@@ -14,4 +14,3 @@ export default function FileUploadRenderer({ value, onChange, disabled = false }
     </label>
   )
 }
-

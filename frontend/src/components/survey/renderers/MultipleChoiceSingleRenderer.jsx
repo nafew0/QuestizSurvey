@@ -9,7 +9,9 @@ export default function MultipleChoiceSingleRenderer({
       {question.choices?.map((choice) => (
         <label
           key={choice.id ?? choice.order}
-          className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-primary/40 hover:bg-primary/5"
+          className={`survey-theme-choice flex cursor-pointer items-center gap-3 px-4 py-3 ${
+            value === choice.id ? 'survey-theme-choice-active' : ''
+          }`}
         >
           <input
             type="radio"
@@ -19,10 +21,9 @@ export default function MultipleChoiceSingleRenderer({
             disabled={disabled}
             className="h-4 w-4 accent-primary"
           />
-          <span className="text-sm font-medium text-slate-700">{choice.text}</span>
+          <span className="text-sm font-medium text-foreground">{choice.text}</span>
         </label>
       ))}
     </div>
   )
 }
-

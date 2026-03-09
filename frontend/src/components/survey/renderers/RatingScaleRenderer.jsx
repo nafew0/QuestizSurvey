@@ -13,10 +13,10 @@ export default function RatingScaleRenderer({ question, value, onChange, disable
               type="button"
               disabled={disabled}
               onClick={() => onChange(scaleValue)}
-              className={`rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
+              className={`survey-theme-choice survey-theme-control px-3 py-3 text-sm font-semibold ${
                 value === scaleValue
-                  ? 'border-primary bg-primary text-white'
-                  : 'border-slate-200 bg-white text-slate-700 hover:border-primary/40 hover:bg-primary/5'
+                  ? 'survey-theme-choice-active bg-primary text-primary-foreground'
+                  : 'text-foreground'
               }`}
             >
               {scaleValue}
@@ -24,11 +24,10 @@ export default function RatingScaleRenderer({ question, value, onChange, disable
           )
         })}
       </div>
-      <div className="flex justify-between text-xs text-slate-500">
+      <div className="survey-theme-muted flex justify-between text-xs">
         <span>{question.settings?.labels?.low || 'Low'}</span>
         <span>{question.settings?.labels?.high || 'High'}</span>
       </div>
     </div>
   )
 }
-

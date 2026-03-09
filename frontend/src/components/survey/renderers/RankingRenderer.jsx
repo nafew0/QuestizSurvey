@@ -24,11 +24,11 @@ export default function RankingRenderer({ question, value = [], onChange, disabl
       {orderedItems.map((item, index) => (
         <div
           key={item.id ?? item.text}
-          className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+          className="survey-theme-choice flex items-center justify-between gap-3 px-4 py-3"
         >
           <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-400">Rank {index + 1}</p>
-            <p className="text-sm font-medium text-slate-700">{item.text}</p>
+            <p className="survey-theme-muted text-xs uppercase tracking-[0.16em]">Rank {index + 1}</p>
+            <p className="text-sm font-medium text-foreground">{item.text}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -37,6 +37,7 @@ export default function RankingRenderer({ question, value = [], onChange, disabl
               variant="outline"
               disabled={disabled || index === 0}
               onClick={() => moveItem(index, -1)}
+              className="survey-theme-control"
             >
               <ArrowUp className="h-4 w-4" />
             </Button>
@@ -46,6 +47,7 @@ export default function RankingRenderer({ question, value = [], onChange, disabl
               variant="outline"
               disabled={disabled || index === orderedItems.length - 1}
               onClick={() => moveItem(index, 1)}
+              className="survey-theme-control"
             >
               <ArrowDown className="h-4 w-4" />
             </Button>

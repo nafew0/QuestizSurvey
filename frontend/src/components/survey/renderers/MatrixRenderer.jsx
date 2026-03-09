@@ -5,14 +5,14 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
   const gridTemplateColumns = `minmax(10rem,1.5fr) repeat(${Math.max(columns.length, 1)}, minmax(5rem,1fr))`
 
   return (
-    <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-[var(--survey-card-radius)] border border-[rgb(var(--survey-border-rgb)/0.82)] bg-[rgb(var(--survey-card-rgb))]">
       <div
-        className="grid gap-px bg-slate-200 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500"
+        className="grid gap-px bg-[rgb(var(--survey-border-rgb)/0.82)] text-xs font-semibold uppercase tracking-[0.16em] text-[rgb(var(--survey-muted-foreground-rgb))]"
         style={{ gridTemplateColumns }}
       >
-        <div className="bg-slate-50 px-4 py-3">Row</div>
+        <div className="bg-[rgb(var(--survey-panel-rgb)/0.85)] px-4 py-3">Row</div>
         {columns.map((column) => (
-          <div key={column} className="bg-slate-50 px-4 py-3 text-center">
+          <div key={column} className="bg-[rgb(var(--survey-panel-rgb)/0.85)] px-4 py-3 text-center">
             {column}
           </div>
         ))}
@@ -20,10 +20,10 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
       {rows.map((row) => (
         <div
           key={row}
-          className="grid gap-px border-t border-slate-200 bg-slate-200"
+          className="grid gap-px border-t border-[rgb(var(--survey-border-rgb)/0.82)] bg-[rgb(var(--survey-border-rgb)/0.82)]"
           style={{ gridTemplateColumns }}
         >
-          <div className="bg-white px-4 py-4 text-sm font-medium text-slate-700">{row}</div>
+          <div className="bg-[rgb(var(--survey-card-rgb))] px-4 py-4 text-sm font-medium text-foreground">{row}</div>
           {columns.map((column) => {
             const checked =
               cellType === 'checkbox'
@@ -33,7 +33,7 @@ export default function MatrixRenderer({ question, value = {}, onChange, disable
             return (
               <label
                 key={`${row}-${column}`}
-                className="flex items-center justify-center bg-white px-4 py-4"
+                className="flex items-center justify-center bg-[rgb(var(--survey-card-rgb))] px-4 py-4"
               >
                 <input
                   type={cellType === 'checkbox' ? 'checkbox' : 'radio'}

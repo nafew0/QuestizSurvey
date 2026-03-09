@@ -40,6 +40,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { useToast } from '@/hooks/useToast'
+import { createInitialSurveyTheme } from '@/lib/surveyTheme'
 import {
   createSurvey,
   deleteSurvey,
@@ -113,11 +114,10 @@ export default function SurveyDashboard() {
       const createdSurvey = await createSurvey({
         title: createForm.title,
         description: createForm.description,
-        theme: {
+        theme: createInitialSurveyTheme({
           primary: activeColors.primary,
-          secondary: activeColors.secondary,
           accent: activeColors.accent,
-        },
+        }),
         settings: {
           progress_bar: true,
           numbering: true,

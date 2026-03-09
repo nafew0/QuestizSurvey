@@ -16,10 +16,10 @@ export default function NpsRenderer({ question, value, onChange, disabled = fals
               type="button"
               disabled={disabled}
               onClick={() => onChange(score)}
-              className={`rounded-2xl border px-3 py-3 text-sm font-semibold transition ${
+              className={`survey-theme-choice survey-theme-control px-3 py-3 text-sm font-semibold ${
                 value === score
-                  ? 'border-primary bg-primary text-white'
-                  : `border-slate-200 bg-white text-slate-700 ${zoneClass}`
+                  ? 'survey-theme-choice-active bg-primary text-primary-foreground'
+                  : `text-foreground ${zoneClass}`
               }`}
             >
               {score}
@@ -27,11 +27,10 @@ export default function NpsRenderer({ question, value, onChange, disabled = fals
           )
         })}
       </div>
-      <div className="flex justify-between text-xs text-slate-500">
+      <div className="survey-theme-muted flex justify-between text-xs">
         <span>{question.settings?.labels?.low || 'Not likely'}</span>
         <span>{question.settings?.labels?.high || 'Extremely likely'}</span>
       </div>
     </div>
   )
 }
-

@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 
 from surveys.models import Collector, Question, SavedReport, Survey
 from surveys.services.analytics import AnalyticsService
+from surveys.theme import normalize_survey_theme
 
 
 @dataclass
@@ -180,7 +181,7 @@ def build_saved_report_payload(report: SavedReport, *, include_insights=True):
             "description": survey.description,
             "slug": survey.slug,
             "status": survey.status,
-            "theme": survey.theme or {},
+            "theme": normalize_survey_theme(survey.theme),
         },
         "summary": analytics_service.get_summary(),
         "questions": [

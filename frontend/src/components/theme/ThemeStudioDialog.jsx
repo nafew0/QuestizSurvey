@@ -11,6 +11,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { normalizeHex } from '@/lib/siteTheme'
@@ -33,6 +34,14 @@ const COLOR_FIELDS = [
   },
 ]
 
+function ActiveChip() {
+  return (
+    <span className="rounded-full border border-[rgb(var(--theme-primary-strong-rgb)/0.88)] bg-[rgb(var(--theme-primary-soft-rgb)/0.88)] px-2 py-1 text-[0.62rem] font-semibold uppercase tracking-[0.22em] text-[rgb(var(--theme-primary-ink-rgb))]">
+      Active
+    </span>
+  )
+}
+
 export default function ThemeStudioDialog() {
   const {
     presets,
@@ -54,10 +63,10 @@ export default function ThemeStudioDialog() {
 
   const subtitle = useMemo(() => {
     if (mode === 'custom') {
-      return 'Custom palette'
+      return 'Custom'
     }
 
-    return activePreset?.name || 'Preset palette'
+    return activePreset?.name || 'Preset'
   }, [activePreset?.name, mode])
 
   const commitDraftColor = (key) => {
@@ -81,108 +90,109 @@ export default function ThemeStudioDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <div className="flex items-center gap-2">
-            <Badge variant="default">Theme Studio</Badge>
-            <Badge variant="outline">{subtitle}</Badge>
+        <DialogHeader className="space-y-0">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <DialogTitle className="text-lg font-semibold tracking-tight">
+                Theme Studio
+              </DialogTitle>
+              <Badge variant="outline" className="rounded-full">
+                {subtitle}
+              </Badge>
+            </div>
+            <HelpPopover title="Site theme" align="end">
+              Pick one preset or set your own primary, secondary, and accent colors. Softer chips, cards, and surfaces are derived mathematically from those three colors.
+            </HelpPopover>
           </div>
-          <DialogTitle>Primary, secondary, and accent for the whole site</DialogTitle>
-          <DialogDescription>
-            Extra surfaces are derived mathematically from those three colors by
-            mixing them with white for soft backgrounds and with the default ink
-            for readable tinted text.
+          <DialogDescription className="sr-only">
+            Configure the site-wide three-color palette.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
           <section className="space-y-4">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Palette presets</p>
-                  <p className="text-sm text-muted-foreground">
-                    Start from a curated combination, then customize if needed.
-                  </p>
-                </div>
-                <Button variant="ghost" size="sm" className="gap-2" onClick={resetTheme}>
-                  <RotateCcw className="h-4 w-4" />
-                  Reset
-                </Button>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">Presets</p>
+                <HelpPopover title="Presets">
+                  Choose a ready-made palette. You can still adjust any color below.
+                </HelpPopover>
               </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                {presets.map((preset) => {
-                  const isActive =
-                    mode === 'preset' && activePreset?.id === preset.id
-
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => setPresetTheme(preset.id)}
-                      className={`rounded-[1.5rem] border p-4 text-left transition ${
-                        isActive
-                          ? 'border-[rgb(var(--theme-primary-rgb)/0.55)] bg-[rgb(var(--theme-primary-soft-rgb)/0.55)] shadow-sm'
-                          : 'border-[rgb(var(--theme-border-rgb)/0.8)] bg-white hover:border-[rgb(var(--theme-primary-rgb)/0.35)]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="font-semibold text-foreground">{preset.name}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {preset.description}
-                          </p>
-                        </div>
-                        {isActive ? <Badge variant="default">Active</Badge> : null}
-                      </div>
-                      <div className="mt-4 flex items-center gap-2">
-                        {Object.values(preset.colors).map((color) => (
-                          <span
-                            key={`${preset.id}-${color}`}
-                            className="h-8 w-8 rounded-full border border-white/80 shadow-sm"
-                            style={{ backgroundColor: color }}
-                          />
-                        ))}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
+              <Button variant="ghost" size="sm" className="gap-2" onClick={resetTheme}>
+                <RotateCcw className="h-4 w-4" />
+                Reset
+              </Button>
             </div>
 
-            <div className="space-y-4 rounded-[1.75rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-[rgb(var(--theme-neutral-rgb)/0.8)] p-5">
-              <div>
-                <p className="text-sm font-semibold text-foreground">Custom palette</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Paste or pick any three colors. The site updates live as you
-                  commit each field.
-                </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {presets.map((preset) => {
+                const isActive = mode === 'preset' && activePreset?.id === preset.id
+
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setPresetTheme(preset.id)}
+                    className={`relative overflow-hidden rounded-[1.45rem] border p-4 text-left transition ${
+                      isActive
+                        ? 'border-[rgb(var(--theme-primary-rgb)/0.55)] bg-[rgb(var(--theme-primary-soft-rgb)/0.46)] shadow-sm'
+                        : 'border-[rgb(var(--theme-border-rgb)/0.8)] bg-white hover:border-[rgb(var(--theme-primary-rgb)/0.35)]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="pr-2 text-base font-semibold text-foreground">
+                        {preset.name}
+                      </p>
+                      {isActive ? <ActiveChip /> : null}
+                    </div>
+                    <div className="mt-4 flex items-center gap-2">
+                      {Object.values(preset.colors).map((color) => (
+                        <span
+                          key={`${preset.id}-${color}`}
+                          className="h-9 w-9 rounded-full border border-white/80 shadow-sm"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="rounded-[1.75rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-[rgb(var(--theme-neutral-rgb)/0.8)] p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">Custom</p>
+                <HelpPopover title="Custom palette">
+                  Primary usually drives buttons and focus states, secondary softens panels, and accent lifts chips and highlights.
+                </HelpPopover>
               </div>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {COLOR_FIELDS.map((field) => (
                   <div
                     key={field.key}
-                    className="grid gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.75)] bg-white p-4 md:grid-cols-[1fr_120px_150px]"
+                    className="grid items-center gap-3 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.75)] bg-white p-3 md:grid-cols-[84px_minmax(0,1fr)_140px]"
                   >
-                    <div>
-                      <p className="font-medium text-foreground">{field.label}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-foreground">{field.label}</p>
+                      <HelpPopover title={field.label} contentClassName="w-64">
                         {field.helper}
-                      </p>
+                      </HelpPopover>
                     </div>
-                    <input
-                      type="color"
-                      value={activeColors[field.key]}
-                      onChange={(event) => {
-                        setDraftColors((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))
-                        setCustomColor(field.key, event.target.value)
-                      }}
-                      className="h-11 w-full cursor-pointer rounded-2xl border border-input bg-background p-1"
-                    />
+                    <div className="theme-color-shell">
+                      <input
+                        type="color"
+                        value={activeColors[field.key]}
+                        onChange={(event) => {
+                          setDraftColors((current) => ({
+                            ...current,
+                            [field.key]: event.target.value,
+                          }))
+                          setCustomColor(field.key, event.target.value)
+                        }}
+                        className="theme-color-input"
+                      />
+                    </div>
                     <Input
                       value={draftColors[field.key]}
                       onChange={(event) =>
@@ -198,7 +208,7 @@ export default function ThemeStudioDialog() {
                           commitDraftColor(field.key)
                         }
                       }}
-                      className="rounded-2xl uppercase"
+                      className="h-11 rounded-2xl uppercase"
                     />
                   </div>
                 ))}
@@ -206,74 +216,55 @@ export default function ThemeStudioDialog() {
             </div>
           </section>
 
-          <section className="space-y-4">
-            <div className="theme-panel rounded-[1.75rem] p-5">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">Live preview</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    This is how the palette is applied across chips, icons, and
-                    soft surfaces.
-                  </p>
+          <section className="theme-panel rounded-[1.75rem] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-foreground">Preview</p>
+                <HelpPopover title="Preview" align="end">
+                  This shows how your three colors flow into chips, icons, and soft interface surfaces.
+                </HelpPopover>
+              </div>
+              <div className="theme-icon-accent flex h-11 w-11 items-center justify-center rounded-2xl">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="default">Primary</Badge>
+                <Badge variant="secondary">Secondary</Badge>
+                <Badge variant="outline">Accent</Badge>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="theme-panel-soft space-y-3 rounded-[1.35rem] p-4">
+                  <div className="theme-icon-primary flex h-10 w-10 items-center justify-center rounded-2xl">
+                    <Palette className="h-4 w-4" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Builder</p>
                 </div>
-                <div className="theme-icon-accent flex h-11 w-11 items-center justify-center rounded-2xl">
-                  <Sparkles className="h-5 w-5" />
+
+                <div className="theme-panel-soft space-y-3 rounded-[1.35rem] p-4">
+                  <div className="theme-icon-secondary flex h-10 w-10 items-center justify-center rounded-2xl">
+                    <Palette className="h-4 w-4" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Cards</p>
+                </div>
+
+                <div className="theme-panel-soft space-y-3 rounded-[1.35rem] p-4">
+                  <div className="theme-icon-accent flex h-10 w-10 items-center justify-center rounded-2xl">
+                    <Palette className="h-4 w-4" />
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Badges</p>
                 </div>
               </div>
 
-              <div className="mt-5 space-y-4">
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant="default">Primary</Badge>
-                  <Badge variant="secondary">Secondary</Badge>
-                  <Badge variant="outline">Accent</Badge>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="theme-panel-soft rounded-[1.5rem] p-4">
-                    <div className="theme-icon-primary flex h-11 w-11 items-center justify-center rounded-2xl">
-                      <Palette className="h-5 w-5" />
-                    </div>
-                    <p className="mt-3 font-semibold text-foreground">Builder shell</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Primary-tinted actions and focus states.
-                    </p>
-                  </div>
-
-                  <div className="theme-panel-soft rounded-[1.5rem] p-4">
-                    <div className="theme-icon-secondary flex h-11 w-11 items-center justify-center rounded-2xl">
-                      <Palette className="h-5 w-5" />
-                    </div>
-                    <p className="mt-3 font-semibold text-foreground">Cards</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Secondary surfaces keep the workspace colorful but calm.
-                    </p>
-                  </div>
-
-                  <div className="theme-panel-soft rounded-[1.5rem] p-4">
-                    <div className="theme-icon-accent flex h-11 w-11 items-center justify-center rounded-2xl">
-                      <Palette className="h-5 w-5" />
-                    </div>
-                    <p className="mt-3 font-semibold text-foreground">Badges</p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Accent pills lift the labels without darkening the UI.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-white p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Example survey header
-                      </p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Slugs, counts, and support chips now inherit the palette.
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className="theme-chip-secondary">/af89b9af8aa0</span>
-                      <span className="theme-chip-accent">2 pages</span>
-                    </div>
+              <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-white p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-foreground">Header</p>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="theme-chip-secondary">/af89b9af8aa0</span>
+                    <span className="theme-chip-accent">2 pages</span>
                   </div>
                 </div>
               </div>

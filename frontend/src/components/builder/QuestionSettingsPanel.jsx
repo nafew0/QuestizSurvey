@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 
+import SurveyThemeEditor from '@/components/builder/SurveyThemeEditor'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CustomSelect } from '@/components/ui/custom-select'
@@ -135,6 +136,7 @@ export default function QuestionSettingsPanel({
   onQuestionFieldChange,
 }) {
   const [activeTab, setActiveTab] = useState('settings')
+  const [surveyTab, setSurveyTab] = useState('settings')
 
   const targetPageOptions = useMemo(() => {
     if (!selectedPage) {
@@ -207,123 +209,132 @@ export default function QuestionSettingsPanel({
   if (!question) {
     return (
       <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] p-4">
-        <PanelSection
-          eyebrow="Survey"
-          title="Survey settings"
-          description="Tune the overall experience before drilling into any single question."
-        >
-          <Field label="Survey title">
-            <Input
-              value={survey.title}
-              onChange={(event) => onSurveyFieldChange('title', event.target.value)}
-              className="rounded-2xl"
-            />
-          </Field>
-          <Field label="Description">
-            <Textarea
-              value={survey.description || ''}
-              onChange={(event) => onSurveyFieldChange('description', event.target.value)}
-              className="rounded-2xl"
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Primary color">
-              <input
-                type="color"
-                value={survey.theme?.primary || '#2563eb'}
-                onChange={(event) =>
-                  onSurveyFieldChange('theme', {
-                    ...(survey.theme ?? {}),
-                    primary: event.target.value,
-                  })
-                }
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white p-2"
-              />
-            </Field>
-            <Field label="Accent color">
-              <input
-                type="color"
-                value={survey.theme?.accent || '#0f172a'}
-                onChange={(event) =>
-                  onSurveyFieldChange('theme', {
-                    ...(survey.theme ?? {}),
-                    accent: event.target.value,
-                  })
-                }
-                className="h-11 w-full rounded-2xl border border-slate-200 bg-white p-2"
-              />
-            </Field>
+        <div className="theme-panel rounded-[1.75rem] p-5">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">Survey</h2>
+            <HelpPopover title="Survey workspace" align="end">
+              Use Settings for survey-level behavior and page routing. Use Design to control the live respondent theme, branding, fonts, and spacing.
+            </HelpPopover>
           </div>
 
-          <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
+          <div className="theme-panel-soft mt-4 grid grid-cols-2 gap-2 rounded-2xl p-1">
             {[
-              ['progress_bar', 'Show progress bar'],
-              ['numbering', 'Display page numbering'],
-              ['save_continue', 'Allow save and continue'],
-              ['multi_response', 'Allow multiple responses'],
-            ].map(([settingKey, label]) => (
-              <div key={settingKey} className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-slate-700">{label}</p>
-                </div>
-                <Switch
-                  checked={Boolean(survey.settings?.[settingKey])}
-                  onCheckedChange={(checked) =>
-                    onSurveyFieldChange('settings', {
-                      ...(survey.settings ?? {}),
-                      [settingKey]: checked,
-                    })
-                  }
-                />
-              </div>
+              ['settings', 'Settings'],
+              ['design', 'Design'],
+            ].map(([tabKey, label]) => (
+              <button
+                key={tabKey}
+                type="button"
+                onClick={() => setSurveyTab(tabKey)}
+                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
+                  surveyTab === tabKey
+                    ? 'bg-white text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
             ))}
           </div>
-        </PanelSection>
+        </div>
 
-        {selectedPage ? (
-          <PanelSection
-            eyebrow="Page"
-            title={selectedPage.title || `Page ${selectedPage.order}`}
-            description="Adjust the selected page and its outgoing branch."
-          >
-            <Field label="Page title">
-              <Input
-                value={selectedPage.title}
-                onChange={(event) => onPageFieldChange(selectedPage.id, 'title', event.target.value)}
-                className="rounded-2xl"
-              />
-            </Field>
-            <Field label="Page description">
-              <Textarea
-                value={selectedPage.description || ''}
-                onChange={(event) =>
-                  onPageFieldChange(selectedPage.id, 'description', event.target.value)
-                }
-                className="rounded-2xl"
-              />
-            </Field>
-            <Field
-              label="After this page, always skip to"
-              hint="Leave blank to continue to the next page."
+        {surveyTab === 'settings' ? (
+          <>
+            <PanelSection
+              eyebrow="Survey"
+              title="Survey settings"
+              description="Tune the overall experience before drilling into any single question."
             >
-              <MiniSelect
-                value={selectedPage.skip_logic?.target || ''}
-                onChange={(value) =>
-                  onPageFieldChange(
-                    selectedPage.id,
-                    'skip_logic',
-                    value ? { action: 'skip_to_page', target: value } : null
-                  )
-                }
-                options={[
-                  { value: '', label: 'Continue normally' },
-                  ...targetPageOptions,
-                ]}
-              />
-            </Field>
-          </PanelSection>
-        ) : null}
+              <Field label="Survey title">
+                <Input
+                  value={survey.title}
+                  onChange={(event) => onSurveyFieldChange('title', event.target.value)}
+                  className="rounded-2xl"
+                />
+              </Field>
+              <Field label="Description">
+                <Textarea
+                  value={survey.description || ''}
+                  onChange={(event) => onSurveyFieldChange('description', event.target.value)}
+                  className="rounded-2xl"
+                />
+              </Field>
+
+              <div className="space-y-3 rounded-3xl border border-slate-200 bg-white p-4">
+                {[
+                  ['progress_bar', 'Show progress bar'],
+                  ['numbering', 'Display page numbering'],
+                  ['save_continue', 'Allow save and continue'],
+                  ['multi_response', 'Allow multiple responses'],
+                ].map(([settingKey, label]) => (
+                  <div key={settingKey} className="flex items-center justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-slate-700">{label}</p>
+                    </div>
+                    <Switch
+                      checked={Boolean(survey.settings?.[settingKey])}
+                      onCheckedChange={(checked) =>
+                        onSurveyFieldChange('settings', {
+                          ...(survey.settings ?? {}),
+                          [settingKey]: checked,
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            </PanelSection>
+
+            {selectedPage ? (
+              <PanelSection
+                eyebrow="Page"
+                title={selectedPage.title || `Page ${selectedPage.order}`}
+                description="Adjust the selected page and its outgoing branch."
+              >
+                <Field label="Page title">
+                  <Input
+                    value={selectedPage.title}
+                    onChange={(event) => onPageFieldChange(selectedPage.id, 'title', event.target.value)}
+                    className="rounded-2xl"
+                  />
+                </Field>
+                <Field label="Page description">
+                  <Textarea
+                    value={selectedPage.description || ''}
+                    onChange={(event) =>
+                      onPageFieldChange(selectedPage.id, 'description', event.target.value)
+                    }
+                    className="rounded-2xl"
+                  />
+                </Field>
+                <Field
+                  label="After this page, always skip to"
+                  hint="Leave blank to continue to the next page."
+                >
+                  <MiniSelect
+                    value={selectedPage.skip_logic?.target || ''}
+                    onChange={(value) =>
+                      onPageFieldChange(
+                        selectedPage.id,
+                        'skip_logic',
+                        value ? { action: 'skip_to_page', target: value } : null
+                      )
+                    }
+                    options={[
+                      { value: '', label: 'Continue normally' },
+                      ...targetPageOptions,
+                    ]}
+                  />
+                </Field>
+              </PanelSection>
+            ) : null}
+          </>
+        ) : (
+          <SurveyThemeEditor
+            survey={survey}
+            onSurveyFieldChange={onSurveyFieldChange}
+          />
+        )}
       </aside>
     )
   }

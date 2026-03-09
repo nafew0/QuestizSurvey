@@ -37,26 +37,25 @@ export default function ImageChoiceRenderer({
                 onChange([...currentValue, choice.id])
               }
             }}
-            className={`overflow-hidden rounded-3xl border text-left transition ${
+            className={`survey-theme-control overflow-hidden border text-left transition ${
               selected
-                ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10'
-                : 'border-slate-200 bg-white hover:border-primary/40'
+                ? 'survey-theme-choice survey-theme-choice-active'
+                : 'survey-theme-choice'
             }`}
           >
-            <div className="aspect-[4/3] bg-slate-100">
+            <div className="aspect-[4/3] bg-[rgb(var(--survey-panel-rgb)/0.86)]">
               {choice.image_url ? (
                 <img src={choice.image_url} alt={choice.text} className="h-full w-full object-cover" />
               ) : (
-                <div className="flex h-full items-center justify-center text-sm text-slate-400">
+                <div className="survey-theme-muted flex h-full items-center justify-center text-sm">
                   Upload image
                 </div>
               )}
             </div>
-            <div className="px-4 py-3 text-sm font-medium text-slate-700">{choice.text}</div>
+            <div className="px-4 py-3 text-sm font-medium text-foreground">{choice.text}</div>
           </button>
         )
       })}
     </div>
   )
 }
-

@@ -8,7 +8,7 @@ export default function DateTimeRenderer({ question, value, onChange, disabled =
         value={value || ''}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        className="survey-theme-control survey-theme-input h-12 w-full px-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
     )
   }
@@ -21,8 +21,7 @@ export default function DateTimeRenderer({ question, value, onChange, disabled =
       min={question.settings?.min_date || undefined}
       max={question.settings?.max_date || undefined}
       onChange={(event) => onChange(event.target.value)}
-      className="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+      className="survey-theme-control survey-theme-input h-12 w-full px-4 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
     />
   )
 }
-

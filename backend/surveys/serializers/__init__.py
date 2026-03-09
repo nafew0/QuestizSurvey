@@ -24,6 +24,7 @@ from .survey_serializers import (
     SurveyCreateUpdateSerializer,
     SurveyDetailSerializer,
     SurveyListSerializer,
+    SurveyThemeAssetUploadSerializer,
 )
 
 __all__ = [
@@ -47,4 +48,5 @@ __all__ = [
     "SurveyListSerializer",
     "SurveyResponseDetailSerializer",
     "SurveyResponseSerializer",
+    "SurveyThemeAssetUploadSerializer",
 ]

@@ -11,6 +11,7 @@ from surveys.models import Answer, ExportJob, Question, SavedReport, Survey, Sur
 from surveys.serializers.response_serializers import build_answer_summary
 from surveys.services.analytics import AnalyticsService
 from surveys.services.filters import ResponseFilterService
+from surveys.theme import normalize_survey_theme
 
 
 STRUCTURAL_TYPES = {
@@ -90,7 +91,7 @@ def resolve_export_config(export_job: ExportJob):
 
 
 def resolve_branding(survey: Survey, config):
-    theme = dict(survey.theme or {})
+    theme = normalize_survey_theme(survey.theme)
     branding = dict(config.get("branding") or {})
     return {
         "company_name": branding.get("company_name") or "",

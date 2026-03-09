@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { useToast } from '@/hooks/useToast'
-import { buildSiteThemeVariables, normalizeHex } from '@/lib/siteTheme'
+import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
 import {
   fetchPublicSurvey,
   submitPublicSurvey,
@@ -236,18 +236,18 @@ export default function PublicSurveyPage() {
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
 
-  const themeColors = useMemo(
-    () => ({
-      primary: normalizeHex(survey?.theme?.primary, activeColors.primary),
-      secondary: normalizeHex(survey?.theme?.secondary, activeColors.secondary),
-      accent: normalizeHex(survey?.theme?.accent, activeColors.accent),
-    }),
-    [activeColors.accent, activeColors.primary, activeColors.secondary, survey?.theme]
+  const surveyTheme = useMemo(
+    () =>
+      normalizeSurveyTheme(survey?.theme, {
+        primary: activeColors.primary,
+        accent: activeColors.accent,
+      }),
+    [activeColors.accent, activeColors.primary, survey?.theme]
   )
 
-  const themeStyle = useMemo(
-    () => buildSiteThemeVariables(themeColors),
-    [themeColors]
+  const themeCss = useMemo(
+    () => buildSurveyThemeCss(surveyTheme, '.public-survey-theme'),
+    [surveyTheme]
   )
 
   const progressValue = useMemo(() => {
@@ -635,11 +635,11 @@ export default function PublicSurveyPage() {
 
   return (
     <div
-      className="theme-app-gradient min-h-screen px-4 py-6 text-foreground sm:px-6 sm:py-8"
-      style={themeStyle}
+      className="public-survey-theme survey-theme-root theme-app-gradient min-h-screen px-4 py-6 text-foreground sm:px-6 sm:py-8"
     >
+      <style>{themeCss}</style>
       <div className="mx-auto max-w-4xl space-y-5">
-        <header className="theme-panel rounded-[2rem] px-5 py-5 sm:px-7">
+        <header className="survey-theme-shell px-5 py-5 sm:px-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
@@ -654,6 +654,15 @@ export default function PublicSurveyPage() {
                 ) : null}
               </div>
               <div>
+                {surveyTheme.logo_url ? (
+                  <div className="survey-theme-logo-row pb-3">
+                    <img
+                      src={surveyTheme.logo_url}
+                      alt={`${survey.title} logo`}
+                      className="survey-theme-logo"
+                    />
+                  </div>
+                ) : null}
                 <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                   {survey.title}
                 </h1>
@@ -669,7 +678,7 @@ export default function PublicSurveyPage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-2xl"
+                className="survey-theme-control"
                 onClick={handleSaveAndCopy}
                 disabled={saving}
               >
@@ -685,7 +694,7 @@ export default function PublicSurveyPage() {
         </header>
 
         {stage === 'page' && currentPage && survey.settings?.progress_bar !== false ? (
-          <div className="theme-panel rounded-[2rem] px-5 py-4 sm:px-6">
+          <div className="survey-theme-panel px-5 py-4 sm:px-6">
             <div className="mb-3 flex items-center justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -699,11 +708,11 @@ export default function PublicSurveyPage() {
                 {currentPageIndex + 1}/{survey.pages.length}
               </p>
             </div>
-            <Progress value={progressValue} />
+            <Progress value={progressValue} className="survey-theme-progress-track" />
           </div>
         ) : null}
 
-        <div className="theme-panel rounded-[2rem] px-5 py-6 sm:px-7 sm:py-7">
+        <div className="survey-theme-shell px-5 py-6 sm:px-7 sm:py-7">
           {stage === 'welcome' ? (
             <div className="space-y-6 text-center">
               <Badge variant="default" className="mx-auto">
@@ -719,12 +728,7 @@ export default function PublicSurveyPage() {
                     'Start the survey when you are ready.'}
                 </p>
               </div>
-              <Button
-                type="button"
-                size="lg"
-                className="rounded-2xl px-8"
-                onClick={handleNext}
-              >
+              <Button type="button" size="lg" className="survey-theme-control px-8" onClick={handleNext}>
                 Start survey
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -746,7 +750,7 @@ export default function PublicSurveyPage() {
                 ) : null}
               </div>
 
-              <div className="space-y-4">
+              <div className="survey-theme-questions">
                 {currentPage.questions.map((question) => (
                   <div key={question.id} className="space-y-2">
                     <QuestionRenderer
@@ -773,7 +777,7 @@ export default function PublicSurveyPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  className="rounded-2xl"
+                  className="survey-theme-control"
                   onClick={handlePrevious}
                   disabled={
                     saving ||
@@ -786,7 +790,7 @@ export default function PublicSurveyPage() {
 
                 <Button
                   type="button"
-                  className="rounded-2xl"
+                  className="survey-theme-control"
                   onClick={handleNext}
                   disabled={saving}
                 >

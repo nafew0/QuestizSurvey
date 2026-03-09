@@ -1,8 +1,10 @@
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework.test import APIClient
 from uuid import uuid4
+from tempfile import TemporaryDirectory
 
 from surveys.models import Choice, Page, Question, Survey
 
@@ -60,6 +62,9 @@ class SurveyCrudTests(TestCase):
         )
         self.assertEqual(create_response.status_code, status.HTTP_201_CREATED)
         created_survey_id = create_response.data["id"]
+        self.assertEqual(create_response.data["theme"]["primary_color"], "#111111")
+        self.assertEqual(create_response.data["theme"]["background_color"], "#ffffff")
+        self.assertEqual(create_response.data["theme"]["font_family"], "Inter")
 
         list_response = self.client.get("/api/surveys/")
         self.assertEqual(list_response.status_code, status.HTTP_200_OK)
@@ -81,6 +86,71 @@ class SurveyCrudTests(TestCase):
         delete_response = self.client.delete(f"/api/surveys/{created_survey_id}/")
         self.assertEqual(delete_response.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Survey.objects.filter(id=created_survey_id).exists())
+
+    def test_update_survey_normalizes_rich_theme_schema(self):
+        survey = Survey.objects.create(user=self.user, title="Theme Test")
+
+        response = self.client.patch(
+            f"/api/surveys/{survey.id}/",
+            {
+                "theme": {
+                    "primary_color": "#123abc",
+                    "background_color": "#faf7f2",
+                    "text_color": "#152033",
+                    "font_family": "Lato",
+                    "button_style": "pill",
+                    "progress_bar_color": "#2dd4bf",
+                    "logo_position": "center",
+                    "question_spacing": "spacious",
+                    "background_image_opacity": 0.44,
+                }
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["theme"]["primary_color"], "#123abc")
+        self.assertEqual(response.data["theme"]["font_family"], "Lato")
+        self.assertEqual(response.data["theme"]["button_style"], "pill")
+        self.assertEqual(response.data["theme"]["background_image_opacity"], 0.44)
+
+    def test_theme_asset_upload_action_updates_theme_urls(self):
+        survey = Survey.objects.create(user=self.user, title="Asset Survey")
+
+        with TemporaryDirectory() as temp_dir:
+            with override_settings(MEDIA_ROOT=temp_dir):
+                upload = SimpleUploadedFile(
+                    "logo.png",
+                    b"fake-image-data",
+                    content_type="image/png",
+                )
+
+                upload_response = self.client.post(
+                    f"/api/surveys/{survey.id}/theme-assets/",
+                    {
+                        "asset_type": "logo",
+                        "asset": upload,
+                    },
+                    format="multipart",
+                )
+
+                self.assertEqual(upload_response.status_code, status.HTTP_200_OK)
+                self.assertIn("/media/survey-theme-assets/", upload_response.data["url"])
+                survey.refresh_from_db()
+                self.assertEqual(survey.theme["logo_url"], upload_response.data["url"])
+
+                clear_response = self.client.post(
+                    f"/api/surveys/{survey.id}/theme-assets/",
+                    {
+                        "asset_type": "logo",
+                        "clear": "true",
+                    },
+                    format="multipart",
+                )
+
+                self.assertEqual(clear_response.status_code, status.HTTP_200_OK)
+                survey.refresh_from_db()
+                self.assertEqual(survey.theme["logo_url"], "")
 
     def test_duplicate_action_deep_copies_pages_questions_and_choices(self):
         survey = self._create_survey_with_structure(self.user)

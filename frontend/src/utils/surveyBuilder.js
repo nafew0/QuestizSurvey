@@ -1,4 +1,5 @@
 import { DEMOGRAPHIC_FIELDS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import { normalizeSurveyTheme } from '@/lib/surveyTheme'
 
 export function deepClone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -215,7 +216,7 @@ export function normalizeSurvey(survey) {
   return {
     ...survey,
     description: survey.description ?? '',
-    theme: survey.theme ?? {},
+    theme: normalizeSurveyTheme(survey.theme ?? {}),
     settings: survey.settings ?? {},
     welcome_page: survey.welcome_page ?? {},
     thank_you_page: survey.thank_you_page ?? {},
