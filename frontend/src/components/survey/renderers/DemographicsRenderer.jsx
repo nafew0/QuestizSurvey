@@ -1,3 +1,4 @@
+import { DEMOGRAPHIC_FIELDS } from '@/constants/surveyBuilder'
 import { Input } from '@/components/ui/input'
 
 const FIELD_LABELS = {
@@ -17,13 +18,14 @@ export default function DemographicsRenderer({
   onChange,
   disabled = false,
 }) {
-  const fields = question.settings?.fields ?? {}
+  const configuredFields = question.settings?.fields
+  const enabledFields = Array.isArray(configuredFields)
+    ? DEMOGRAPHIC_FIELDS.filter((field) => configuredFields.includes(field))
+    : DEMOGRAPHIC_FIELDS.filter((field) => Boolean(configuredFields?.[field]))
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
-      {Object.entries(fields)
-        .filter(([, enabled]) => enabled)
-        .map(([field]) => (
+      {enabledFields.map((field) => (
           <div key={field} className="space-y-2">
             <label className="text-sm font-medium text-foreground">{FIELD_LABELS[field] ?? field}</label>
             <Input

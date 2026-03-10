@@ -1,8 +1,18 @@
 import {
+  getMatchedSkipRule,
   getInitialQuestionValue,
   questionValueHasContent,
   resolveNextPreviewStep,
 } from '@/utils/surveyBuilder'
+import { DEMOGRAPHIC_FIELDS } from '@/constants/surveyBuilder'
+import {
+  buildRestoredAnswerValue,
+  createEnhancedAnswerValue,
+  getAnswerPrimaryValue,
+  getAnswerCommentText,
+  getAnswerOtherText,
+  stripOtherSelections,
+} from '@/utils/questionAnswers'
 
 export const RESPONDED_COOKIE_PREFIX = 'questiz_responded_'
 
@@ -79,7 +89,7 @@ export function setRespondedCookie(slug, days = 30) {
 export function buildInitialPublicAnswers(survey) {
   return (survey.pages ?? []).reduce((answers, page) => {
     page.questions.forEach((question) => {
-      answers[question.id] = getInitialQuestionValue(question)
+      answers[question.id] = createEnhancedAnswerValue(getInitialQuestionValue(question))
     })
     return answers
   }, {})
@@ -99,51 +109,101 @@ export function restorePublicAnswers(survey, response) {
       case 'multiple_choice_single':
       case 'dropdown':
       case 'yes_no':
-        answers[question.id] = answer.choice_ids?.[0] || ''
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.choice_ids?.[0] || '',
+          answer
+        )
         break
       case 'multiple_choice_multi':
-        answers[question.id] = answer.choice_ids ?? []
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.choice_ids ?? [],
+          answer
+        )
         break
       case 'image_choice':
-        answers[question.id] =
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
           question.settings?.single_select === false
             ? answer.choice_ids ?? []
-            : answer.choice_ids?.[0] || ''
+            : answer.choice_ids?.[0] || '',
+          answer
+        )
         break
       case 'short_text':
       case 'long_text':
-        answers[question.id] = answer.text_value || ''
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.text_value || '',
+          answer
+        )
         break
       case 'rating_scale':
       case 'star_rating':
       case 'nps':
-        answers[question.id] =
-          answer.numeric_value == null ? null : Number(answer.numeric_value)
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.numeric_value == null ? null : Number(answer.numeric_value),
+          answer
+        )
         break
       case 'constant_sum':
-        answers[question.id] = answer.constant_sum_data || {}
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.constant_sum_data || {},
+          answer
+        )
         break
       case 'date_time':
         if ((question.settings?.mode ?? 'both') === 'time') {
-          answers[question.id] = answer.text_value || ''
+          answers[question.id] = buildRestoredAnswerValue(
+            question,
+            answer.text_value || '',
+            answer
+          )
         } else if ((question.settings?.mode ?? 'both') === 'date') {
-          answers[question.id] = formatDateInputValue(answer.date_value)
+          answers[question.id] = buildRestoredAnswerValue(
+            question,
+            formatDateInputValue(answer.date_value),
+            answer
+          )
         } else {
-          answers[question.id] = formatDateTimeLocalValue(answer.date_value)
+          answers[question.id] = buildRestoredAnswerValue(
+            question,
+            formatDateTimeLocalValue(answer.date_value),
+            answer
+          )
         }
         break
       case 'matrix':
       case 'demographics':
-        answers[question.id] = answer.matrix_data || {}
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.matrix_data || {},
+          answer
+        )
         break
       case 'ranking':
-        answers[question.id] = answer.ranking_data || []
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.ranking_data || [],
+          answer
+        )
         break
       case 'file_upload':
-        answers[question.id] = answer.file_url || null
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.file_url || null,
+          answer
+        )
         break
       default:
-        answers[question.id] = answer.text_value || ''
+        answers[question.id] = buildRestoredAnswerValue(
+          question,
+          answer.text_value || '',
+          answer
+        )
         break
     }
   })
@@ -201,63 +261,77 @@ export function serializePublicAnswers(survey, answers) {
     .flatMap((page) => page.questions)
     .filter((question) => !['section_heading', 'instructional_text'].includes(question.question_type))
     .map((question) => {
-      const value = answers[question.id]
+      const storedValue = answers[question.id]
+      const value = getAnswerPrimaryValue(storedValue)
       const basePayload = {
         question: question.id,
       }
+      const otherText = getAnswerOtherText(storedValue).trim()
+      const commentText = getAnswerCommentText(storedValue).trim()
+
+      let payload = null
 
       switch (question.question_type) {
         case 'multiple_choice_single':
         case 'dropdown':
         case 'yes_no':
-          return {
+          payload = {
             ...basePayload,
-            choice_ids: value ? [value] : [],
+            choice_ids: stripOtherSelections(question, value)
+              ? [stripOtherSelections(question, value)]
+              : [],
           }
+          break
         case 'multiple_choice_multi':
-          return {
+          payload = {
             ...basePayload,
-            choice_ids: value ?? [],
+            choice_ids: stripOtherSelections(question, value ?? []),
           }
+          break
         case 'image_choice':
-          return {
+          payload = {
             ...basePayload,
             choice_ids:
               question.settings?.single_select === false
-                ? value ?? []
+                ? stripOtherSelections(question, value ?? [])
                 : value
-                  ? [value]
+                  ? [stripOtherSelections(question, value)]
                   : [],
           }
+          break
         case 'short_text':
         case 'long_text':
-          return {
+          payload = {
             ...basePayload,
             text_value: value || '',
           }
+          break
         case 'rating_scale':
         case 'star_rating':
         case 'nps':
-          return {
+          payload = {
             ...basePayload,
             numeric_value: value == null ? null : Number(value),
           }
+          break
         case 'constant_sum':
-          return {
+          payload = {
             ...basePayload,
             constant_sum_data: Object.fromEntries(
               Object.entries(value || {}).filter(([, entryValue]) => `${entryValue}`.trim() !== '')
             ),
           }
+          break
         case 'date_time':
           if ((question.settings?.mode ?? 'both') === 'time') {
-            return {
+            payload = {
               ...basePayload,
               text_value: value || '',
             }
+            break
           }
 
-          return {
+          payload = {
             ...basePayload,
             date_value: toIsoDateTime(
               (question.settings?.mode ?? 'both') === 'date'
@@ -265,42 +339,63 @@ export function serializePublicAnswers(survey, answers) {
                 : value
             ),
           }
+          break
         case 'matrix':
         case 'demographics':
-          return {
+          payload = {
             ...basePayload,
             matrix_data: value || {},
           }
+          break
         case 'ranking':
-          return {
+          payload = {
             ...basePayload,
             ranking_data: value || [],
           }
+          break
         case 'file_upload':
-          return {
+          payload = {
             ...basePayload,
             file_url: typeof value === 'string' ? value : '',
           }
+          break
         default:
-          return {
+          payload = {
             ...basePayload,
             text_value: value || '',
           }
+          break
       }
+
+      if (otherText) {
+        payload.other_text = otherText
+      }
+
+      if (commentText) {
+        payload.comment_text = commentText
+      }
+
+      return payload
     })
 }
 
 function getEnabledDemographicFields(question) {
-  return Object.entries(question.settings?.fields ?? {})
-    .filter(([, enabled]) => enabled)
-    .map(([field]) => field)
+  const configuredFields = question.settings?.fields
+
+  if (Array.isArray(configuredFields)) {
+    return DEMOGRAPHIC_FIELDS.filter((field) => configuredFields.includes(field))
+  }
+
+  return DEMOGRAPHIC_FIELDS.filter((field) => Boolean(configuredFields?.[field]))
 }
 
 export function getQuestionValidationError(question, value) {
+  const primaryValue = getAnswerPrimaryValue(value)
+
   if (!question.required) {
-    if (question.question_type === 'constant_sum' && questionValueHasContent(question, value)) {
+    if (question.question_type === 'constant_sum' && questionValueHasContent(question, primaryValue)) {
       const target = Number(question.settings?.target_sum ?? 100)
-      const total = Object.values(value || {}).reduce(
+      const total = Object.values(primaryValue || {}).reduce(
         (sum, item) => sum + Number(item || 0),
         0
       )
@@ -313,7 +408,7 @@ export function getQuestionValidationError(question, value) {
 
   switch (question.question_type) {
     case 'multiple_choice_multi': {
-      const total = (value || []).length
+      const total = (primaryValue || []).length
       const minSelections = Number(question.settings?.min_selections || 0)
       const maxSelections = Number(question.settings?.max_selections || 0)
 
@@ -330,12 +425,12 @@ export function getQuestionValidationError(question, value) {
     }
     case 'constant_sum': {
       const target = Number(question.settings?.target_sum ?? 100)
-      const total = Object.values(value || {}).reduce(
+      const total = Object.values(primaryValue || {}).reduce(
         (sum, item) => sum + Number(item || 0),
         0
       )
 
-      if (!Object.keys(value || {}).length) {
+      if (!Object.keys(primaryValue || {}).length) {
         return 'Complete the allocation before continuing.'
       }
       if (total !== target) {
@@ -348,22 +443,22 @@ export function getQuestionValidationError(question, value) {
       const cellType = question.settings?.cell_type ?? 'radio'
       const missingRow = rows.find((row) => {
         if (cellType === 'checkbox') {
-          return !Object.values(value?.[row] ?? {}).some(Boolean)
+          return !Object.values(primaryValue?.[row] ?? {}).some(Boolean)
         }
-        return !value?.[row]
+        return !primaryValue?.[row]
       })
       return missingRow ? 'Answer each row before continuing.' : ''
     }
     case 'demographics': {
       const missingField = getEnabledDemographicFields(question).find(
-        (field) => !`${value?.[field] ?? ''}`.trim()
+        (field) => !`${primaryValue?.[field] ?? ''}`.trim()
       )
       return missingField ? 'Complete all required fields before continuing.' : ''
     }
     case 'file_upload':
-      return value ? '' : 'Add a file before continuing.'
+      return primaryValue ? '' : 'Add a file before continuing.'
     default:
-      return questionValueHasContent(question, value)
+      return questionValueHasContent(question, primaryValue)
         ? ''
         : 'This question is required.'
   }
@@ -371,17 +466,28 @@ export function getQuestionValidationError(question, value) {
 
 export function validateSurveyPage(page, answers) {
   const errors = {}
+  let shouldStopValidation = false
 
-  page.questions.forEach((question) => {
+  for (const question of page.questions) {
     if (['section_heading', 'instructional_text'].includes(question.question_type)) {
-      return
+      continue
+    }
+
+    if (shouldStopValidation) {
+      continue
     }
 
     const errorMessage = getQuestionValidationError(question, answers[question.id])
     if (errorMessage) {
       errors[question.id] = errorMessage
+      continue
     }
-  })
+
+    const matchedRule = getMatchedSkipRule(question, answers[question.id])
+    if (matchedRule && matchedRule.action !== 'continue') {
+      shouldStopValidation = true
+    }
+  }
 
   return errors
 }

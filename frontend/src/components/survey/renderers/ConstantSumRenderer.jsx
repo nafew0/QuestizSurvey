@@ -11,6 +11,15 @@ export default function ConstantSumRenderer({
 
   return (
     <div className="space-y-4">
+      <div className="survey-theme-choice rounded-[1.4rem] px-4 py-4">
+        <p className="text-sm font-medium text-foreground">
+          Distribute {target} among the items below.
+        </p>
+        <p className="mt-1 text-sm text-[rgb(var(--survey-muted-foreground-rgb))]">
+          [Total {total}/ Target {target}]
+        </p>
+      </div>
+
       {question.choices?.map((choice) => (
         <div
           key={choice.id ?? choice.order}
@@ -32,9 +41,6 @@ export default function ConstantSumRenderer({
           />
         </div>
       ))}
-      <div className="survey-theme-control bg-[rgb(var(--survey-panel-rgb)/0.85)] px-4 py-3 text-sm font-medium text-[rgb(var(--survey-muted-foreground-rgb))]">
-        Total: {total} / Target: {target}
-      </div>
     </div>
   )
 }

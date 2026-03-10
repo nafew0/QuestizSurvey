@@ -1,5 +1,6 @@
 import { DEMOGRAPHIC_FIELDS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 import { normalizeSurveyTheme } from '@/lib/surveyTheme'
+import { getAnswerPrimaryValue } from '@/utils/questionAnswers'
 
 export function deepClone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -349,23 +350,27 @@ export function getInitialQuestionValue(question) {
 }
 
 export function questionValueHasContent(question, value) {
-  if (value == null) {
+  const primaryValue = getAnswerPrimaryValue(value)
+
+  if (primaryValue == null) {
     return false
   }
 
-  if (Array.isArray(value)) {
-    return value.length > 0
+  if (Array.isArray(primaryValue)) {
+    return primaryValue.length > 0
   }
 
-  if (typeof value === 'object') {
-    return Object.keys(value).length > 0
+  if (typeof primaryValue === 'object') {
+    return Object.keys(primaryValue).length > 0
   }
 
-  return `${value}`.trim().length > 0
+  return `${primaryValue}`.trim().length > 0
 }
 
 export function matchesSkipRule(rule, question, answerValue) {
-  if (!rule || !questionValueHasContent(question, answerValue)) {
+  const primaryValue = getAnswerPrimaryValue(answerValue)
+
+  if (!rule || !questionValueHasContent(question, primaryValue)) {
     return false
   }
 
@@ -374,14 +379,14 @@ export function matchesSkipRule(rule, question, answerValue) {
   }
 
   if (rule.condition?.choice_id) {
-    if (Array.isArray(answerValue)) {
-      return answerValue.includes(rule.condition.choice_id)
+    if (Array.isArray(primaryValue)) {
+      return primaryValue.includes(rule.condition.choice_id)
     }
-    return answerValue === rule.condition.choice_id
+    return primaryValue === rule.condition.choice_id
   }
 
   if (rule.condition?.operator) {
-    const numericAnswer = Number(answerValue)
+    const numericAnswer = Number(primaryValue)
     const value = Number(rule.condition.value)
     const min = Number(rule.condition.min)
     const max = Number(rule.condition.max)
@@ -403,6 +408,16 @@ export function matchesSkipRule(rule, question, answerValue) {
   return false
 }
 
+export function getMatchedSkipRule(question, answerValue) {
+  const rules = question.skip_logic ?? []
+
+  return (
+    rules.find(
+      (rule) => !rule.condition?.default && matchesSkipRule(rule, question, answerValue)
+    ) ?? rules.find((rule) => rule.condition?.default) ?? null
+  )
+}
+
 export function resolveNextPreviewStep({ pages, currentPageIndex, answers }) {
   const currentPage = pages[currentPageIndex]
 
@@ -412,10 +427,7 @@ export function resolveNextPreviewStep({ pages, currentPageIndex, answers }) {
 
   for (const question of currentPage.questions) {
     const answerValue = answers[question.id]
-    const rules = question.skip_logic ?? []
-    const matchedRule =
-      rules.find((rule) => !rule.condition?.default && matchesSkipRule(rule, question, answerValue)) ??
-      rules.find((rule) => rule.condition?.default)
+    const matchedRule = getMatchedSkipRule(question, answerValue)
 
     if (matchedRule) {
       if (matchedRule.action === 'skip_to_page' && matchedRule.target) {

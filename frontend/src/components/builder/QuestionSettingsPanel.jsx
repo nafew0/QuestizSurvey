@@ -137,6 +137,9 @@ export default function QuestionSettingsPanel({
 }) {
   const [activeTab, setActiveTab] = useState('settings')
   const [surveyTab, setSurveyTab] = useState('settings')
+  const demographicFieldSettings = Array.isArray(question?.settings?.fields)
+    ? Object.fromEntries(question.settings.fields.map((field) => [field, true]))
+    : question?.settings?.fields ?? {}
 
   const targetPageOptions = useMemo(() => {
     if (!selectedPage) {
@@ -692,11 +695,11 @@ export default function QuestionSettingsPanel({
                   <div key={field} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
                     <span className="text-sm font-medium capitalize text-slate-700">{field}</span>
                     <Switch
-                      checked={Boolean(question.settings?.fields?.[field])}
+                      checked={Boolean(demographicFieldSettings[field])}
                       onCheckedChange={(checked) =>
                         updateQuestionSettings({
                           fields: {
-                            ...(question.settings?.fields ?? {}),
+                            ...demographicFieldSettings,
                             [field]: checked,
                           },
                         })

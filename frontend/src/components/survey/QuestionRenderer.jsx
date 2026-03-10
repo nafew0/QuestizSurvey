@@ -1,4 +1,15 @@
 import { cn } from '@/lib/utils'
+import {
+  getAnswerCommentText,
+  getAnswerOtherText,
+  getAnswerPrimaryValue,
+  getQuestionChoicesForResponse,
+  questionSupportsComment,
+  shouldShowOtherInput,
+  updateAnswerCommentText,
+  updateAnswerOtherText,
+  updateAnswerPrimaryValue,
+} from '@/utils/questionAnswers'
 
 import MultipleChoiceSingleRenderer from './renderers/MultipleChoiceSingleRenderer'
 import MultipleChoiceMultiRenderer from './renderers/MultipleChoiceMultiRenderer'
@@ -18,6 +29,7 @@ import FileUploadRenderer from './renderers/FileUploadRenderer'
 import DemographicsRenderer from './renderers/DemographicsRenderer'
 import SectionHeadingRenderer from './renderers/SectionHeadingRenderer'
 import InstructionalTextRenderer from './renderers/InstructionalTextRenderer'
+import { Textarea } from '@/components/ui/textarea'
 
 function BaseQuestionFrame({
   question,
@@ -76,10 +88,19 @@ export default function QuestionRenderer({
   frameClassName = '',
   numberLabel = null,
 }) {
+  const isStructural = ['section_heading', 'instructional_text'].includes(question.question_type)
+  const responseQuestion = {
+    ...question,
+    choices: getQuestionChoicesForResponse(question),
+  }
+  const primaryValue = getAnswerPrimaryValue(value)
+  const otherText = getAnswerOtherText(value)
+  const commentText = getAnswerCommentText(value)
+
   const rendererProps = {
-    question,
-    value,
-    onChange,
+    question: responseQuestion,
+    value: primaryValue,
+    onChange: (nextValue) => onChange(updateAnswerPrimaryValue(value, nextValue)),
     disabled,
   }
 
@@ -154,7 +175,35 @@ export default function QuestionRenderer({
       frameClassName={frameClassName}
       numberLabel={numberLabel}
     >
-      {renderer}
+      <div className="space-y-4">
+        {renderer}
+
+        {!isStructural && shouldShowOtherInput(question, value) ? (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Other</label>
+            <Textarea
+              value={otherText}
+              disabled={disabled}
+              onChange={(event) => onChange(updateAnswerOtherText(value, event.target.value))}
+              placeholder="Type your answer"
+              className="survey-theme-control survey-theme-input min-h-24"
+            />
+          </div>
+        ) : null}
+
+        {!isStructural && questionSupportsComment(question) ? (
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Comment</label>
+            <Textarea
+              value={commentText}
+              disabled={disabled}
+              onChange={(event) => onChange(updateAnswerCommentText(value, event.target.value))}
+              placeholder="Add an optional comment"
+              className="survey-theme-control survey-theme-input min-h-24"
+            />
+          </div>
+        ) : null}
+      </div>
     </BaseQuestionFrame>
   )
 }

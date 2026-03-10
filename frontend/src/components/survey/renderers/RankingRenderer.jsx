@@ -1,8 +1,10 @@
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
 export default function RankingRenderer({ question, value = [], onChange, disabled = false }) {
+  const [draggingId, setDraggingId] = useState('')
   const orderedItems = value.length
     ? value
         .map((choiceId) =>
@@ -19,14 +21,57 @@ export default function RankingRenderer({ question, value = [], onChange, disabl
     onChange(nextItems.map((choice) => choice.id))
   }
 
+  const moveByChoiceId = (fromChoiceId, toChoiceId) => {
+    const fromIndex = orderedItems.findIndex((choice) => choice.id === fromChoiceId)
+    const toIndex = orderedItems.findIndex((choice) => choice.id === toChoiceId)
+
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+      return
+    }
+
+    const nextItems = [...orderedItems]
+    const [draggedItem] = nextItems.splice(fromIndex, 1)
+    nextItems.splice(toIndex, 0, draggedItem)
+    onChange(nextItems.map((choice) => choice.id))
+  }
+
   return (
     <div className="space-y-3">
       {orderedItems.map((item, index) => (
         <div
           key={item.id ?? item.text}
-          className="survey-theme-choice flex items-center justify-between gap-3 px-4 py-3"
+          draggable={!disabled}
+          onDragStart={(event) => {
+            if (disabled) {
+              return
+            }
+
+            setDraggingId(item.id)
+            event.dataTransfer.effectAllowed = 'move'
+          }}
+          onDragEnd={() => setDraggingId('')}
+          onDragOver={(event) => {
+            if (!disabled) {
+              event.preventDefault()
+            }
+          }}
+          onDrop={(event) => {
+            event.preventDefault()
+            if (disabled || !draggingId) {
+              return
+            }
+
+            moveByChoiceId(draggingId, item.id)
+            setDraggingId('')
+          }}
+          className={`survey-theme-choice flex items-center justify-between gap-3 px-4 py-3 ${
+            draggingId === item.id ? 'opacity-70' : ''
+          }`}
         >
-          <div>
+          <div className="flex items-center gap-3">
+            <div className="survey-theme-muted cursor-grab active:cursor-grabbing">
+              <GripVertical className="h-5 w-5" />
+            </div>
             <p className="survey-theme-muted text-xs uppercase tracking-[0.16em]">Rank {index + 1}</p>
             <p className="text-sm font-medium text-foreground">{item.text}</p>
           </div>
