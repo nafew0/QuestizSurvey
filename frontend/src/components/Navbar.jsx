@@ -1,7 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { ClipboardList, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
+import BrandLogo from '@/components/branding/BrandLogo'
 import ThemeStudioDialog from '@/components/theme/ThemeStudioDialog'
 
 const Navbar = () => {
@@ -35,21 +35,13 @@ const Navbar = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center gap-3">
-            <span className="theme-icon-primary flex h-11 w-11 items-center justify-center rounded-2xl text-lg font-bold">
-              Q
-            </span>
-            <div className="space-y-0.5">
-              <p className="text-lg font-bold tracking-tight text-[rgb(var(--theme-primary-ink-rgb))]">
-                Questiz
-              </p>
-              <Badge variant="secondary" className="px-2 py-0.5 text-[10px]">
-                Theme-ready builder
-              </Badge>
-            </div>
+            <BrandLogo compact showSubtitle={false} />
           </Link>
 
           <div className="flex items-center gap-3">
-            <ThemeStudioDialog />
+            <div className="hidden md:block">
+              <ThemeStudioDialog />
+            </div>
             {isAuthenticated ? (
               <>
                 <Link to="/dashboard">
@@ -106,7 +98,7 @@ const Navbar = () => {
                   <Button variant="ghost" className="rounded-full">Login</Button>
                 </Link>
                 <Link to="/register">
-                  <Button className="rounded-full">Register</Button>
+                  <Button className="rounded-full">Start free</Button>
                 </Link>
               </>
             )}
