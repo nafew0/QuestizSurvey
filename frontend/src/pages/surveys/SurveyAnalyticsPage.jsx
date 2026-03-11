@@ -534,7 +534,7 @@ export default function SurveyAnalyticsPage() {
               format={format}
               status={job.status}
               progress={progress}
-              detail="Questiz is generating the file in the background."
+              detail="MindSpear is generating the file in the background."
             />
           ),
           variant: 'info',
@@ -623,7 +623,7 @@ export default function SurveyAnalyticsPage() {
             format={format}
             status={job.status}
             progress={EXPORT_STATUS_PROGRESS[job.status] || 24}
-            detail="Questiz will keep checking until the file is ready."
+            detail="MindSpear will keep checking until the file is ready."
           />
         ),
         variant: 'info',

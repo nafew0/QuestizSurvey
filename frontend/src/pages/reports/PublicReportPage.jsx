@@ -118,7 +118,7 @@ export default function PublicReportPage() {
       >
         <div className="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--theme-border-rgb)/0.82)] px-4 py-2 text-sm text-muted-foreground">
           <Globe2 className="h-4 w-4" />
-          Powered by Questiz
+          Powered by MindSpear
         </div>
       </PublicReportFallback>
     )
@@ -187,7 +187,7 @@ export default function PublicReportPage() {
         <footer className="flex flex-col items-center justify-center gap-2 px-4 py-6 text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white/80 px-4 py-2 text-sm text-muted-foreground shadow-sm">
             <Globe2 className="h-4 w-4" />
-            Powered by Questiz
+            Powered by MindSpear
           </div>
           <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
             Shared analytics for fast stakeholder review

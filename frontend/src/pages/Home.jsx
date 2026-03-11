@@ -141,7 +141,7 @@ const Home = () => {
             </h1>
 
             <p className="mx-auto mt-5 max-w-3xl text-lg leading-8 text-[rgb(var(--theme-secondary-ink-rgb))] sm:text-xl">
-              Questiz gives your team one operating system for survey design, distribution, analytics, theming, and stakeholder-ready reporting.
+              MindSpear gives your team one operating system for survey design, distribution, analytics, theming, and stakeholder-ready reporting.
             </p>
 
             <div className="mt-7 flex flex-wrap justify-center gap-3">
@@ -216,7 +216,7 @@ const Home = () => {
               Concept test, launch, and analyze in one cleaner workflow.
             </h2>
             <p className="mt-4 text-base leading-8 text-muted-foreground">
-              This section carries the product detail that was crowding the hero. It shows how Questiz handles page flow, collection channels, response analysis, branding, and exports once you move past the first fold.
+              This section carries the product detail that was crowding the hero. It shows how MindSpear handles page flow, collection channels, response analysis, branding, and exports once you move past the first fold.
             </p>
 
             <div className="mt-6 space-y-3">
@@ -247,7 +247,7 @@ const Home = () => {
               <div className="flex items-center justify-between rounded-[1.35rem_1.35rem_2.2rem_1.35rem] border border-[rgb(var(--theme-border-rgb)/0.76)] bg-white px-5 py-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                    Questiz workspace
+                    MindSpear workspace
                   </p>
                   <p className="mt-2 text-xl font-semibold tracking-tight text-foreground">
                     Concept test, launch, analyze
@@ -397,7 +397,7 @@ const Home = () => {
           <div className="theme-panel rounded-[2rem_1.6rem_2.8rem_1.6rem] p-6 sm:p-8">
             <span className="theme-chip-accent">Operating model</span>
             <h2 className="mt-5 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              The Questiz workflow stays tight from fielding to report-out.
+              The MindSpear workflow stays tight from fielding to report-out.
             </h2>
             <div className="mt-8 space-y-5">
               {WORKFLOW_STEPS.map((step, index) => (

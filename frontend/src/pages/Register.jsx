@@ -1,49 +1,38 @@
 import { useState } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { AlertCircle, ArrowRight, LoaderCircle, Sparkles } from "lucide-react"
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { AlertCircle, ArrowRight, LoaderCircle } from 'lucide-react'
 
-import AuthShell from '@/components/auth/AuthShell'
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from '../contexts/AuthContext'
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import BrandLogo from '@/components/branding/BrandLogo'
 
 const Register = () => {
   const [formData, setFormData] = useState({
-    username: '',
-    email: '',
-    password: '',
-    password2: '',
-    first_name: '',
-    last_name: '',
+    username: '', email: '', password: '', password2: '',
+    first_name: '', last_name: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   const { register, isAuthenticated, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
 
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />
-  }
+  if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
   if (authLoading) {
     return (
-      <div className="theme-app-gradient flex min-h-[calc(100vh-4rem)] items-center justify-center px-4">
-        <div className="theme-panel flex items-center gap-3 rounded-[2rem] px-5 py-4">
+      <div className="theme-app-gradient flex h-[calc(100vh-4rem)] items-center justify-center">
+        <div className="theme-panel flex items-center gap-3 rounded-2xl px-5 py-4">
           <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-          <span className="text-sm font-medium text-muted-foreground">Preparing registration</span>
+          <span className="text-sm font-medium text-muted-foreground">Loading…</span>
         </div>
       </div>
     )
   }
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    })
+    setFormData({ ...formData, [e.target.name]: e.target.value })
     setError('')
   }
 
@@ -51,196 +40,192 @@ const Register = () => {
     e.preventDefault()
     setLoading(true)
     setError('')
-
-    // Validate passwords match
     if (formData.password !== formData.password2) {
       setError('Passwords do not match')
       setLoading(false)
       return
     }
-
     const result = await register(formData)
-
-    if (result.success) {
-      navigate('/dashboard')
-    } else {
-      setError(result.error)
-    }
-
+    if (result.success) navigate(redirectTo)
+    else setError(result.error)
     setLoading(false)
   }
 
   return (
-    <AuthShell
-      eyebrow="Create workspace"
-      title="Launch your Questiz account"
-      description="Create an account to build surveys, manage collectors, theme each experience, and export stakeholder-ready reports."
-      imageSrc="/branding/registerpage.webp"
-      imageAlt="Questiz registration showcase"
-      showcaseTitle="Set up the account that holds your surveys, brand settings, and delivery workflow."
-      showcaseDescription="If you want a custom visual here, add frontend/public/branding/registerpage.webp. The layout already handles the fallback state cleanly."
-      metrics={[
-        { value: 'Pages', label: 'Flow-based survey design' },
-        { value: 'Analytics', label: 'Summaries and crosstabs' },
-        { value: 'Exports', label: 'PDF, XLSX, PPTX' },
-      ]}
-      highlights={[
-        'Optional page media file: frontend/public/branding/registerpage.webp',
-        'Registration routes directly into the authenticated dashboard after success.',
-        'The page is designed to feel like product onboarding rather than a plain form card.',
-      ]}
-      footer={
-        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[rgb(var(--theme-accent-rgb))]" />
-            Built for branded survey operations
-          </div>
-          <div>
-            Already have an account?{' '}
-            <Link to="/login" className="font-semibold text-primary transition hover:text-primary/80">
-              Sign in
-            </Link>
-          </div>
-        </div>
-      }
-    >
-      <div className="space-y-6">
-        <div className="rounded-[1.75rem] border border-[rgb(var(--theme-border-rgb)/0.78)] bg-[rgb(var(--theme-neutral-rgb)/0.74)] p-4">
-          <p className="text-sm leading-7 text-[rgb(var(--theme-secondary-ink-rgb))]">
-            Start with the account details below. You&apos;ll land in the dashboard immediately after registration succeeds.
-          </p>
-        </div>
+    <div className="theme-app-gradient relative flex h-[calc(100vh-4rem)] items-center overflow-hidden px-4 py-6 sm:px-6">
+      {/* Decorative patterns — light theme */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {/* Primary blue glow top-left */}
+        <div className="absolute -left-24 -top-24 h-72 w-72 rounded-full bg-[rgb(var(--theme-primary-rgb)/0.12)] blur-[80px]" />
+        {/* Accent orange glow bottom-right */}
+        <div className="absolute -bottom-20 -right-20 h-64 w-64 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.10)] blur-[80px]" />
+        {/* Secondary teal glow bottom-left */}
+        <div className="absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-[rgb(var(--theme-secondary-rgb)/0.08)] blur-[70px]" />
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {error && (
-            <Alert variant="destructive" className="rounded-2xl">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+        {/* Dot grid — top right */}
+        <svg className="absolute right-12 top-10 opacity-40" width="130" height="70" viewBox="0 0 130 70">
+          {Array.from({ length: 5 }).map((_, row) =>
+            Array.from({ length: 9 }).map((_, col) => (
+              <circle
+                key={`${row}-${col}`}
+                cx={col * 15 + 4} cy={row * 14 + 4} r="1.8"
+                fill="rgb(37 99 235 / 0.35)"
+              />
+            ))
           )}
+        </svg>
 
-          <div className="space-y-2">
-            <Label htmlFor="username" className="text-sm font-semibold text-foreground">
-              Username
-            </Label>
-            <Input
-              id="username"
-              name="username"
-              type="text"
-              autoComplete="username"
-              placeholder="Choose a username"
-              value={formData.username}
-              onChange={handleChange}
-              required
-              className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
+        {/* Dot grid — bottom left */}
+        <svg className="absolute bottom-10 left-10 opacity-30" width="100" height="60" viewBox="0 0 100 60">
+          {Array.from({ length: 4 }).map((_, row) =>
+            Array.from({ length: 7 }).map((_, col) => (
+              <circle
+                key={`b${row}-${col}`}
+                cx={col * 15 + 4} cy={row * 14 + 4} r="1.8"
+                fill="rgb(15 118 110 / 0.3)"
+              />
+            ))
+          )}
+        </svg>
+
+        {/* Geometric corner accent top-right */}
+        <svg className="absolute right-6 top-6 opacity-20" width="52" height="52" viewBox="0 0 52 52">
+          <rect x="10" y="0" width="16" height="16" rx="3" stroke="rgb(37 99 235)" fill="none" strokeWidth="1.5" />
+          <rect x="24" y="14" width="16" height="16" rx="3" stroke="rgb(37 99 235)" fill="none" strokeWidth="1.5" />
+          <rect x="32" y="28" width="12" height="12" rx="2" stroke="rgb(15 118 110)" fill="none" strokeWidth="1" />
+        </svg>
+
+        {/* Vertical bars — bottom right */}
+        <div className="absolute bottom-8 right-16 flex items-end gap-1.5 opacity-20">
+          {[28, 40, 22, 36, 18, 44, 30].map((h, i) => (
+            <div
+              key={i}
+              className="w-1.5 rounded-full bg-primary"
+              style={{ height: `${h}px` }}
             />
-          </div>
+          ))}
+        </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-semibold text-foreground">
-              Email
-            </Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              placeholder="name@example.com"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
-            />
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="first_name" className="text-sm font-semibold text-foreground">
-                First name
-              </Label>
-              <Input
-                id="first_name"
-                name="first_name"
-                type="text"
-                autoComplete="given-name"
-                placeholder="John"
-                value={formData.first_name}
-                onChange={handleChange}
-                className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="last_name" className="text-sm font-semibold text-foreground">
-                Last name
-              </Label>
-              <Input
-                id="last_name"
-                name="last_name"
-                type="text"
-                autoComplete="family-name"
-                placeholder="Doe"
-                value={formData.last_name}
-                onChange={handleChange}
-                className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-semibold text-foreground">
-                Password
-              </Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Create a password"
-                value={formData.password}
-                onChange={handleChange}
-                required
-                className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password2" className="text-sm font-semibold text-foreground">
-                Confirm password
-              </Label>
-              <Input
-                id="password2"
-                name="password2"
-                type="password"
-                autoComplete="new-password"
-                placeholder="Confirm your password"
-                value={formData.password2}
-                onChange={handleChange}
-                required
-                className="h-12 rounded-2xl border-[rgb(var(--theme-border-rgb)/0.86)] bg-white"
-              />
-            </div>
-          </div>
-
-          <p className="text-sm leading-7 text-muted-foreground">
-            Password confirmation is checked before the registration request is submitted.
-          </p>
-
-          <Button type="submit" className="h-12 w-full rounded-2xl text-base" disabled={loading}>
-            {loading ? (
-              <>
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                Creating account...
-              </>
-            ) : (
-              <>
-                Create account
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </form>
+        {/* Thin diagonal lines */}
+        <svg className="absolute inset-0 h-full w-full opacity-[0.04]" preserveAspectRatio="none">
+          <line x1="0" y1="60%" x2="100%" y2="20%" stroke="rgb(37 99 235)" strokeWidth="1.5" />
+          <line x1="0" y1="80%" x2="100%" y2="40%" stroke="rgb(15 118 110)" strokeWidth="1" />
+        </svg>
       </div>
-    </AuthShell>
+
+      {/* Layout */}
+      <div className="relative z-10 mx-auto flex w-full max-w-5xl items-stretch gap-4 lg:gap-6">
+
+        {/* ── Left panel: branding image ── */}
+        <div className="hidden flex-1 lg:flex lg:flex-col">
+          <div
+            className="relative flex-1 overflow-hidden rounded-3xl border border-[rgb(var(--theme-border-rgb)/0.7)] bg-[rgb(var(--theme-primary-soft-rgb)/0.6)] shadow-[0_28px_70px_rgb(var(--theme-shadow-rgb)/0.12)] backdrop-blur-sm"
+            style={{ minHeight: 'calc(100vh - 8rem)' }}
+          >
+            <img
+              src="/branding/registerpage.webp"
+              alt="Register visual"
+              className="h-full w-full object-cover"
+              onError={(e) => { e.currentTarget.style.display = 'none' }}
+            />
+            {/* Overlay gradient */}
+            <div className="absolute inset-0 bg-gradient-to-t from-[rgb(var(--theme-primary-ink-rgb)/0.55)] via-transparent to-transparent" />
+
+            {/* Bottom text overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-8">
+              <h2 className="text-3xl font-bold leading-tight text-white drop-shadow">
+                Start building
+              </h2>
+              <p className="mt-2 text-sm text-white/75">
+                Create your account and launch your first survey
+              </p>
+            </div>
+
+            {/* Fallback when no image */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-10 [&:has(~*)]:hidden">
+              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[rgb(var(--theme-primary-strong-rgb)/0.7)] bg-white/80 shadow-lg">
+                <span className="text-3xl font-black text-[rgb(var(--theme-primary-ink-rgb))]">Q</span>
+              </div>
+              <h2 className="text-center text-2xl font-bold text-[rgb(var(--theme-primary-ink-rgb))]">
+                Join MindSpear
+              </h2>
+              <p className="mt-3 text-center text-sm leading-relaxed text-[rgb(var(--theme-secondary-ink-rgb)/0.7)]">
+                Upload a custom image at<br />
+                <code className="rounded bg-white/60 px-1.5 py-0.5 text-xs">
+                  frontend/public/branding/registerpage.webp
+                </code>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right panel: glass form ── */}
+        <div className="flex w-full flex-shrink-0 flex-col lg:w-[360px]">
+          {/* Mobile logo */}
+          <div className="mb-5 lg:hidden">
+            <BrandLogo compact />
+          </div>
+
+          <div className="theme-panel flex flex-1 flex-col justify-center rounded-3xl p-6 sm:p-8">
+            <h1 className="text-2xl font-bold tracking-tight text-[rgb(var(--theme-primary-ink-rgb))]">
+              Create account
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Already have one?{' '}
+              <Link to="/login" className="font-semibold text-primary transition hover:text-primary/80">
+                Sign in
+              </Link>
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-5 space-y-3">
+              {error && (
+                <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              {[
+                { name: 'username', label: 'Username', type: 'text', autoComplete: 'username', placeholder: 'Choose a username', required: true },
+                { name: 'email', label: 'Email', type: 'email', autoComplete: 'email', placeholder: 'you@example.com', required: true },
+                { name: 'first_name', label: 'First Name', type: 'text', autoComplete: 'given-name', placeholder: 'John', required: false },
+                { name: 'last_name', label: 'Last Name', type: 'text', autoComplete: 'family-name', placeholder: 'Doe', required: false },
+                { name: 'password', label: 'Password', type: 'password', autoComplete: 'new-password', placeholder: 'Create a password', required: true },
+                { name: 'password2', label: 'Confirm Password', type: 'password', autoComplete: 'new-password', placeholder: 'Repeat your password', required: true },
+              ].map((field) => (
+                <div key={field.name} className="space-y-1">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {field.label}
+                  </label>
+                  <input
+                    name={field.name}
+                    type={field.type}
+                    autoComplete={field.autoComplete}
+                    placeholder={field.placeholder}
+                    value={formData[field.name]}
+                    onChange={handleChange}
+                    required={field.required}
+                    className="h-10 w-full rounded-xl border border-[rgb(var(--theme-border-rgb))] bg-white/80 px-4 text-sm text-foreground placeholder-muted-foreground outline-none backdrop-blur-sm transition focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              ))}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="mt-1 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-[0_4px_16px_rgb(var(--theme-primary-rgb)/0.3)] transition hover:bg-primary/90 disabled:opacity-50"
+              >
+                {loading ? (
+                  <><LoaderCircle className="h-4 w-4 animate-spin" /> Creating account…</>
+                ) : (
+                  <>Create account <ArrowRight className="h-4 w-4" /></>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 

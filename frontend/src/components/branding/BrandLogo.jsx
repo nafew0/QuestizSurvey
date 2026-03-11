@@ -11,7 +11,7 @@ export default function BrandLogo({
   titleClassName,
   subtitleClassName,
   showSubtitle = true,
-  title = 'Questiz',
+  title = 'MindSpear',
   subtitle = 'Survey intelligence platform',
   compact = false,
 }) {
@@ -38,7 +38,7 @@ export default function BrandLogo({
         ) : (
           <img
             src={BRAND_LOGO_PATH}
-            alt="Questiz logo"
+            alt="MindSpear logo"
             className={cn(
               'object-contain',
               compact ? 'h-6 w-6' : 'h-8 w-8',

@@ -176,7 +176,7 @@ export default function LotteryWheel({
             textAnchor="middle"
             className="fill-white text-[3.2px] font-semibold uppercase tracking-[0.24em]"
           >
-            Questiz
+            MindSpear
           </text>
           <text
             x="50"
