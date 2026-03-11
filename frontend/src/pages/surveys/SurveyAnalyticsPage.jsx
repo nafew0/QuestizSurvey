@@ -7,6 +7,7 @@ import {
   Copy,
   FileDown,
   Filter,
+  Gift,
   Link2,
   LoaderCircle,
   LockKeyhole,
@@ -728,6 +729,16 @@ export default function SurveyAnalyticsPage() {
               <Button type="button" variant="outline" className="rounded-full" onClick={() => setFilterDialogOpen(true)}>
                 <Filter className="mr-2 h-4 w-4" />
                 Filter
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-full"
+                onClick={() => navigate(`/surveys/${surveyId}/lottery`)}
+              >
+                <Gift className="mr-2 h-4 w-4" />
+                Lottery
               </Button>
 
               <DropdownMenu>

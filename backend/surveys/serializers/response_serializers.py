@@ -1,6 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
+from surveys.answer_formatting import format_matrix_answer
 from surveys.models import (
     Answer,
     Collector,
@@ -47,10 +48,12 @@ def build_answer_summary(answer):
     elif answer.constant_sum_data:
         summary = f"{len(answer.constant_sum_data)} allocations"
     elif answer.matrix_data:
-        if question_type == Question.QuestionType.DEMOGRAPHICS:
-            summary = ", ".join(
-                f"{field}: {value}" for field, value in answer.matrix_data.items() if value
-            )
+        if question_type in {
+            Question.QuestionType.DEMOGRAPHICS,
+            Question.QuestionType.OPEN_ENDED,
+            Question.QuestionType.MATRIX_PLUS,
+        }:
+            summary = format_matrix_answer(question, answer.matrix_data, separator=", ")
         else:
             summary = f"{len(answer.matrix_data)} rows answered"
     else:
@@ -267,6 +270,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
         collector = attrs.get("collector")
         current_page = attrs.get("current_page")
         invitation_token = attrs.get("invitation_token", "").strip()
+        answers = attrs.get("answers", [])
 
         if collector and collector.survey_id != survey.id:
             raise serializers.ValidationError(
@@ -278,7 +282,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
                 {"current_page": "Page does not belong to this survey."}
             )
 
-        for answer_data in attrs.get("answers", []):
+        for answer_data in answers:
             question = answer_data["question"]
             if question.page.survey_id != survey.id:
                 raise serializers.ValidationError(
@@ -296,6 +300,58 @@ class SubmitAnswerSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"answers": "Choice does not belong to the supplied question."}
                 )
+
+        if attrs.get("status") == SurveyResponse.Status.COMPLETED:
+            submitted_answers = {
+                str(answer_data["question"].id): answer_data for answer_data in answers
+            }
+
+            for question in Question.objects.filter(
+                page__survey=survey,
+                required=True,
+                question_type__in=[
+                    Question.QuestionType.OPEN_ENDED,
+                    Question.QuestionType.MATRIX_PLUS,
+                ],
+            ):
+                answer_data = submitted_answers.get(str(question.id), {})
+                matrix_data = answer_data.get("matrix_data") or {}
+
+                if question.question_type == Question.QuestionType.OPEN_ENDED:
+                    missing_row = next(
+                        (
+                            row_label
+                            for row_label in question.settings.get("rows", [])
+                            if not str(matrix_data.get(row_label) or "").strip()
+                        ),
+                        None,
+                    )
+                    if missing_row:
+                        raise serializers.ValidationError(
+                            {
+                                "answers": f'Complete the "{question.text}" rows before submitting.'
+                            }
+                        )
+
+                if question.question_type == Question.QuestionType.MATRIX_PLUS:
+                    missing_cell = next(
+                        (
+                            (row_label, column_label)
+                            for row_label in question.settings.get("rows", [])
+                            for column_label in question.settings.get("columns", [])
+                            if not str(
+                                (matrix_data.get(row_label) or {}).get(column_label)
+                                or ""
+                            ).strip()
+                        ),
+                        None,
+                    )
+                    if missing_cell:
+                        raise serializers.ValidationError(
+                            {
+                                "answers": f'Complete the "{question.text}" matrix before submitting.'
+                            }
+                        )
 
         if invitation_token:
             invitation = EmailInvitation.objects.select_related(

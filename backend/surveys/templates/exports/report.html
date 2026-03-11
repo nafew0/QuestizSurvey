@@ -96,7 +96,7 @@
             <div class="text-response-item">{{ response }}</div>
           {% endfor %}
         </div>
-      {% elif section.analytics_type == "matrix" %}
+      {% elif section.analytics_type == "matrix" or section.analytics_type == "open_ended" or section.analytics_type == "matrix_plus" %}
         <table class="report-table">
           <thead>
             <tr>

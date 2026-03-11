@@ -31,9 +31,14 @@ export function questionHasChoices(questionType) {
 }
 
 export function questionSupportsSkipLogic(questionType) {
-  return !['short_text', 'long_text', 'file_upload', 'section_heading', 'instructional_text'].includes(
-    questionType
-  )
+  return ![
+    'short_text',
+    'open_ended',
+    'long_text',
+    'file_upload',
+    'section_heading',
+    'instructional_text',
+  ].includes(questionType)
 }
 
 export function isRatingQuestion(questionType) {
@@ -116,11 +121,23 @@ export function defaultSettingsForType(questionType) {
         target_sum: 100,
         display_mode: 'numbers',
       }
+    case 'open_ended':
+      return {
+        allow_comment: false,
+        allow_other: false,
+        rows: ['Commodity', 'NIX'],
+      }
     case 'matrix':
       return {
         rows: ['Row 1', 'Row 2'],
         columns: ['Column 1', 'Column 2'],
         cell_type: 'radio',
+      }
+    case 'matrix_plus':
+      return {
+        rows: ['Item 1', 'Item 2'],
+        columns: ['Col1', 'Col2'],
+        dropdown_options: ['Option 1', 'Option 2', 'Option 3'],
       }
     case 'ranking':
       return {
@@ -334,6 +351,8 @@ export function getInitialQuestionValue(question) {
       return []
     case 'constant_sum':
     case 'matrix':
+    case 'open_ended':
+    case 'matrix_plus':
     case 'demographics':
       return {}
     case 'image_choice':

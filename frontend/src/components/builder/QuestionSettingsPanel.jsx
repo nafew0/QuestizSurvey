@@ -615,6 +615,58 @@ export default function QuestionSettingsPanel({
             </PanelSection>
           ) : null}
 
+          {question.question_type === 'open_ended' ? (
+            <PanelSection
+              eyebrow="Open ended"
+              title="Grouped short answers"
+              description="Define the row labels respondents will answer with short text inputs."
+            >
+              <ArrayEditor
+                label="Rows"
+                items={question.settings?.rows ?? []}
+                onChange={(rows) => updateQuestionSettings({ rows })}
+              />
+              <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-700">Allow Other row</p>
+                  <HelpPopover title="Allow Other row" triggerClassName="h-7 w-7 text-slate-400">
+                    Adds one extra short-answer row labeled Other at the bottom of the question.
+                  </HelpPopover>
+                </div>
+                <Switch
+                  checked={Boolean(question.settings?.allow_other)}
+                  onCheckedChange={(checked) => updateQuestionSettings({ allow_other: checked })}
+                />
+              </div>
+            </PanelSection>
+          ) : null}
+
+          {question.question_type === 'matrix_plus' ? (
+            <PanelSection
+              eyebrow="Matrix+"
+              title="Rows, columns, and dropdown options"
+              description="Each matrix cell will use the same dropdown option list."
+            >
+              <ArrayEditor
+                label="Rows"
+                items={question.settings?.rows ?? []}
+                onChange={(rows) => updateQuestionSettings({ rows })}
+              />
+              <ArrayEditor
+                label="Columns"
+                items={question.settings?.columns ?? []}
+                onChange={(columns) => updateQuestionSettings({ columns })}
+              />
+              <ArrayEditor
+                label="Dropdown options"
+                items={question.settings?.dropdown_options ?? []}
+                onChange={(dropdownOptions) =>
+                  updateQuestionSettings({ dropdown_options: dropdownOptions })
+                }
+              />
+            </PanelSection>
+          ) : null}
+
           {question.question_type === 'constant_sum' ? (
             <PanelSection
               eyebrow="Allocation"

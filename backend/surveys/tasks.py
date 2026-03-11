@@ -6,13 +6,7 @@ from django.utils import timezone
 from django.utils.html import strip_tags
 
 from surveys.models import Collector, EmailInvitation, ExportJob
-from surveys.services.exports import (
-    PDFExportService,
-    PPTXExportService,
-    XLSXExportService,
-    build_export_context,
-    save_export_file,
-)
+from surveys.services.exports.common import build_export_context, save_export_file
 
 
 def get_public_app_url():
@@ -196,14 +190,20 @@ def _run_export(export_job_id, service, extension):
 
 @shared_task
 def generate_pdf_report(export_job_id):
+    from surveys.services.exports.pdf_export import PDFExportService
+
     return _run_export(export_job_id, PDFExportService(), "pdf")
 
 
 @shared_task
 def generate_xlsx_report(export_job_id):
+    from surveys.services.exports.xlsx_export import XLSXExportService
+
     return _run_export(export_job_id, XLSXExportService(), "xlsx")
 
 
 @shared_task
 def generate_pptx_report(export_job_id):
+    from surveys.services.exports.pptx_export import PPTXExportService
+
     return _run_export(export_job_id, PPTXExportService(), "pptx")

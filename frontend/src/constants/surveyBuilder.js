@@ -8,6 +8,7 @@ export const QUESTION_TYPE_GROUPS = [
       'multiple_choice_multi',
       'dropdown',
       'short_text',
+      'open_ended',
       'long_text',
       'yes_no',
     ],
@@ -22,7 +23,7 @@ export const QUESTION_TYPE_GROUPS = [
     id: 'advanced',
     label: 'Advanced',
     description: 'Richer formats for deeper analysis.',
-    types: ['matrix', 'ranking', 'image_choice', 'file_upload', 'date_time', 'demographics'],
+    types: ['matrix', 'matrix_plus', 'ranking', 'image_choice', 'file_upload', 'date_time', 'demographics'],
   },
   {
     id: 'structure',
@@ -51,6 +52,11 @@ export const QUESTION_TYPE_META = {
   short_text: {
     label: 'Short Text',
     shortLabel: 'Short Text',
+    category: 'basic',
+  },
+  open_ended: {
+    label: 'Open Ended',
+    shortLabel: 'Open Ended',
     category: 'basic',
   },
   long_text: {
@@ -91,6 +97,11 @@ export const QUESTION_TYPE_META = {
   matrix: {
     label: 'Matrix',
     shortLabel: 'Matrix',
+    category: 'advanced',
+  },
+  matrix_plus: {
+    label: 'Matrix+',
+    shortLabel: 'Matrix+',
     category: 'advanced',
   },
   ranking: {
@@ -148,4 +159,3 @@ export const DEMOGRAPHIC_FIELDS = [
   'zip',
   'country',
 ]
-

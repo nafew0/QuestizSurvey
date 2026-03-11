@@ -32,7 +32,9 @@ import {
   ANALYTICS_COLOR_SCHEMES,
   buildCategoricalTableRows,
   buildMatrixHeatmapData,
+  buildMatrixPlusTableRows,
   buildNumericDistributionRows,
+  buildOpenEndedTableRows,
   buildTextFrequencyRows,
   getQuestionTypeLabel,
 } from '@/lib/analytics'
@@ -52,6 +54,9 @@ function getDefaultChartType(analytics) {
       return 'word_cloud'
     case 'matrix':
       return 'heatmap'
+    case 'open_ended':
+    case 'matrix_plus':
+      return 'table'
     case 'ranking':
       return 'horizontal_bar'
     case 'constant_sum':
@@ -95,6 +100,9 @@ function getChartOptions(analytics) {
         { value: 'stacked_bar', label: 'Stacked', icon: BarChart3 },
         { value: 'grouped_bar', label: 'Grouped', icon: BarChart3 },
       ]
+    case 'open_ended':
+    case 'matrix_plus':
+      return [{ value: 'table', label: 'Table', icon: Table2 }]
     case 'ranking':
       return [
         { value: 'horizontal_bar', label: 'H Bar', icon: BarChart3 },
@@ -138,6 +146,27 @@ function buildTableConfig(analytics) {
         data: buildNumericDistributionRows(analytics),
         columns: [
           { accessorKey: 'label', header: 'Value' },
+          { accessorKey: 'count', header: 'Count' },
+          { accessorKey: 'percentage', header: '%' },
+        ],
+      }
+    case 'open_ended':
+      return {
+        data: buildOpenEndedTableRows(analytics),
+        columns: [
+          { accessorKey: 'field', header: 'Field' },
+          { accessorKey: 'value', header: 'Value' },
+          { accessorKey: 'count', header: 'Count' },
+          { accessorKey: 'percentage', header: '%' },
+        ],
+      }
+    case 'matrix_plus':
+      return {
+        data: buildMatrixPlusTableRows(analytics),
+        columns: [
+          { accessorKey: 'row', header: 'Row' },
+          { accessorKey: 'column', header: 'Column' },
+          { accessorKey: 'value', header: 'Value' },
           { accessorKey: 'count', header: 'Count' },
           { accessorKey: 'percentage', header: '%' },
         ],
@@ -371,6 +400,10 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
     )
   }
 
+  if (analytics.type === 'open_ended' || analytics.type === 'matrix_plus') {
+    return <AnalyticsTable analytics={analytics} />
+  }
+
   if (analytics.type === 'ranking') {
     if (chartType === 'table') {
       return <AnalyticsTable analytics={analytics} />
@@ -418,6 +451,10 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
   return null
 }
 
+function isTableOnlyAnalyticsType(analyticsType) {
+  return ['open_ended', 'matrix_plus', 'files'].includes(analyticsType)
+}
+
 export default function QuestionAnalyticsCard({
   analytics,
   preference,
@@ -449,6 +486,7 @@ export default function QuestionAnalyticsCard({
   }
 
   const chartOptions = getChartOptions(analytics)
+  const isTableOnlyType = isTableOnlyAnalyticsType(analytics.type)
 
   const handleDownload = async () => {
     if (!cardRef.current) {
@@ -526,37 +564,41 @@ export default function QuestionAnalyticsCard({
             })}
 
             <div className="ml-auto flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">Show table</span>
-                <Switch
-                  checked={localPreference.showTable}
-                  onCheckedChange={(checked) =>
-                    applyPreference({
-                      ...localPreference,
-                      showTable: checked,
-                    })
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">Show labels</span>
-                <Switch
-                  checked={localPreference.showLabels}
-                  onCheckedChange={(checked) =>
-                    applyPreference({
-                      ...localPreference,
-                      showLabels: checked,
-                    })
-                  }
-                />
-              </div>
+              {!isTableOnlyType ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Show table</span>
+                  <Switch
+                    checked={localPreference.showTable}
+                    onCheckedChange={(checked) =>
+                      applyPreference({
+                        ...localPreference,
+                        showTable: checked,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
+              {!isTableOnlyType ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground">Show labels</span>
+                  <Switch
+                    checked={localPreference.showLabels}
+                    onCheckedChange={(checked) =>
+                      applyPreference({
+                        ...localPreference,
+                        showLabels: checked,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
 
         <div className="mt-5">{content}</div>
 
-        {!readOnly ? (
+        {!readOnly && !isTableOnlyType ? (
           <div className="mt-4 flex justify-end">
             <CustomSelect
               value={localPreference.colorScheme}
@@ -593,7 +635,11 @@ export default function QuestionAnalyticsCard({
           </div>
         ) : null}
 
-        {localPreference.showTable && analytics.type !== 'ranking' && analytics.type !== 'files' ? (
+        {localPreference.showTable &&
+        analytics.type !== 'ranking' &&
+        analytics.type !== 'files' &&
+        analytics.type !== 'open_ended' &&
+        analytics.type !== 'matrix_plus' ? (
           <div className="mt-5">
             <AnalyticsTable analytics={analytics} />
           </div>

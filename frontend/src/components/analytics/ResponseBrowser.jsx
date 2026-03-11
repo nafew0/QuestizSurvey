@@ -69,6 +69,17 @@ function RenderAnswer({ answer }) {
     case 'short_text':
     case 'long_text':
       return <p className="text-sm leading-6 text-foreground">{answer.text_value || 'No answer provided.'}</p>
+    case 'open_ended':
+      return (
+        <div className="grid gap-2 md:grid-cols-2">
+          {Object.entries(answer.matrix_data || {}).map(([field, fieldValue]) => (
+            <div key={field} className="rounded-2xl bg-[rgb(var(--theme-neutral-rgb))] px-3 py-2 text-sm">
+              <p className="font-medium text-foreground">{field === '__other__' ? 'Other' : field}</p>
+              <p className="text-muted-foreground">{fieldValue}</p>
+            </div>
+          ))}
+        </div>
+      )
     case 'star_rating':
     case 'rating_scale':
     case 'nps':
@@ -91,6 +102,26 @@ function RenderAnswer({ answer }) {
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    case 'matrix_plus':
+      return (
+        <div className="overflow-hidden rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.78)]">
+          <table className="w-full text-sm">
+            <tbody>
+              {Object.entries(answer.matrix_data || {}).map(([row, rowValues]) =>
+                Object.entries(
+                  rowValues && typeof rowValues === 'object' ? rowValues : {}
+                ).map(([column, cellValue]) => (
+                  <tr key={`${row}-${column}`} className="border-t first:border-t-0 border-[rgb(var(--theme-border-rgb)/0.72)]">
+                    <td className="bg-[rgb(var(--theme-neutral-rgb))] px-3 py-2 font-medium text-foreground">{row}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{column}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{cellValue}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>

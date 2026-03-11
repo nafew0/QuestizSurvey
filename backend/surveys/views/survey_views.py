@@ -14,7 +14,16 @@ from surveys.serializers import (
     SurveyCreateUpdateSerializer,
     SurveyDetailSerializer,
     SurveyListSerializer,
+    SurveyLotteryDrawSerializer,
+    SurveyLotterySettingsSerializer,
     SurveyThemeAssetUploadSerializer,
+)
+from surveys.services.lottery import (
+    build_lottery_payload,
+    draw_lottery_winner,
+    normalize_lottery_settings,
+    reset_lottery_history,
+    set_lottery_settings,
 )
 from surveys.theme import (
     build_uploaded_asset_name,
@@ -35,7 +44,7 @@ class SurveyViewSet(viewsets.ModelViewSet):
             .order_by("-created_at")
         )
 
-        if self.action in {"retrieve", "duplicate"}:
+        if self.action in {"retrieve", "duplicate", "lottery", "lottery_draw", "lottery_reset"}:
             queryset = queryset.prefetch_related("pages__questions__choices")
 
         return queryset
@@ -80,6 +89,52 @@ class SurveyViewSet(viewsets.ModelViewSet):
             survey, context=self.get_serializer_context()
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["get", "patch"])
+    def lottery(self, request, pk=None):
+        survey = self.get_object()
+
+        if request.method.lower() == "get":
+            return Response(build_lottery_payload(survey), status=status.HTTP_200_OK)
+
+        serializer = SurveyLotterySettingsSerializer(
+            data=request.data,
+            context={"survey": survey},
+        )
+        serializer.is_valid(raise_exception=True)
+
+        current_lottery = normalize_lottery_settings(survey.settings)
+        next_lottery = {
+            **current_lottery,
+            **serializer.validated_data,
+        }
+        set_lottery_settings(survey, next_lottery)
+
+        return Response(build_lottery_payload(survey), status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="lottery/draw")
+    def lottery_draw(self, request, pk=None):
+        survey = self.get_object()
+        serializer = SurveyLotteryDrawSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            payload = draw_lottery_winner(
+                survey,
+                serializer.validated_data.get("prize_label", ""),
+            )
+        except ValueError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        return Response(payload, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="lottery/reset")
+    def lottery_reset(self, request, pk=None):
+        survey = self.get_object()
+        return Response(reset_lottery_history(survey), status=status.HTTP_200_OK)
 
     @action(
         detail=True,

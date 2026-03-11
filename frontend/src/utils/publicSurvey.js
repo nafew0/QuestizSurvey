@@ -64,6 +64,36 @@ function toIsoDateTime(value) {
   return parsed.toISOString()
 }
 
+function compactOpenEndedMatrixData(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([, rowValue]) => `${rowValue ?? ''}`.trim() !== '')
+  )
+}
+
+function compactMatrixPlusData(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([rowLabel, rowValues]) => {
+      if (!rowValues || typeof rowValues !== 'object' || Array.isArray(rowValues)) {
+        return []
+      }
+
+      const compactRow = Object.fromEntries(
+        Object.entries(rowValues).filter(([, cellValue]) => `${cellValue ?? ''}`.trim() !== '')
+      )
+
+      return Object.keys(compactRow).length ? [[rowLabel, compactRow]] : []
+    })
+  )
+}
+
 export function getRespondedCookieName(slug) {
   return `${RESPONDED_COOKIE_PREFIX}${slug}`
 }
@@ -177,6 +207,8 @@ export function restorePublicAnswers(survey, response) {
         }
         break
       case 'matrix':
+      case 'open_ended':
+      case 'matrix_plus':
       case 'demographics':
         answers[question.id] = buildRestoredAnswerValue(
           question,
@@ -347,6 +379,18 @@ export function serializePublicAnswers(survey, answers) {
             matrix_data: value || {},
           }
           break
+        case 'open_ended':
+          payload = {
+            ...basePayload,
+            matrix_data: compactOpenEndedMatrixData(value),
+          }
+          break
+        case 'matrix_plus':
+          payload = {
+            ...basePayload,
+            matrix_data: compactMatrixPlusData(value),
+          }
+          break
         case 'ranking':
           payload = {
             ...basePayload,
@@ -448,6 +492,19 @@ export function getQuestionValidationError(question, value) {
         return !primaryValue?.[row]
       })
       return missingRow ? 'Answer each row before continuing.' : ''
+    }
+    case 'open_ended': {
+      const rows = question.settings?.rows ?? []
+      const missingRow = rows.find((row) => !`${primaryValue?.[row] ?? ''}`.trim())
+      return missingRow ? 'Complete each short-answer row before continuing.' : ''
+    }
+    case 'matrix_plus': {
+      const rows = question.settings?.rows ?? []
+      const columns = question.settings?.columns ?? []
+      const missingCell = rows.find((row) =>
+        columns.some((column) => !`${primaryValue?.[row]?.[column] ?? ''}`.trim())
+      )
+      return missingCell ? 'Answer every matrix cell before continuing.' : ''
     }
     case 'demographics': {
       const missingField = getEnabledDemographicFields(question).find(

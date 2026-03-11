@@ -2,6 +2,7 @@ import { startTransition, useDeferredValue, useEffect, useMemo, useState } from 
 import {
   BarChart3,
   Copy,
+  Gift,
   Layers3,
   MoreHorizontal,
   Plus,
@@ -388,6 +389,10 @@ export default function SurveyDashboard() {
                         <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/analyze`)}>
                           <BarChart3 className="mr-2 h-4 w-4" />
                           Analyze
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/lottery`)}>
+                          <Gift className="mr-2 h-4 w-4" />
+                          Lottery
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => navigate(`/surveys/${survey.id}/distribute`)}>
                           <Share2 className="mr-2 h-4 w-4" />

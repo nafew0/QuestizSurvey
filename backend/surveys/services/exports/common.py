@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
+from surveys.answer_formatting import format_matrix_answer
 from surveys.models import Answer, ExportJob, Question, SavedReport, Survey, SurveyResponse
 from surveys.serializers.response_serializers import build_answer_summary
 from surveys.services.analytics import AnalyticsService
@@ -209,14 +210,7 @@ def format_answer_for_export(answer: Answer):
         return "; ".join(allocations)
 
     if answer.matrix_data:
-        fragments = []
-        for key, value in (answer.matrix_data or {}).items():
-            if isinstance(value, dict):
-                selected = [label for label, checked in value.items() if checked]
-                fragments.append(f"{key}: {', '.join(selected)}")
-            else:
-                fragments.append(f"{key}: {value}")
-        return "; ".join(fragment for fragment in fragments if fragment)
+        return format_matrix_answer(question, answer.matrix_data)
 
     return ""
 
@@ -351,6 +345,45 @@ def _matrix_section(analytics):
     }
 
 
+def _open_ended_section(analytics):
+    return {
+        "table_columns": ["Field", "Value", "Count", "Percentage"],
+        "table_rows": [
+            {
+                "label": field["field_label"],
+                "values": [
+                    item["value"],
+                    item["count"],
+                    f"{item['percentage']}%",
+                ],
+            }
+            for field in analytics.get("fields", [])
+            for item in field.get("items", [])
+        ],
+        "highlights": [{"label": "Responses", "value": analytics.get("total_responses", 0)}],
+    }
+
+
+def _matrix_plus_section(analytics):
+    return {
+        "table_columns": ["Row", "Column", "Value", "Count", "Percentage"],
+        "table_rows": [
+            {
+                "label": cell["row_label"],
+                "values": [
+                    cell["col_label"],
+                    item["value"],
+                    item["count"],
+                    f"{item['percentage']}%",
+                ],
+            }
+            for cell in analytics.get("cells", [])
+            for item in cell.get("items", [])
+        ],
+        "highlights": [{"label": "Responses", "value": analytics.get("total_responses", 0)}],
+    }
+
+
 def _ranking_section(analytics):
     rows = [
         {
@@ -466,6 +499,10 @@ def normalize_question_section(question: Question, analytics, config):
         section.update(_text_section(analytics))
     elif analytics_type == "matrix":
         section.update(_matrix_section(analytics))
+    elif analytics_type == "open_ended":
+        section.update(_open_ended_section(analytics))
+    elif analytics_type == "matrix_plus":
+        section.update(_matrix_plus_section(analytics))
     elif analytics_type == "ranking":
         section.update(_ranking_section(analytics))
     elif analytics_type == "constant_sum":

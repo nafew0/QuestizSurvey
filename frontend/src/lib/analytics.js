@@ -131,6 +131,29 @@ export function buildMatrixHeatmapData(analytics) {
   }))
 }
 
+export function buildOpenEndedTableRows(analytics) {
+  return (analytics?.fields ?? []).flatMap((field) =>
+    (field.items ?? []).map((item) => ({
+      field: field.field_label,
+      value: item.value,
+      count: item.count,
+      percentage: item.percentage,
+    }))
+  )
+}
+
+export function buildMatrixPlusTableRows(analytics) {
+  return (analytics?.cells ?? []).flatMap((cell) =>
+    (cell.items ?? []).map((item) => ({
+      row: cell.row_label,
+      column: cell.col_label,
+      value: item.value,
+      count: item.count,
+      percentage: item.percentage,
+    }))
+  )
+}
+
 export function buildResponseFilterChips(filters, questionLookup = {}, collectorLookup = {}) {
   const chips = []
 

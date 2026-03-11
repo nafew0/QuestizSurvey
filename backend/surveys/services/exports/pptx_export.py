@@ -228,7 +228,7 @@ class PPTXExportService:
         for column_index, title in enumerate(section["table_columns"][:cols]):
             table.cell(0, column_index).text = str(title)
 
-        if section["analytics_type"] == "matrix":
+        if section["analytics_type"] in {"matrix", "open_ended", "matrix_plus"}:
             for row_index, row in enumerate(section["table_rows"][: rows - 1], start=1):
                 table.cell(row_index, 0).text = row["label"]
                 for column_index, value in enumerate(row["values"][: cols - 1], start=1):

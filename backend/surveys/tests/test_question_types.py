@@ -50,6 +50,18 @@ class QuestionTypeSerializationTests(TestCase):
                 "rows": ["Speed", "Quality"],
                 "columns": ["Poor", "Good"],
             }
+        elif question_type == Question.QuestionType.MATRIX_PLUS:
+            payload["settings"] = {
+                "rows": ["Item 1", "Item 2"],
+                "columns": ["Col1", "Col2"],
+                "dropdown_options": ["Yes", "No"],
+            }
+        elif question_type == Question.QuestionType.OPEN_ENDED:
+            payload["settings"] = {
+                "rows": ["Commodity", "NIX"],
+                "allow_other": True,
+                "allow_comment": False,
+            }
         elif question_type == Question.QuestionType.DEMOGRAPHICS:
             payload["settings"] = {"fields": ["age", "location"]}
         elif question_type == Question.QuestionType.DATE_TIME:

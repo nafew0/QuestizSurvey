@@ -46,7 +46,7 @@ const CORE_FEATURES = [
 ]
 
 const OPERATING_PILLARS = [
-  '17 question types spanning choice, text, ratings, matrices, ranking, demographics, and uploads.',
+  '19 question types spanning choice, grouped text, ratings, matrices, ranking, demographics, and uploads.',
   'Built-in save and continue, collector rules, response limits, and public link controls.',
   'Per-survey theming, shared reports, and export workflows for polished client delivery.',
 ]

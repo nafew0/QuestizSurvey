@@ -1,23 +1,25 @@
 import json
 from dataclasses import dataclass
 from datetime import datetime, time
+from typing import List, Optional
 
 from django.db.models import Q, QuerySet
 from django.utils import timezone
 from django.utils.dateparse import parse_date, parse_datetime
 
+from surveys.answer_formatting import build_answer_search_blob
 from surveys.models import Answer, SurveyResponse
 
 
 @dataclass
 class ParsedResponseFilters:
-    date_from: datetime | None = None
-    date_to: datetime | None = None
-    collector_id: str | None = None
-    status: str | None = None
-    answer_filters: list | None = None
-    duration_min_seconds: int | None = None
-    duration_max_seconds: int | None = None
+    date_from: Optional[datetime] = None
+    date_to: Optional[datetime] = None
+    collector_id: Optional[str] = None
+    status: Optional[str] = None
+    answer_filters: Optional[List[dict]] = None
+    duration_min_seconds: Optional[int] = None
+    duration_max_seconds: Optional[int] = None
     text_search: str = ""
 
 
@@ -204,12 +206,23 @@ class ResponseFilterService:
             )
 
         if self.filters.text_search:
-            queryset = queryset.filter(
-                Q(respondent_email__icontains=self.filters.text_search)
-                | Q(ip_address__icontains=self.filters.text_search)
-                | Q(answers__text_value__icontains=self.filters.text_search)
-                | Q(answers__other_text__icontains=self.filters.text_search)
-            ).distinct()
+            search_term = self.filters.text_search.lower()
+            direct_match_ids = set(
+                queryset.filter(
+                    Q(respondent_email__icontains=self.filters.text_search)
+                    | Q(ip_address__icontains=self.filters.text_search)
+                ).values_list("id", flat=True)
+            )
+
+            answer_match_ids = set()
+            answer_queryset = Answer.objects.filter(
+                response_id__in=queryset.values_list("id", flat=True)
+            ).select_related("question")
+            for answer in answer_queryset.iterator():
+                if search_term in build_answer_search_blob(answer).lower():
+                    answer_match_ids.add(answer.response_id)
+
+            queryset = queryset.filter(id__in=(direct_match_ids | answer_match_ids))
 
         if self.filters.answer_filters:
             queryset = self._apply_answer_filters(queryset)
@@ -240,9 +253,9 @@ class ResponseFilterService:
                     continue
                 if text_value and answer.text_value != text_value:
                     continue
-                if contains_text and contains_text.lower() not in (
-                    f"{answer.text_value} {answer.other_text}".lower()
-                ):
+                if contains_text and contains_text.lower() not in build_answer_search_blob(
+                    answer
+                ).lower():
                     continue
                 if numeric_value not in (None, "") and (
                     answer.numeric_value is None

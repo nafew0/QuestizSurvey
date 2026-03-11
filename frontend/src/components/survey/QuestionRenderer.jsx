@@ -15,6 +15,7 @@ import MultipleChoiceSingleRenderer from './renderers/MultipleChoiceSingleRender
 import MultipleChoiceMultiRenderer from './renderers/MultipleChoiceMultiRenderer'
 import DropdownRenderer from './renderers/DropdownRenderer'
 import ShortTextRenderer from './renderers/ShortTextRenderer'
+import OpenEndedRenderer from './renderers/OpenEndedRenderer'
 import LongTextRenderer from './renderers/LongTextRenderer'
 import YesNoRenderer from './renderers/YesNoRenderer'
 import StarRatingRenderer from './renderers/StarRatingRenderer'
@@ -23,6 +24,7 @@ import NpsRenderer from './renderers/NpsRenderer'
 import ConstantSumRenderer from './renderers/ConstantSumRenderer'
 import DateTimeRenderer from './renderers/DateTimeRenderer'
 import MatrixRenderer from './renderers/MatrixRenderer'
+import MatrixPlusRenderer from './renderers/MatrixPlusRenderer'
 import RankingRenderer from './renderers/RankingRenderer'
 import ImageChoiceRenderer from './renderers/ImageChoiceRenderer'
 import FileUploadRenderer from './renderers/FileUploadRenderer'
@@ -119,6 +121,9 @@ export default function QuestionRenderer({
     case 'short_text':
       renderer = <ShortTextRenderer {...rendererProps} />
       break
+    case 'open_ended':
+      renderer = <OpenEndedRenderer {...rendererProps} />
+      break
     case 'long_text':
       renderer = <LongTextRenderer {...rendererProps} />
       break
@@ -142,6 +147,9 @@ export default function QuestionRenderer({
       break
     case 'matrix':
       renderer = <MatrixRenderer {...rendererProps} />
+      break
+    case 'matrix_plus':
+      renderer = <MatrixPlusRenderer {...rendererProps} />
       break
     case 'ranking':
       renderer = <RankingRenderer {...rendererProps} />

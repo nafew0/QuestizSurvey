@@ -70,3 +70,155 @@ class PublicSurveyTests(TestCase):
         self.assertEqual(answer.choice_ids, [str(self.choice.id)])
         self.assertEqual(answer.comment_text, "Loved it")
         self.assertIsNotNone(survey_response.completed_at)
+
+    def test_public_submission_accepts_open_ended_with_other_row(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="What is your internet BW?",
+            order=2,
+            settings={
+                "rows": ["Commodity", "NIX", "Intranet"],
+                "allow_other": True,
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "matrix_data": {
+                            "Commodity": "100 Mbps",
+                            "NIX": "50 Mbps",
+                            "Intranet": "1 Gbps",
+                            "__other__": "Cache",
+                        },
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        answer = Answer.objects.get(question=question)
+        self.assertEqual(answer.matrix_data["Commodity"], "100 Mbps")
+        self.assertEqual(answer.matrix_data["__other__"], "Cache")
+
+    def test_public_submission_accepts_matrix_plus_cells(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.MATRIX_PLUS,
+            text="List",
+            order=2,
+            settings={
+                "rows": ["Item 1", "Item 2"],
+                "columns": ["Col1", "Col2"],
+                "dropdown_options": ["Ddown1", "Ddown2", "Ddown3"],
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "matrix_data": {
+                            "Item 1": {
+                                "Col1": "Ddown1",
+                                "Col2": "Ddown2",
+                            },
+                            "Item 2": {
+                                "Col1": "Ddown3",
+                                "Col2": "Ddown1",
+                            },
+                        },
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        answer = Answer.objects.get(question=question)
+        self.assertEqual(answer.matrix_data["Item 1"]["Col1"], "Ddown1")
+        self.assertEqual(answer.matrix_data["Item 2"]["Col2"], "Ddown1")
+
+    def test_completed_submission_rejects_missing_required_open_ended_rows(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="Bandwidth check",
+            order=2,
+            required=True,
+            settings={
+                "rows": ["Commodity", "NIX"],
+                "allow_other": True,
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "matrix_data": {
+                            "Commodity": "100 Mbps",
+                        },
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("answers", response.data)
+
+    def test_completed_submission_rejects_missing_required_matrix_plus_cells(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.MATRIX_PLUS,
+            text="Matrix+ check",
+            order=2,
+            required=True,
+            settings={
+                "rows": ["Item 1", "Item 2"],
+                "columns": ["Col1", "Col2"],
+                "dropdown_options": ["Yes", "No"],
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "matrix_data": {
+                            "Item 1": {
+                                "Col1": "Yes",
+                                "Col2": "No",
+                            },
+                            "Item 2": {
+                                "Col1": "Yes",
+                            },
+                        },
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("answers", response.data)

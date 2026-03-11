@@ -72,18 +72,39 @@ class AnalyticsApiTests(TestCase):
             text="Tell us why",
             order=3,
         )
+        self.open_ended_question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="Bandwidth snapshot",
+            order=4,
+            settings={
+                "rows": ["Commodity", "NIX"],
+                "allow_other": True,
+            },
+        )
         self.matrix_question = Question.objects.create(
             page=self.page,
             question_type=Question.QuestionType.MATRIX,
             text="Rate each area",
-            order=4,
+            order=5,
             settings={"rows": ["Speed", "Support"], "columns": ["1", "2", "3"]},
+        )
+        self.matrix_plus_question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.MATRIX_PLUS,
+            text="List",
+            order=6,
+            settings={
+                "rows": ["Item 1", "Item 2"],
+                "columns": ["Col1", "Col2"],
+                "dropdown_options": ["Ddown1", "Ddown2", "Ddown3"],
+            },
         )
         self.constant_sum_question = Question.objects.create(
             page=self.page,
             question_type=Question.QuestionType.CONSTANT_SUM,
             text="Allocate 100 points",
-            order=5,
+            order=7,
             settings={"target_sum": 100},
         )
         self.price_choice = Choice.objects.create(
@@ -107,7 +128,16 @@ class AnalyticsApiTests(TestCase):
             choice_id=self.choice_great.id,
             nps_value=10,
             text_value="Fast delivery and excellent support",
+            open_ended_data={
+                "Commodity": "100 Mbps",
+                "NIX": "50 Mbps",
+                "__other__": "Cache",
+            },
             matrix_data={"Speed": "3", "Support": "2"},
+            matrix_plus_data={
+                "Item 1": {"Col1": "Ddown1", "Col2": "Ddown2"},
+                "Item 2": {"Col1": "Ddown3", "Col2": "Ddown1"},
+            },
             constant_sum_data={
                 str(self.price_choice.id): 40,
                 str(self.quality_choice.id): 60,
@@ -122,7 +152,15 @@ class AnalyticsApiTests(TestCase):
             choice_id=self.choice_okay.id,
             nps_value=8,
             text_value="Delivery was okay",
+            open_ended_data={
+                "Commodity": "100 Mbps",
+                "NIX": "75 Mbps",
+            },
             matrix_data={"Speed": "2", "Support": "2"},
+            matrix_plus_data={
+                "Item 1": {"Col1": "Ddown2", "Col2": "Ddown2"},
+                "Item 2": {"Col1": "Ddown1", "Col2": "Ddown3"},
+            },
             constant_sum_data={
                 str(self.price_choice.id): 55,
                 str(self.quality_choice.id): 45,
@@ -137,7 +175,15 @@ class AnalyticsApiTests(TestCase):
             choice_id=self.choice_great.id,
             nps_value=4,
             text_value="Slow delivery",
+            open_ended_data={
+                "Commodity": "200 Mbps",
+                "NIX": "75 Mbps",
+            },
             matrix_data={"Speed": "1", "Support": "1"},
+            matrix_plus_data={
+                "Item 1": {"Col1": "Ddown1", "Col2": "Ddown3"},
+                "Item 2": {"Col1": "Ddown2", "Col2": "Ddown3"},
+            },
             constant_sum_data={
                 str(self.price_choice.id): 70,
                 str(self.quality_choice.id): 30,
@@ -155,7 +201,9 @@ class AnalyticsApiTests(TestCase):
         choice_id,
         nps_value,
         text_value,
+        open_ended_data,
         matrix_data,
+        matrix_plus_data,
         constant_sum_data,
     ):
         response = SurveyResponse.objects.create(
@@ -189,8 +237,18 @@ class AnalyticsApiTests(TestCase):
         )
         Answer.objects.create(
             response=response,
+            question=self.open_ended_question,
+            matrix_data=open_ended_data,
+        )
+        Answer.objects.create(
+            response=response,
             question=self.matrix_question,
             matrix_data=matrix_data,
+        )
+        Answer.objects.create(
+            response=response,
+            question=self.matrix_plus_question,
+            matrix_data=matrix_plus_data,
         )
         Answer.objects.create(
             response=response,
@@ -222,8 +280,14 @@ class AnalyticsApiTests(TestCase):
         text = self.client.get(
             f"/api/surveys/{self.survey.id}/analytics/questions/{self.text_question.id}/"
         )
+        open_ended = self.client.get(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.open_ended_question.id}/"
+        )
         matrix = self.client.get(
             f"/api/surveys/{self.survey.id}/analytics/questions/{self.matrix_question.id}/"
+        )
+        matrix_plus = self.client.get(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.matrix_plus_question.id}/"
         )
         constant_sum = self.client.get(
             f"/api/surveys/{self.survey.id}/analytics/questions/{self.constant_sum_question.id}/"
@@ -241,9 +305,18 @@ class AnalyticsApiTests(TestCase):
         self.assertEqual(text.data["total_responses"], 3)
         self.assertEqual(text.data["word_frequencies"][0]["word"], "delivery")
 
+        self.assertEqual(open_ended.data["type"], "open_ended")
+        self.assertEqual(open_ended.data["fields"][0]["field_label"], "Commodity")
+        self.assertEqual(open_ended.data["fields"][0]["items"][0]["count"], 2)
+        self.assertEqual(open_ended.data["fields"][2]["field_label"], "Other")
+
         self.assertEqual(matrix.data["type"], "matrix")
         self.assertEqual(matrix.data["rows"][0]["columns"][2]["count"], 1)
         self.assertEqual(matrix.data["row_averages"][0]["avg_score"], 2.0)
+
+        self.assertEqual(matrix_plus.data["type"], "matrix_plus")
+        self.assertEqual(matrix_plus.data["cells"][0]["row_label"], "Item 1")
+        self.assertEqual(matrix_plus.data["cells"][0]["items"][0]["value"], "Ddown1")
 
         self.assertEqual(constant_sum.data["type"], "constant_sum")
         self.assertEqual(constant_sum.data["items"][0]["total_value"], 165.0)
@@ -254,7 +327,7 @@ class AnalyticsApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 5)
+        self.assertEqual(len(response.data), 7)
 
     def test_crosstab_endpoint_returns_matrix_and_chi_square(self):
         response = self.client.get(

@@ -495,31 +495,47 @@ export function useSurveyBuilder(surveyId) {
         return
       }
 
-      const createdPage = await createPage(
-        currentSurvey.id,
-        createPageDraft((currentSurvey.pages?.length ?? 0) + 1)
-      )
+      try {
+        const createdPage = await createPage(
+          currentSurvey.id,
+          createPageDraft((currentSurvey.pages?.length ?? 0) + 1)
+        )
 
-      const createdPageId = createdPage.id
-      let nextPages = [...currentSurvey.pages, normalizeSurvey({ pages: [createdPage] }).pages[0]]
+        const normalizedPage = normalizeSurvey({ pages: [createdPage] }).pages[0]
+        const createdPageId = normalizedPage.id
+        let nextPages = [...currentSurvey.pages, normalizedPage]
 
-      if (afterPageId) {
-        const targetIndex = currentSurvey.pages.findIndex((page) => page.id === afterPageId)
-        nextPages = nextPages.filter((page) => page.id !== createdPageId)
-        nextPages.splice(targetIndex + 1, 0, normalizeSurvey({ pages: [createdPage] }).pages[0])
+        if (afterPageId) {
+          const targetIndex = currentSurvey.pages.findIndex((page) => page.id === afterPageId)
+          nextPages = nextPages.filter((page) => page.id !== createdPageId)
+          nextPages.splice(targetIndex + 1, 0, normalizedPage)
+        }
+
+        nextPages = reindexPages(nextPages)
+        updateLocalSurvey((existing) => ({
+          ...existing,
+          pages: nextPages,
+        }))
+        setSelectedPageId(createdPageId)
+        setSelectedQuestionId(null)
+
+        await reorderPages(currentSurvey.id, buildPageReorderPayload(nextPages))
+
+        toast({
+          title: 'Page added',
+          description: 'A new page is ready for questions.',
+          variant: 'success',
+        })
+      } catch (err) {
+        await loadSurvey()
+        toast({
+          title: 'Page add failed',
+          description: err.response?.data?.detail || 'The page could not be created.',
+          variant: 'error',
+        })
       }
-
-      nextPages = reindexPages(nextPages)
-      await reorderPages(currentSurvey.id, buildPageReorderPayload(nextPages))
-      await loadSurvey()
-      setSelectedPageId(createdPageId)
-      toast({
-        title: 'Page added',
-        description: 'A new page is ready for questions.',
-        variant: 'success',
-      })
     },
-    [loadSurvey, surveyRef, toast]
+    [loadSurvey, surveyRef, toast, updateLocalSurvey]
   )
 
   const removePage = useCallback(
@@ -629,42 +645,60 @@ export function useSurveyBuilder(surveyId) {
         return
       }
 
-      const createdQuestion = await createQuestion(currentSurvey.id, pageId, {
-        ...createQuestionDraft(questionType),
-        order: page.questions.length + 1,
-      })
+      try {
+        const createdQuestion = normalizeQuestion(
+          await createQuestion(currentSurvey.id, pageId, {
+            ...createQuestionDraft(questionType),
+            order: page.questions.length + 1,
+          })
+        )
 
-      if (targetIndex == null || targetIndex >= page.questions.length) {
-        await loadSurvey()
-        setSelectedQuestionId(createdQuestion.id)
-        setSelectedPageId(pageId)
-        return
-      }
+        const shouldAppend = targetIndex == null || targetIndex >= page.questions.length
+        const nextPages = currentSurvey.pages.map((currentPage) => {
+          if (currentPage.id !== pageId) {
+            return currentPage
+          }
 
-      const nextPages = currentSurvey.pages.map((currentPage) => {
-        if (currentPage.id !== pageId) {
-          return currentPage
-        }
+          const nextQuestions = [...currentPage.questions]
+          if (shouldAppend) {
+            nextQuestions.push(createdQuestion)
+          } else {
+            nextQuestions.splice(targetIndex, 0, createdQuestion)
+          }
 
-        const nextQuestions = [...currentPage.questions]
-        nextQuestions.splice(targetIndex, 0, {
-          ...createdQuestion,
-          settings: createdQuestion.settings ?? {},
-          skip_logic: createdQuestion.skip_logic ?? [],
-          choices: createdQuestion.choices ?? [],
+          return {
+            ...currentPage,
+            questions: reindexQuestions(nextQuestions),
+          }
         })
 
-        return {
-          ...currentPage,
-          questions: reindexQuestions(nextQuestions),
-        }
-      })
+        updateLocalSurvey((existing) => ({
+          ...existing,
+          pages: nextPages,
+        }))
+        setSelectedQuestionId(createdQuestion.id)
+        setSelectedPageId(pageId)
 
-      await syncQuestionOrder(nextPages, pageId)
-      setSelectedQuestionId(createdQuestion.id)
-      setSelectedPageId(pageId)
+        if (!shouldAppend) {
+          await syncQuestionOrder(nextPages, pageId, {
+            reload: false,
+            failureTitle: 'Question add failed',
+            failureDescription:
+              'The question was created but could not be placed in the intended position.',
+          })
+        }
+      } catch (err) {
+        if (!err.questionSyncHandled) {
+          await loadSurvey()
+          toast({
+            title: 'Question add failed',
+            description: err.response?.data?.detail || 'The question could not be created.',
+            variant: 'error',
+          })
+        }
+      }
     },
-    [loadSurvey, surveyRef, syncQuestionOrder]
+    [loadSurvey, surveyRef, syncQuestionOrder, toast, updateLocalSurvey]
   )
 
   const removeQuestion = useCallback(

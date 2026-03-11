@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 from django.db.models import Avg, Count, Prefetch, Q
 from django.db.models.functions import TruncDate
 
+from surveys.answer_formatting import OPEN_ENDED_OTHER_KEY
 from surveys.models import Answer, Choice, Question, Survey, SurveyResponse
 from surveys.services.ai_insights import AnalyticsTextInsightsService
 from surveys.services.filters import ResponseFilterService
@@ -72,6 +73,25 @@ STRUCTURAL_TYPES = {
     Question.QuestionType.SECTION_HEADING,
     Question.QuestionType.INSTRUCTIONAL_TEXT,
 }
+
+
+def _ordered_with_extras(preferred_items, actual_items):
+    ordered = []
+    seen = set()
+
+    for item in preferred_items:
+        if item in seen:
+            continue
+        ordered.append(item)
+        seen.add(item)
+
+    for item in actual_items:
+        if item in seen:
+            continue
+        ordered.append(item)
+        seen.add(item)
+
+    return ordered
 
 
 class AnalyticsService:
@@ -167,8 +187,12 @@ class AnalyticsService:
             Question.QuestionType.LONG_TEXT,
         }:
             data = self._text_analytics(answers)
+        elif question.question_type == Question.QuestionType.OPEN_ENDED:
+            data = self._open_ended_analytics(question, answers)
         elif question.question_type == Question.QuestionType.MATRIX:
             data = self._matrix_analytics(question, answers)
+        elif question.question_type == Question.QuestionType.MATRIX_PLUS:
+            data = self._matrix_plus_analytics(question, answers)
         elif question.question_type == Question.QuestionType.RANKING:
             data = self._ranking_analytics(question, answers)
         elif question.question_type == Question.QuestionType.CONSTANT_SUM:
@@ -487,6 +511,129 @@ class AnalyticsService:
             "total_responses": total_responses,
             "rows": row_data,
             "row_averages": row_averages,
+        }
+
+    def _open_ended_analytics(self, question, answers):
+        configured_rows = list(question.settings.get("rows", []))
+        if question.settings.get("allow_other"):
+            configured_rows.append(OPEN_ENDED_OTHER_KEY)
+
+        field_counter = defaultdict(Counter)
+        field_totals = Counter()
+        field_responses = defaultdict(list)
+        encountered_fields = []
+
+        for answer in answers:
+            if not isinstance(answer.matrix_data, dict):
+                continue
+
+            for field_name, raw_value in answer.matrix_data.items():
+                if field_name not in encountered_fields:
+                    encountered_fields.append(field_name)
+
+                value = str(raw_value or "").strip()
+                if not value:
+                    continue
+
+                field_counter[field_name][value] += 1
+                field_totals[field_name] += 1
+                field_responses[field_name].append(value)
+
+        ordered_fields = _ordered_with_extras(configured_rows, encountered_fields)
+        return {
+            "type": "open_ended",
+            "total_responses": len(answers),
+            "fields": [
+                {
+                    "field_name": field_name,
+                    "field_label": "Other"
+                    if field_name == OPEN_ENDED_OTHER_KEY
+                    else field_name,
+                    "items": [
+                        {
+                            "value": value,
+                            "count": count,
+                            "percentage": round(
+                                (count / field_totals[field_name]) * 100
+                                if field_totals[field_name]
+                                else 0,
+                                2,
+                            ),
+                        }
+                        for value, count in field_counter[field_name].most_common()
+                    ],
+                    "responses": field_responses[field_name],
+                }
+                for field_name in ordered_fields
+            ],
+        }
+
+    def _matrix_plus_analytics(self, question, answers):
+        configured_rows = list(question.settings.get("rows", []))
+        configured_columns = list(question.settings.get("columns", []))
+        configured_options = list(question.settings.get("dropdown_options", []))
+
+        cell_counter = defaultdict(Counter)
+        cell_totals = Counter()
+        encountered_rows = []
+        encountered_columns = []
+
+        for answer in answers:
+            if not isinstance(answer.matrix_data, dict):
+                continue
+
+            for row_label, row_values in answer.matrix_data.items():
+                if row_label not in encountered_rows:
+                    encountered_rows.append(row_label)
+
+                if not isinstance(row_values, dict):
+                    continue
+
+                for column_label, raw_value in row_values.items():
+                    if column_label not in encountered_columns:
+                        encountered_columns.append(column_label)
+
+                    value = str(raw_value or "").strip()
+                    if not value:
+                        continue
+
+                    cell_counter[(row_label, column_label)][value] += 1
+                    cell_totals[(row_label, column_label)] += 1
+
+        ordered_rows = _ordered_with_extras(configured_rows, encountered_rows)
+        ordered_columns = _ordered_with_extras(configured_columns, encountered_columns)
+
+        cells = []
+        for row_label in ordered_rows:
+            for column_label in ordered_columns:
+                counter = cell_counter[(row_label, column_label)]
+                ordered_values = _ordered_with_extras(configured_options, counter.keys())
+                cells.append(
+                    {
+                        "row_label": row_label,
+                        "col_label": column_label,
+                        "items": [
+                            {
+                                "value": value,
+                                "count": counter[value],
+                                "percentage": round(
+                                    (counter[value] / cell_totals[(row_label, column_label)])
+                                    * 100
+                                    if cell_totals[(row_label, column_label)]
+                                    else 0,
+                                    2,
+                                ),
+                            }
+                            for value in ordered_values
+                            if counter[value]
+                        ],
+                    }
+                )
+
+        return {
+            "type": "matrix_plus",
+            "total_responses": len(answers),
+            "cells": cells,
         }
 
     def _ranking_analytics(self, question, answers):

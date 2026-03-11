@@ -77,7 +77,12 @@ class XLSXExportService:
 
         current_row = start_row + len(metric_rows) + 3
         for section in analytics_data["questions"]:
-            worksheet.merge_cells(start_row=current_row, start_column=1, end_row=current_row, end_column=4)
+            worksheet.merge_cells(
+                start_row=current_row,
+                start_column=1,
+                end_row=current_row,
+                end_column=max(4, len(section["table_columns"])),
+            )
             header_cell = worksheet.cell(current_row, 1, section["text"])
             header_cell.fill = fill
             header_cell.font = header_font
@@ -91,7 +96,7 @@ class XLSXExportService:
                 cell.fill = PatternFill("solid", fgColor="EEF4FF")
             current_row += 1
 
-            if section["analytics_type"] == "matrix":
+            if section["analytics_type"] in {"matrix", "open_ended", "matrix_plus"}:
                 for row in section["table_rows"]:
                     worksheet.cell(current_row, 1, row["label"])
                     for value_index, value in enumerate(row["values"], start=2):

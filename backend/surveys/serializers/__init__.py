@@ -6,6 +6,10 @@ from .collector_serializers import (
     EmailInvitationSerializer,
 )
 from .export_serializers import ExportJobCreateSerializer, ExportJobSerializer
+from .lottery_serializers import (
+    SurveyLotteryDrawSerializer,
+    SurveyLotterySettingsSerializer,
+)
 from .page_serializers import PageSerializer
 from .question_serializers import (
     QuestionCreateSerializer,
@@ -38,6 +42,8 @@ __all__ = [
     "EmailInvitationSerializer",
     "PageSerializer",
     "PublicSurveySerializer",
+    "SurveyLotteryDrawSerializer",
+    "SurveyLotterySettingsSerializer",
     "QuestionCreateSerializer",
     "QuestionSerializer",
     "QuestionWithChoicesSerializer",
