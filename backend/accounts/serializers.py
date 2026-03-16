@@ -25,6 +25,7 @@ class UserSerializer(serializers.ModelSerializer):
             "organization",
             "designation",
             "phone",
+            "email_verified",
             "created_at",
             "updated_at",
         ]
@@ -165,3 +166,29 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not user.check_password(value):
             raise serializers.ValidationError("Old password is incorrect.")
         return value
+
+
+class VerificationEmailRequestSerializer(serializers.Serializer):
+    """Public resend request payload."""
+
+    identifier = serializers.CharField(required=True, max_length=255)
+
+    def validate_identifier(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Identifier is required.")
+        return normalized
+
+
+class VerifyEmailQuerySerializer(serializers.Serializer):
+    """Verification query string payload."""
+
+    token = serializers.CharField(required=True, max_length=64)
+
+    def validate_token(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Verification token is required.")
+        if len(normalized) != 64:
+            raise serializers.ValidationError("Verification token is invalid.")
+        return normalized

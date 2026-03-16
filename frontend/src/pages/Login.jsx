@@ -1,18 +1,36 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
-import { AlertCircle, ArrowRight, LoaderCircle } from 'lucide-react'
+import { AlertCircle, ArrowRight, LoaderCircle, MailCheck } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '@/hooks/useToast'
+import { Button } from '@/components/ui/button'
 
 const Login = () => {
   const [formData, setFormData] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [verificationState, setVerificationState] = useState(null)
+  const [resending, setResending] = useState(false)
+  const [resendCooldown, setResendCooldown] = useState(0)
 
-  const { login, isAuthenticated, loading: authLoading } = useAuth()
+  const { login, resendVerificationEmail, isAuthenticated, loading: authLoading } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const redirectTo = searchParams.get('redirect') || '/dashboard'
+
+  useEffect(() => {
+    if (resendCooldown <= 0) {
+      return undefined
+    }
+
+    const timerId = window.setInterval(() => {
+      setResendCooldown((current) => (current > 1 ? current - 1 : 0))
+    }, 1000)
+
+    return () => window.clearInterval(timerId)
+  }, [resendCooldown])
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
@@ -30,6 +48,12 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
     setError('')
+    if (verificationState && e.target.name === 'username') {
+      setVerificationState((current) => ({
+        ...current,
+        identifier: e.target.value,
+      }))
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -37,9 +61,48 @@ const Login = () => {
     setLoading(true)
     setError('')
     const result = await login(formData.username, formData.password)
-    if (result.success) navigate(redirectTo)
-    else setError(result.error)
+    if (result.success) {
+      setVerificationState(null)
+      navigate(redirectTo)
+    } else if (result.emailVerificationRequired) {
+      setVerificationState({
+        emailHint: result.emailHint,
+        identifier: formData.username.trim(),
+      })
+      setError('')
+    } else {
+      setError(result.error)
+    }
     setLoading(false)
+  }
+
+  const handleResendVerification = async () => {
+    const identifier = verificationState?.identifier?.trim() || formData.username.trim()
+    if (!identifier || resending || resendCooldown > 0) {
+      return
+    }
+
+    setResending(true)
+    const result = await resendVerificationEmail(identifier)
+
+    if (result.success) {
+      setResendCooldown(120)
+      toast({
+        title: 'Verification email requested',
+        description: result.message,
+        variant: 'success',
+        duration: 4200,
+      })
+    } else {
+      toast({
+        title: 'Could not resend email',
+        description: result.error,
+        variant: 'error',
+        duration: 4500,
+      })
+    }
+
+    setResending(false)
   }
 
   return (
@@ -140,6 +203,41 @@ const Login = () => {
             </p>
 
             <form onSubmit={handleSubmit} className="mt-7 space-y-5">
+              {verificationState ? (
+                <div className="rounded-2xl border border-[rgb(var(--theme-secondary-strong-rgb)/0.85)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.75)] p-4 text-sm text-[rgb(var(--theme-secondary-ink-rgb))]">
+                  <div className="flex items-start gap-3">
+                    <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">
+                      <MailCheck className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold">Please verify your email first</p>
+                      <p className="mt-1 opacity-80">
+                        We blocked sign in because this account is not verified yet.
+                        {verificationState.emailHint ? ` Verification email sent to ${verificationState.emailHint}.` : ''}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-3">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="rounded-full"
+                          onClick={handleResendVerification}
+                          disabled={resending || resendCooldown > 0}
+                        >
+                          {resending
+                            ? 'Resending...'
+                            : resendCooldown > 0
+                              ? `Resend in ${resendCooldown}s`
+                              : 'Resend verification email'}
+                        </Button>
+                        <Link to="/verify-email" className="self-center text-sm font-semibold text-primary hover:text-primary/80">
+                          Open verification page
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {error && (
                 <div className="flex items-center gap-2 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   <AlertCircle className="h-4 w-4 shrink-0" />

@@ -41,6 +41,12 @@ export const AuthProvider = ({ children }) => {
     initializeAuth()
   }, [])
 
+  const clearAuthState = () => {
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    setUser(null)
+  }
+
   const extractErrorMessage = (err, fallbackMessage) => {
     const payload = err.response?.data
 
@@ -84,11 +90,16 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('refreshToken', tokens.refresh)
 
       setUser(user)
-      return { success: true }
+      return { success: true, user }
     } catch (err) {
       const errorMessage = extractErrorMessage(err, 'Login failed')
       setError(errorMessage)
-      return { success: false, error: errorMessage }
+      return {
+        success: false,
+        error: errorMessage,
+        emailVerificationRequired: Boolean(err.response?.data?.email_verification_required),
+        emailHint: err.response?.data?.email_hint || '',
+      }
     }
   }
 
@@ -98,16 +109,46 @@ export const AuthProvider = ({ children }) => {
       setError(null)
       const response = await api.post('/auth/register/', userData)
 
-      const { user, tokens } = response.data
+      const {
+        user,
+        tokens,
+        email_verification_required: emailVerificationRequired,
+        email_hint: emailHint,
+        message,
+      } = response.data
 
-      // Store tokens
-      localStorage.setItem('accessToken', tokens.access)
-      localStorage.setItem('refreshToken', tokens.refresh)
+      if (tokens?.access && tokens?.refresh) {
+        localStorage.setItem('accessToken', tokens.access)
+        localStorage.setItem('refreshToken', tokens.refresh)
+        setUser(user)
+      } else {
+        clearAuthState()
+      }
 
-      setUser(user)
-      return { success: true }
+      return {
+        success: true,
+        user,
+        message,
+        emailVerificationRequired: Boolean(emailVerificationRequired),
+        emailHint: emailHint || '',
+      }
     } catch (err) {
       const errorMessage = extractErrorMessage(err, 'Registration failed')
+      setError(errorMessage)
+      return { success: false, error: errorMessage }
+    }
+  }
+
+  const resendVerificationEmail = async (identifier) => {
+    try {
+      setError(null)
+      const response = await api.post('/auth/resend-verification-email/', { identifier })
+      return {
+        success: true,
+        message: response.data?.detail || 'If an eligible account exists, a verification email will arrive shortly.',
+      }
+    } catch (err) {
+      const errorMessage = extractErrorMessage(err, 'Could not resend verification email')
       setError(errorMessage)
       return { success: false, error: errorMessage }
     }
@@ -123,10 +164,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error('Logout error:', err)
     } finally {
-      // Clear tokens and user state
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      setUser(null)
+      clearAuthState()
     }
   }
 
@@ -163,6 +201,7 @@ export const AuthProvider = ({ children }) => {
     error,
     login,
     register,
+    resendVerificationEmail,
     logout,
     updateUser,
     refreshUser,
