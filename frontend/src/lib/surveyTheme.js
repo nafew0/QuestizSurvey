@@ -127,15 +127,15 @@ const FONT_FAMILY_LOOKUP = Object.fromEntries(
 )
 
 const BUTTON_RADIUS_MAP = {
-  rounded: '1.2rem',
-  square: '0.55rem',
-  pill: '9999px',
+  rounded: '0.85rem',
+  square: '0.45rem',
+  pill: '1.05rem',
 }
 
 const CARD_RADIUS_MAP = {
-  rounded: '1.95rem',
-  square: '1.1rem',
-  pill: '2.4rem',
+  rounded: '0.98rem',
+  square: '0.58rem',
+  pill: '1.12rem',
 }
 
 const SPACING_GAP_MAP = {

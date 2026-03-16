@@ -7,6 +7,7 @@ export default function QHeatmap({
   data = [],
   colorScheme = 'default',
   height = 320,
+  showLabels = true,
 }) {
   const colors = getAnalyticsColors(colorScheme)
 
@@ -22,9 +23,10 @@ export default function QHeatmap({
           type: 'sequential',
           colors,
         }}
+        enableLabels={showLabels}
         emptyColor="rgb(var(--theme-neutral-rgb))"
         theme={createNivoTheme()}
-        labelTextColor="rgb(var(--theme-foreground-rgb))"
+        labelTextColor="#ffffff"
         tooltip={({ cell }) => (
           <div className="theme-panel rounded-2xl px-3 py-2 text-xs shadow-lg">
             <p className="font-semibold text-foreground">

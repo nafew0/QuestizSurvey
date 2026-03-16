@@ -8,7 +8,33 @@ function resolveApiUrl() {
   return configuredUrl.replace(/\/+$/, '')
 }
 
-const API_URL = resolveApiUrl()
+export const API_URL = resolveApiUrl()
+
+export function resolveApiAssetUrl(value) {
+  if (!value) {
+    return ''
+  }
+
+  if (
+    /^https?:\/\//i.test(value) ||
+    value.startsWith('data:') ||
+    value.startsWith('blob:')
+  ) {
+    return value
+  }
+
+  const normalizedPath = value.startsWith('/') ? value : `/${value}`
+
+  try {
+    if (/^https?:\/\//i.test(API_URL)) {
+      return new URL(normalizedPath, API_URL).toString()
+    }
+  } catch (error) {
+    console.error('Failed to resolve API asset URL:', error)
+  }
+
+  return normalizedPath
+}
 
 // Create axios instance
 const api = axios.create({

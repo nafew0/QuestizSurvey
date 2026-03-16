@@ -1,8 +1,9 @@
 import {
   Area,
   CartesianGrid,
+  ComposedChart,
+  LabelList,
   Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,6 +20,7 @@ export default function QLineChart({
   showDots = false,
   curved = true,
   showArea = false,
+  showLabels = false,
   colorScheme = 'default',
   height = 300,
 }) {
@@ -30,7 +32,7 @@ export default function QLineChart({
   return (
     <div className="h-[300px] w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
+        <ComposedChart data={data}>
           <defs>
             {lineSeries.map((line, index) => (
               <linearGradient id={`line-fill-${index}`} key={line.dataKey} x1="0" y1="0" x2="0" y2="1">
@@ -53,7 +55,9 @@ export default function QLineChart({
                 stroke={line.color || palette[index % palette.length]}
                 fill={`url(#line-fill-${index})`}
                 strokeWidth={2}
-              />
+              >
+                {showLabels ? <LabelList dataKey={line.dataKey} position="top" fontSize={11} /> : null}
+              </Area>
             ) : (
               <Line
                 key={line.dataKey}
@@ -62,11 +66,13 @@ export default function QLineChart({
                 name={line.name || line.dataKey}
                 stroke={line.color || palette[index % palette.length]}
                 strokeWidth={2.5}
-                dot={showDots}
-              />
+                dot={showDots || showLabels}
+              >
+                {showLabels ? <LabelList dataKey={line.dataKey} position="top" fontSize={11} /> : null}
+              </Line>
             )
           ))}
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   )

@@ -13,6 +13,9 @@ class User(AbstractUser):
     email = models.EmailField(unique=True)
     bio = models.TextField(blank=True, null=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    organization = models.CharField(max_length=255, blank=True, default="")
+    designation = models.CharField(max_length=255, blank=True, default="")
+    phone = models.CharField(max_length=30, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -9,10 +9,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ClipboardList, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
 import BrandLogo from '@/components/branding/BrandLogo'
 import ThemeStudioDialog from '@/components/theme/ThemeStudioDialog'
+import { resolveApiAssetUrl } from '@/services/api'
 
 const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -52,6 +53,7 @@ const Navbar = () => {
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                       <Avatar className="h-10 w-10">
+                        <AvatarImage src={resolveApiAssetUrl(user?.avatar)} alt={user?.full_name || user?.username} />
                         <AvatarFallback className="bg-[rgb(var(--theme-secondary-soft-rgb))] text-[rgb(var(--theme-secondary-ink-rgb))]">
                           {getUserInitials()}
                         </AvatarFallback>

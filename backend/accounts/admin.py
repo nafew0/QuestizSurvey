@@ -14,19 +14,44 @@ class UserAdmin(BaseUserAdmin):
         "email",
         "first_name",
         "last_name",
+        "organization",
+        "designation",
         "is_staff",
         "created_at",
     ]
     list_filter = ["is_staff", "is_superuser", "is_active", "created_at"]
-    search_fields = ["username", "email", "first_name", "last_name"]
+    search_fields = [
+        "username",
+        "email",
+        "first_name",
+        "last_name",
+        "organization",
+        "designation",
+        "phone",
+    ]
     ordering = ["-created_at"]
 
     fieldsets = BaseUserAdmin.fieldsets + (
-        ("Additional Info", {"fields": ("bio", "avatar")}),
+        (
+            "Additional Info",
+            {"fields": ("bio", "avatar", "organization", "designation", "phone")},
+        ),
         ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )
 
     readonly_fields = ["created_at", "updated_at"]
     add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("Additional Info", {"fields": ("email", "bio", "avatar")}),
+        (
+            "Additional Info",
+            {
+                "fields": (
+                    "email",
+                    "bio",
+                    "avatar",
+                    "organization",
+                    "designation",
+                    "phone",
+                )
+            },
+        ),
     )

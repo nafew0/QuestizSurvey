@@ -3,7 +3,6 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle, ArrowRight, LoaderCircle } from 'lucide-react'
 
 import { useAuth } from '../contexts/AuthContext'
-import BrandLogo from '@/components/branding/BrandLogo'
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -129,33 +128,7 @@ const Register = () => {
               onError={(e) => { e.currentTarget.style.display = 'none' }}
             />
             {/* Overlay gradient */}
-            <div className="absolute inset-0 bg-gradient-to-t from-[rgb(var(--theme-primary-ink-rgb)/0.55)] via-transparent to-transparent" />
-
-            {/* Bottom text overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-8">
-              <h2 className="text-3xl font-bold leading-tight text-white drop-shadow">
-                Start building
-              </h2>
-              <p className="mt-2 text-sm text-white/75">
-                Create your account and launch your first survey
-              </p>
-            </div>
-
-            {/* Fallback when no image */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-10 [&:has(~*)]:hidden">
-              <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-[rgb(var(--theme-primary-strong-rgb)/0.7)] bg-white/80 shadow-lg">
-                <span className="text-3xl font-black text-[rgb(var(--theme-primary-ink-rgb))]">Q</span>
-              </div>
-              <h2 className="text-center text-2xl font-bold text-[rgb(var(--theme-primary-ink-rgb))]">
-                Join MindSpear
-              </h2>
-              <p className="mt-3 text-center text-sm leading-relaxed text-[rgb(var(--theme-secondary-ink-rgb)/0.7)]">
-                Upload a custom image at<br />
-                <code className="rounded bg-white/60 px-1.5 py-0.5 text-xs">
-                  frontend/public/branding/registerpage.webp
-                </code>
-              </p>
-            </div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[rgb(var(--theme-primary-ink-rgb)/0.45)] via-transparent to-transparent" />
           </div>
         </div>
 
@@ -163,7 +136,7 @@ const Register = () => {
         <div className="flex w-full flex-shrink-0 flex-col lg:w-[360px]">
           {/* Mobile logo */}
           <div className="mb-5 lg:hidden">
-            <BrandLogo compact />
+            <img src="/branding/logo.svg" alt="Logo" className="h-8 w-auto" />
           </div>
 
           <div className="theme-panel flex flex-1 flex-col justify-center rounded-3xl p-6 sm:p-8">

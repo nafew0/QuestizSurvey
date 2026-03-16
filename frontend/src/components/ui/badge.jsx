@@ -16,7 +16,7 @@ function Badge({ className, variant = 'default', ...props }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em]',
+        'inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold uppercase tracking-[0.16em] !rounded-[0.78rem]',
         BADGE_VARIANTS[variant] ?? BADGE_VARIANTS.default,
         className
       )}

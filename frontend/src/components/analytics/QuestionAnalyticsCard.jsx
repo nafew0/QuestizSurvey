@@ -150,6 +150,34 @@ function buildTableConfig(analytics) {
           { accessorKey: 'percentage', header: '%' },
         ],
       }
+    case 'text':
+      return {
+        data: (analytics.word_frequencies ?? []).map((item) => ({
+          label: item.word,
+          count: item.count,
+        })),
+        columns: [
+          { accessorKey: 'label', header: 'Word' },
+          { accessorKey: 'count', header: 'Count' },
+        ],
+      }
+    case 'matrix':
+      return {
+        data: (analytics.rows ?? []).flatMap((row) =>
+          (row.columns ?? []).map((column) => ({
+            row: row.row_label,
+            column: column.col_label,
+            count: column.count,
+            percentage: column.percentage,
+          }))
+        ),
+        columns: [
+          { accessorKey: 'row', header: 'Row' },
+          { accessorKey: 'column', header: 'Column' },
+          { accessorKey: 'count', header: 'Count' },
+          { accessorKey: 'percentage', header: '%' },
+        ],
+      }
     case 'open_ended':
       return {
         data: buildOpenEndedTableRows(analytics),
@@ -228,6 +256,25 @@ function buildTableConfig(analytics) {
         data: [],
         columns: [],
       }
+  }
+}
+
+function chartSupportsLabels(analytics, chartType) {
+  switch (analytics.type) {
+    case 'categorical':
+      return ['bar', 'pie', 'donut', 'horizontal_bar'].includes(chartType)
+    case 'numeric':
+      return ['bar', 'line', 'area'].includes(chartType)
+    case 'matrix':
+      return ['heatmap', 'stacked_bar', 'grouped_bar'].includes(chartType)
+    case 'constant_sum':
+      return ['bar', 'pie'].includes(chartType)
+    case 'temporal':
+      return ['bar', 'line'].includes(chartType)
+    case 'demographics':
+      return chartType === 'bar'
+    default:
+      return false
   }
 }
 
@@ -343,6 +390,7 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
           data={data}
           colorScheme={colorScheme}
           lines={[{ dataKey: 'count', name: 'Responses' }]}
+          showLabels={showLabels}
           showArea={chartType === 'area'}
         />
       )
@@ -373,7 +421,13 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
 
   if (analytics.type === 'matrix') {
     if (chartType === 'heatmap') {
-      return <QHeatmap data={buildMatrixHeatmapData(analytics)} colorScheme={colorScheme} />
+      return (
+        <QHeatmap
+          data={buildMatrixHeatmapData(analytics)}
+          colorScheme={colorScheme}
+          showLabels={showLabels}
+        />
+      )
     }
 
     const data = (analytics.rows ?? []).map((row) => {
@@ -395,6 +449,7 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
         nameKey="label"
         series={series}
         colorScheme={colorScheme}
+        showLabels={showLabels}
         stacked={chartType === 'stacked_bar'}
       />
     )
@@ -432,7 +487,14 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
     if (chartType === 'bar') {
       return <QBarChart data={data} dataKey="count" nameKey="label" colorScheme={colorScheme} showLabels={showLabels} />
     }
-    return <QLineChart data={data} colorScheme={colorScheme} lines={[{ dataKey: 'count', name: 'Responses' }]} />
+    return (
+      <QLineChart
+        data={data}
+        colorScheme={colorScheme}
+        lines={[{ dataKey: 'count', name: 'Responses' }]}
+        showLabels={showLabels}
+      />
+    )
   }
 
   if (analytics.type === 'demographics') {
@@ -441,7 +503,16 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
     }
     const firstField = Object.entries(analytics.fields ?? {})[0]
     const data = (firstField?.[1] ?? []).map((item) => ({ label: item.value, count: item.count }))
-    return <QBarChart data={data} dataKey="count" nameKey="label" colorScheme={colorScheme} orientation="horizontal" />
+    return (
+      <QBarChart
+        data={data}
+        dataKey="count"
+        nameKey="label"
+        colorScheme={colorScheme}
+        orientation="horizontal"
+        showLabels={showLabels}
+      />
+    )
   }
 
   if (analytics.type === 'files') {
@@ -461,6 +532,7 @@ export default function QuestionAnalyticsCard({
   onPreferenceChange,
   onWordClick,
   readOnly = false,
+  serialNumber = null,
 }) {
   const cardRef = useRef(null)
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
@@ -487,6 +559,7 @@ export default function QuestionAnalyticsCard({
 
   const chartOptions = getChartOptions(analytics)
   const isTableOnlyType = isTableOnlyAnalyticsType(analytics.type)
+  const canShowLabels = chartSupportsLabels(analytics, localPreference.chartType)
 
   const handleDownload = async () => {
     if (!cardRef.current) {
@@ -517,10 +590,12 @@ export default function QuestionAnalyticsCard({
         <div className="flex flex-wrap items-start gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
+              {serialNumber ? <Badge variant="outline">Q{serialNumber}</Badge> : null}
               <Badge variant="outline">{getQuestionTypeLabel(analytics.question.type)}</Badge>
               <Badge variant="secondary">N={analytics.total_responses ?? 0}</Badge>
             </div>
             <h3 className="mt-3 text-lg font-semibold tracking-tight text-foreground">
+              {serialNumber ? `${serialNumber}. ` : ''}
               {analytics.question.text}
             </h3>
           </div>
@@ -565,6 +640,20 @@ export default function QuestionAnalyticsCard({
 
             <div className="ml-auto flex flex-wrap items-center gap-3">
               {!isTableOnlyType ? (
+                <CustomSelect
+                  value={localPreference.colorScheme}
+                  onChange={(value) =>
+                    applyPreference({
+                      ...localPreference,
+                      colorScheme: value,
+                    })
+                  }
+                  options={COLOR_OPTIONS}
+                  triggerClassName="h-10 w-[12rem] rounded-full"
+                  contentClassName="rounded-2xl"
+                />
+              ) : null}
+              {!isTableOnlyType ? (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-muted-foreground">Show table</span>
                   <Switch
@@ -578,7 +667,7 @@ export default function QuestionAnalyticsCard({
                   />
                 </div>
               ) : null}
-              {!isTableOnlyType ? (
+              {!isTableOnlyType && canShowLabels ? (
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-medium text-muted-foreground">Show labels</span>
                   <Switch
@@ -597,23 +686,6 @@ export default function QuestionAnalyticsCard({
         ) : null}
 
         <div className="mt-5">{content}</div>
-
-        {!readOnly && !isTableOnlyType ? (
-          <div className="mt-4 flex justify-end">
-            <CustomSelect
-              value={localPreference.colorScheme}
-              onChange={(value) =>
-                applyPreference({
-                  ...localPreference,
-                  colorScheme: value,
-                })
-              }
-              options={COLOR_OPTIONS}
-              triggerClassName="h-10 w-[12rem] rounded-full"
-              contentClassName="rounded-2xl"
-            />
-          </div>
-        ) : null}
 
         {analytics.insights?.available ? (
           <div className="mt-5 rounded-[1.5rem] border border-[rgb(var(--theme-secondary-strong-rgb)/0.85)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.75)] p-4">

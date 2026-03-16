@@ -50,6 +50,7 @@ import {
   buildReportSaveConfig,
   normalizeReportConfig,
 } from '@/lib/analytics'
+import { buildQuestionNumberLookup } from '@/utils/questionNumbers'
 import {
   createSavedReport,
   createExportJob,
@@ -262,6 +263,39 @@ export default function SurveyAnalyticsPage() {
   const survey = surveyQuery.data
   const collectors = useMemo(() => collectorsQuery.data ?? [], [collectorsQuery.data])
   const questions = useMemo(() => extractQuestions(survey), [survey])
+  const questionNumberLookup = useMemo(
+    () => buildQuestionNumberLookup(survey?.pages ?? []),
+    [survey]
+  )
+  const questionPositionLookup = useMemo(
+    () => Object.fromEntries(questions.map((question, index) => [question.id, index])),
+    [questions]
+  )
+  const orderedQuestionAnalytics = useMemo(
+    () =>
+      [...(questionAnalyticsQuery.data ?? [])].sort((left, right) => {
+        const leftNumber = questionNumberLookup[left.question.id]
+        const rightNumber = questionNumberLookup[right.question.id]
+
+        if (leftNumber != null && rightNumber != null) {
+          return leftNumber - rightNumber
+        }
+
+        if (leftNumber != null) {
+          return -1
+        }
+
+        if (rightNumber != null) {
+          return 1
+        }
+
+        return (
+          (questionPositionLookup[left.question.id] ?? Number.MAX_SAFE_INTEGER) -
+          (questionPositionLookup[right.question.id] ?? Number.MAX_SAFE_INTEGER)
+        )
+      }),
+    [questionAnalyticsQuery.data, questionNumberLookup, questionPositionLookup]
+  )
   const activeReport = useMemo(
     () => (reportsQuery.data ?? []).find((entry) => entry.id === activeReportId) || null,
     [activeReportId, reportsQuery.data]
@@ -835,10 +869,11 @@ export default function SurveyAnalyticsPage() {
                 <Skeleton className="h-[360px] w-full rounded-[2rem]" />
               </>
             ) : (
-              (questionAnalyticsQuery.data ?? []).map((analytics) => (
+              orderedQuestionAnalytics.map((analytics) => (
                 <QuestionAnalyticsCard
                   key={analytics.question.id}
                   analytics={analytics}
+                  serialNumber={questionNumberLookup[analytics.question.id] ?? null}
                   preference={cardPreferences[analytics.question.id]}
                   onPreferenceChange={(questionId, nextPreference) =>
                     setCardPreferences((current) => ({

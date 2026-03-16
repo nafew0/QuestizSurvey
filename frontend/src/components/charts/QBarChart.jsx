@@ -70,7 +70,13 @@ export default function QBarChart({
                     />
                   ))
                 : null}
-              {showLabels ? <LabelList dataKey={item.dataKey} position="top" fontSize={11} /> : null}
+              {showLabels ? (
+                <LabelList
+                  dataKey={item.dataKey}
+                  position={orientation === 'horizontal' ? 'right' : 'top'}
+                  fontSize={11}
+                />
+              ) : null}
             </Bar>
           ))}
         </BarChart>

@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -84,3 +85,71 @@ class UserLoginTestCase(TestCase):
         data = {"username": "testuser", "password": "WrongPassword"}
         response = self.client.post(self.login_url, data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class UserProfileUpdateTestCase(TestCase):
+    """Test cases for authenticated profile fetch and updates."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.user = User.objects.create_user(
+            username="profileuser",
+            email="profile@example.com",
+            password="TestPass123!",
+        )
+        self.client.force_authenticate(user=self.user)
+        self.get_user_url = "/api/auth/user/"
+        self.update_url = "/api/auth/user/update/"
+
+    def test_get_user_includes_extended_profile_fields(self):
+        response = self.client.get(self.get_user_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("organization", response.data)
+        self.assertIn("designation", response.data)
+        self.assertIn("phone", response.data)
+
+    def test_profile_update_accepts_extended_fields(self):
+        payload = {
+            "first_name": "Ava",
+            "last_name": "Stone",
+            "organization": "Questiz Labs",
+            "designation": "Research Lead",
+            "phone": "+1 (555) 010-9999",
+            "bio": "Builds production survey systems.",
+        }
+
+        response = self.client.patch(self.update_url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.organization, payload["organization"])
+        self.assertEqual(self.user.designation, payload["designation"])
+        self.assertEqual(self.user.phone, payload["phone"])
+        self.assertEqual(response.data["organization"], payload["organization"])
+
+    def test_profile_update_rejects_invalid_phone_characters(self):
+        response = self.client.patch(
+            self.update_url,
+            {"phone": "555-123<script>"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("phone", response.data)
+
+    def test_profile_update_rejects_invalid_avatar_file(self):
+        invalid_avatar = SimpleUploadedFile(
+            "avatar.txt",
+            b"not-an-image",
+            content_type="text/plain",
+        )
+
+        response = self.client.patch(
+            self.update_url,
+            {"avatar": invalid_avatar},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("avatar", response.data)

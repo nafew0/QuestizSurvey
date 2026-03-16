@@ -41,6 +41,36 @@ export const AuthProvider = ({ children }) => {
     initializeAuth()
   }, [])
 
+  const extractErrorMessage = (err, fallbackMessage) => {
+    const payload = err.response?.data
+
+    if (typeof payload?.detail === 'string') {
+      return payload.detail
+    }
+
+    if (typeof payload?.error === 'string') {
+      return payload.error
+    }
+
+    if (typeof payload === 'string') {
+      return payload
+    }
+
+    if (payload && typeof payload === 'object') {
+      const firstValue = Object.values(payload)[0]
+
+      if (Array.isArray(firstValue) && firstValue.length > 0) {
+        return firstValue[0]
+      }
+
+      if (typeof firstValue === 'string') {
+        return firstValue
+      }
+    }
+
+    return fallbackMessage
+  }
+
   // Login function
   const login = async (username, password) => {
     try {
@@ -56,7 +86,7 @@ export const AuthProvider = ({ children }) => {
       setUser(user)
       return { success: true }
     } catch (err) {
-      const errorMessage = err.response?.data?.detail || 'Login failed'
+      const errorMessage = extractErrorMessage(err, 'Login failed')
       setError(errorMessage)
       return { success: false, error: errorMessage }
     }
@@ -77,10 +107,7 @@ export const AuthProvider = ({ children }) => {
       setUser(user)
       return { success: true }
     } catch (err) {
-      const errorMessage = err.response?.data?.username?.[0] ||
-                          err.response?.data?.email?.[0] ||
-                          err.response?.data?.password?.[0] ||
-                          'Registration failed'
+      const errorMessage = extractErrorMessage(err, 'Registration failed')
       setError(errorMessage)
       return { success: false, error: errorMessage }
     }
@@ -107,11 +134,14 @@ export const AuthProvider = ({ children }) => {
   const updateUser = async (userData) => {
     try {
       setError(null)
-      const response = await api.patch('/auth/user/update/', userData)
+      const isFormData = userData instanceof FormData
+      const response = await api.patch('/auth/user/update/', userData, {
+        headers: isFormData ? { 'Content-Type': 'multipart/form-data' } : undefined,
+      })
       setUser(response.data)
-      return { success: true }
+      return { success: true, user: response.data }
     } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Update failed'
+      const errorMessage = extractErrorMessage(err, 'Update failed')
       setError(errorMessage)
       return { success: false, error: errorMessage }
     }

@@ -2,6 +2,7 @@ from django.contrib.auth.models import update_last_login
 from django.db.models import Q
 from rest_framework import status, generics, permissions
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -134,6 +135,7 @@ class UpdateProfileView(generics.UpdateAPIView):
 
     permission_classes = [IsAuthenticated]
     serializer_class = UserUpdateSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
         return self.request.user

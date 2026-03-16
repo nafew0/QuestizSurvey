@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+from PIL import Image, UnidentifiedImageError
+import os
 
 User = get_user_model()
 
@@ -20,6 +22,9 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",
             "bio",
             "avatar",
+            "organization",
+            "designation",
+            "phone",
             "created_at",
             "updated_at",
         ]
@@ -43,6 +48,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             "password2",
             "first_name",
             "last_name",
+            "organization",
         ]
 
     def validate(self, attrs):
@@ -65,13 +71,74 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "bio", "avatar", "email"]
+        fields = [
+            "first_name",
+            "last_name",
+            "bio",
+            "avatar",
+            "email",
+            "organization",
+            "designation",
+            "phone",
+        ]
 
     def validate_email(self, value):
         """Check if email is already in use by another user."""
         user = self.context["request"].user
         if User.objects.exclude(pk=user.pk).filter(email=value).exists():
             raise serializers.ValidationError("This email is already in use.")
+        return value
+
+    def validate_phone(self, value):
+        """Allow common international phone formats without being overly strict."""
+        normalized = (value or "").strip()
+        if not normalized:
+            return ""
+
+        allowed_characters = set("0123456789+()-. ")
+        if any(character not in allowed_characters for character in normalized):
+            raise serializers.ValidationError(
+                "Phone number may contain only digits, spaces, and + ( ) - . characters."
+            )
+        return normalized
+
+    def validate_avatar(self, value):
+        """Validate avatar uploads to common safe image formats and a sane size."""
+        if not value:
+            return value
+
+        max_size_bytes = 5 * 1024 * 1024
+        allowed_extensions = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+        allowed_content_types = {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif",
+        }
+
+        if value.size > max_size_bytes:
+            raise serializers.ValidationError("Avatar image must be 5 MB or smaller.")
+
+        extension = os.path.splitext(value.name or "")[1].lower()
+        if extension and extension not in allowed_extensions:
+            raise serializers.ValidationError(
+                "Avatar must be a JPG, PNG, WEBP, or GIF image."
+            )
+
+        content_type = getattr(value, "content_type", "")
+        if content_type and content_type.lower() not in allowed_content_types:
+            raise serializers.ValidationError(
+                "Avatar must be a JPG, PNG, WEBP, or GIF image."
+            )
+
+        try:
+            image = Image.open(value)
+            image.verify()
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            raise serializers.ValidationError("Upload a valid image file.") from exc
+        finally:
+            value.seek(0)
+
         return value
 
 

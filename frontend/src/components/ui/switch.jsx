@@ -13,7 +13,7 @@ function Switch({ checked, onCheckedChange, className, disabled = false, ...prop
         }
       }}
       className={cn(
-        'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border border-transparent transition disabled:cursor-not-allowed disabled:opacity-50',
+        'relative inline-flex h-7 w-12 shrink-0 items-center rounded-[0.8rem] border border-transparent transition disabled:cursor-not-allowed disabled:opacity-50',
         checked ? 'bg-primary' : 'bg-[rgb(var(--theme-neutral-strong-rgb))]',
         className
       )}
@@ -21,7 +21,7 @@ function Switch({ checked, onCheckedChange, className, disabled = false, ...prop
     >
       <span
         className={cn(
-          'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition',
+          'pointer-events-none inline-block h-5 w-5 transform rounded-[0.6rem] bg-white shadow-sm transition',
           checked ? 'translate-x-6' : 'translate-x-1'
         )}
       />
