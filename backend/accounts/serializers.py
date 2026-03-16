@@ -4,11 +4,16 @@ from django.contrib.auth.password_validation import validate_password
 from PIL import Image, UnidentifiedImageError
 import os
 
+from subscriptions.serializers import PlanSummarySerializer
+from subscriptions.services import LicenseService
+
 User = get_user_model()
 
 
 class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
+
+    current_plan = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -26,10 +31,15 @@ class UserSerializer(serializers.ModelSerializer):
             "designation",
             "phone",
             "email_verified",
+            "current_plan",
             "created_at",
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_current_plan(self, obj):
+        plan = LicenseService.get_user_plan(obj)
+        return PlanSummarySerializer(plan).data
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

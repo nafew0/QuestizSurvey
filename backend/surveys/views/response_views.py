@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -9,6 +10,7 @@ from rest_framework.views import APIView
 
 from django.db.models import Prefetch
 
+from subscriptions.services import LicenseService
 from surveys.models import Answer, Collector, EmailInvitation, Survey, SurveyResponse
 from surveys.services import ResponseFilterService
 from surveys.serializers import (
@@ -132,6 +134,13 @@ class PublicSurveyView(APIView):
             status=error_status,
         )
 
+    def build_plan_limit_response(self, message):
+        return self.build_block_response(
+            message,
+            status.HTTP_403_FORBIDDEN,
+            "plan_limit",
+        )
+
     def get_requested_invitation(self, survey, invitation_token):
         if not invitation_token:
             return None
@@ -210,6 +219,11 @@ class PublicSurveyView(APIView):
                     status.HTTP_410_GONE,
                     "response_limit_reached",
                 )
+
+        if not resume_token:
+            license_check = LicenseService.check_can_accept_response(survey)
+            if not license_check.allowed:
+                return self.build_plan_limit_response(license_check.message)
 
         allow_multiple = settings.get(
             "allow_multiple",
@@ -314,7 +328,16 @@ class PublicSurveyView(APIView):
             },
         )
         serializer.is_valid(raise_exception=True)
-        survey_response = serializer.create_response()
+        with transaction.atomic():
+            status_value = serializer.validated_data.get("status", SurveyResponse.Status.IN_PROGRESS)
+            if status_value == SurveyResponse.Status.COMPLETED:
+                license_check = LicenseService.check_can_accept_response(
+                    survey,
+                    for_update=True,
+                )
+                if not license_check.allowed:
+                    return self.build_plan_limit_response(license_check.message)
+            survey_response = serializer.create_response()
         survey_response = self.get_response_queryset().get(id=survey_response.id)
         response_serializer = SurveyResponseDetailSerializer(survey_response)
         response = Response(response_serializer.data, status=status.HTTP_201_CREATED)
@@ -368,7 +391,19 @@ class PublicSurveyView(APIView):
             },
         )
         serializer.is_valid(raise_exception=True)
-        updated_response = serializer.update_response(survey_response)
+        with transaction.atomic():
+            next_status = serializer.validated_data.get("status", survey_response.status)
+            if (
+                next_status == SurveyResponse.Status.COMPLETED
+                and survey_response.status != SurveyResponse.Status.COMPLETED
+            ):
+                license_check = LicenseService.check_can_accept_response(
+                    survey,
+                    for_update=True,
+                )
+                if not license_check.allowed:
+                    return self.build_plan_limit_response(license_check.message)
+            updated_response = serializer.update_response(survey_response)
         updated_response = self.get_response_queryset().get(id=updated_response.id)
         response_serializer = SurveyResponseDetailSerializer(updated_response)
         response = Response(response_serializer.data, status=status.HTTP_200_OK)

@@ -1,9 +1,11 @@
 from django.db.models import Max
+from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from subscriptions.services import LicenseService
 from surveys.models import Page, Question
 from surveys.serializers import QuestionCreateSerializer, QuestionSerializer
 
@@ -12,6 +14,15 @@ from .common import get_owned_page, get_owned_survey
 
 class QuestionViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
+
+    def _build_plan_limit_response(self, message):
+        return Response(
+            {
+                "detail": message,
+                "code": "plan_limit",
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
 
     def get_page(self):
         _, page = get_owned_page(
@@ -37,6 +48,17 @@ class QuestionViewSet(viewsets.ModelViewSet):
         max_order = page.questions.aggregate(max_order=Max("order"))["max_order"] or 0
         order = serializer.validated_data.get("order", max_order + 1)
         serializer.save(page=page, order=order)
+
+    def create(self, request, *args, **kwargs):
+        survey = self.get_survey()
+        with transaction.atomic():
+            limit_check = LicenseService.check_can_add_question(
+                survey,
+                for_update=True,
+            )
+            if not limit_check.allowed:
+                return self._build_plan_limit_response(limit_check.message)
+            return super().create(request, *args, **kwargs)
 
     @action(detail=False, methods=["patch"])
     def reorder(self, request, survey_pk=None, page_pk=None):

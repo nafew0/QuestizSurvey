@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   BriefcaseBusiness,
   Building2,
@@ -13,8 +14,8 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
 import { resolveApiAssetUrl } from '@/services/api'
+import PlanBadge from '@/components/subscription/PlanBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -91,7 +92,7 @@ const Profile = () => {
 
   const displayName =
     `${formData.first_name} ${formData.last_name}`.trim() || user?.username || 'Your profile'
-  const planLabel = user?.plan?.name ? `${user.plan.name} Plan` : 'Free Plan'
+  const currentPlan = user?.current_plan || { name: 'Free', slug: 'free', tier: 0 }
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -319,8 +320,11 @@ const Profile = () => {
               <div className="grid gap-3">
                 <div className="theme-panel-soft flex items-center justify-between px-4 py-3">
                   <span className="text-sm font-medium text-muted-foreground">Current plan</span>
-                  <Badge variant="secondary">{planLabel}</Badge>
+                  <PlanBadge plan={currentPlan} />
                 </div>
+                <Button asChild variant="outline" className="rounded-full">
+                  <Link to="/pricing">Manage plan</Link>
+                </Button>
                 <div className="theme-panel-soft flex items-center gap-3 px-4 py-3">
                   <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">
                     <CalendarDays className="h-4 w-4" />

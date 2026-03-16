@@ -2,6 +2,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -9,6 +10,7 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from subscriptions.services import LicenseService
 from surveys.models import Survey
 from surveys.serializers import (
     SurveyCreateUpdateSerializer,
@@ -37,6 +39,15 @@ from surveys.utils import duplicate_survey_structure
 class SurveyViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
+    def _build_plan_limit_response(self, message):
+        return Response(
+            {
+                "detail": message,
+                "code": "plan_limit",
+            },
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
     def get_queryset(self):
         queryset = (
             Survey.objects.filter(user=self.request.user)
@@ -61,9 +72,27 @@ class SurveyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+    def create(self, request, *args, **kwargs):
+        with transaction.atomic():
+            limit_check = LicenseService.check_can_create_survey(
+                request.user,
+                for_update=True,
+            )
+            if not limit_check.allowed:
+                return self._build_plan_limit_response(limit_check.message)
+            return super().create(request, *args, **kwargs)
+
     @action(detail=True, methods=["post"])
     def duplicate(self, request, pk=None):
-        duplicated_survey = duplicate_survey_structure(self.get_object(), request.user)
+        survey = self.get_object()
+        with transaction.atomic():
+            limit_check = LicenseService.check_can_duplicate_survey(
+                survey,
+                for_update=True,
+            )
+            if not limit_check.allowed:
+                return self._build_plan_limit_response(limit_check.message)
+            duplicated_survey = duplicate_survey_structure(survey, request.user)
         serializer = SurveyDetailSerializer(
             duplicated_survey,
             context=self.get_serializer_context(),

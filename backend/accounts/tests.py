@@ -275,6 +275,8 @@ class AccountsAuthFlowTestCase(TestCase):
         self.assertIn("designation", response.data)
         self.assertIn("phone", response.data)
         self.assertIn("email_verified", response.data)
+        self.assertIn("current_plan", response.data)
+        self.assertEqual(response.data["current_plan"]["slug"], "free")
 
     def test_profile_update_accepts_extended_fields(self):
         user = self.create_user(username="profileupdate", email="profileupdate@example.com")

@@ -96,6 +96,7 @@ INSTALLED_APPS = [
     "channels",
     # Local apps
     "accounts",
+    "subscriptions",
     "surveys",
 ]
 

@@ -10,8 +10,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ClipboardList, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
+import { ClipboardList, CreditCard, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
 import BrandLogo from '@/components/branding/BrandLogo'
+import PlanBadge from '@/components/subscription/PlanBadge'
 import ThemeStudioDialog from '@/components/theme/ThemeStudioDialog'
 import { resolveApiAssetUrl } from '@/services/api'
 
@@ -41,10 +42,18 @@ const Navbar = () => {
 
           <div className="flex items-center gap-3">
             <div className="hidden md:block">
+              <Link to="/pricing">
+                <Button variant="ghost" className="rounded-full">Pricing</Button>
+              </Link>
+            </div>
+            <div className="hidden md:block">
               <ThemeStudioDialog />
             </div>
             {isAuthenticated ? (
               <>
+                <div className="hidden lg:block">
+                  <PlanBadge plan={user?.current_plan} />
+                </div>
                 <Link to="/dashboard">
                   <Button variant="ghost" className="rounded-full">My Surveys</Button>
                 </Link>
@@ -67,6 +76,9 @@ const Navbar = () => {
                         <p className="text-xs leading-none text-muted-foreground">
                           {user?.email}
                         </p>
+                        <div className="pt-2">
+                          <PlanBadge plan={user?.current_plan} />
+                        </div>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
@@ -81,6 +93,10 @@ const Navbar = () => {
                     <DropdownMenuItem onClick={() => navigate('/profile')}>
                       <User className="mr-2 h-4 w-4" />
                       <span>Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => navigate('/pricing')}>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      <span>Pricing</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem>
                       <Settings className="mr-2 h-4 w-4" />

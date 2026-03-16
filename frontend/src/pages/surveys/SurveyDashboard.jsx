@@ -37,11 +37,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import UsageBanner from '@/components/subscription/UsageBanner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { useToast } from '@/hooks/useToast'
 import { createInitialSurveyTheme } from '@/lib/surveyTheme'
+import { getUsage } from '@/services/subscriptions'
 import {
   createSurvey,
   deleteSurvey,
@@ -63,6 +65,7 @@ export default function SurveyDashboard() {
   const [error, setError] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [usage, setUsage] = useState(null)
   const [createForm, setCreateForm] = useState({
     title: '',
     description: '',
@@ -71,21 +74,38 @@ export default function SurveyDashboard() {
   const deferredSearch = useDeferredValue(search)
 
   useEffect(() => {
+    let cancelled = false
+
     const load = async () => {
       setLoading(true)
       setError(null)
 
       try {
-        const nextSurveys = await listSurveys()
-        setSurveys(nextSurveys)
+        const [nextSurveys, nextUsage] = await Promise.all([
+          listSurveys(),
+          getUsage().catch(() => null),
+        ])
+
+        if (!cancelled) {
+          setSurveys(nextSurveys)
+          setUsage(nextUsage)
+        }
       } catch (err) {
-        setError(err.response?.data?.detail || 'Unable to load your surveys.')
+        if (!cancelled) {
+          setError(err.response?.data?.detail || 'Unable to load your surveys.')
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     load()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const filteredSurveys = useMemo(() => {
@@ -100,6 +120,23 @@ export default function SurveyDashboard() {
       )
     )
   }, [deferredSearch, surveys])
+
+  const refreshUsage = async () => {
+    try {
+      const nextUsage = await getUsage()
+      setUsage(nextUsage)
+    } catch (err) {
+      console.error('Unable to refresh subscription usage:', err)
+    }
+  }
+
+  const surveyUsage = usage?.surveys
+  const showUsageBanner = Boolean(
+    surveyUsage &&
+      !surveyUsage.unlimited &&
+      surveyUsage.limit &&
+      surveyUsage.used / surveyUsage.limit >= 0.7
+  )
 
   const handleCreateSurvey = async () => {
     if (!createForm.title.trim()) {
@@ -139,6 +176,7 @@ export default function SurveyDashboard() {
       startTransition(() => {
         setSurveys((current) => [createdSurvey, ...current])
       })
+      refreshUsage()
 
       setCreateOpen(false)
       setCreateForm({ title: '', description: '' })
@@ -161,6 +199,7 @@ export default function SurveyDashboard() {
     try {
       const duplicated = await duplicateSurvey(surveyId)
       setSurveys((current) => [duplicated, ...current])
+      refreshUsage()
       toast({
         title: 'Survey duplicated',
         description: 'A copy was added to your dashboard.',
@@ -179,6 +218,7 @@ export default function SurveyDashboard() {
     try {
       await deleteSurvey(surveyId)
       setSurveys((current) => current.filter((survey) => survey.id !== surveyId))
+      refreshUsage()
       toast({
         title: 'Survey deleted',
         description: 'The survey was removed from your workspace.',
@@ -209,7 +249,7 @@ export default function SurveyDashboard() {
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <Badge variant="default">Phase 2 Builder</Badge>
+                <Badge variant="default">Plan-aware workspace</Badge>
                 <Badge variant="outline">React survey workspace</Badge>
               </div>
               <div className="space-y-3">
@@ -310,6 +350,8 @@ export default function SurveyDashboard() {
             </div>
           </div>
         </header>
+
+        {showUsageBanner ? <UsageBanner usage={usage} /> : null}
 
         {loading ? (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
