@@ -1,5 +1,7 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -170,3 +172,229 @@ class SubscriptionApiAndLimitsTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(response.data["code"], "plan_limit")
+
+
+@override_settings(
+    PUBLIC_APP_URL="http://localhost:5555",
+    STRIPE_SECRET_KEY="sk_test_123",
+    STRIPE_PUBLISHABLE_KEY="pk_test_123",
+    STRIPE_WEBHOOK_SECRET="whsec_test_123",
+)
+class StripePaymentTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.public_client = APIClient()
+        self.user = User.objects.create_user(
+            username="stripeuser",
+            email="stripeuser@example.com",
+            password="TestPass123!",
+        )
+        self.client.force_authenticate(self.user)
+        self.free_plan = Plan.objects.get(slug="free")
+        self.pro_plan = Plan.objects.get(slug="pro")
+        self.pro_plan.stripe_price_id_monthly = "price_pro_monthly"
+        self.pro_plan.stripe_price_id_yearly = "price_pro_yearly"
+        self.pro_plan.save(
+            update_fields=["stripe_price_id_monthly", "stripe_price_id_yearly"]
+        )
+
+    def test_stripe_config_endpoint_returns_publishable_key(self):
+        response = self.public_client.get("/api/payments/stripe/config/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["publishable_key"], "pk_test_123")
+
+    @patch("subscriptions.stripe_service.stripe.checkout.Session.create")
+    @patch("subscriptions.stripe_service.stripe.Customer.create")
+    def test_create_checkout_endpoint_returns_checkout_url(
+        self,
+        customer_create_mock,
+        checkout_create_mock,
+    ):
+        customer_create_mock.return_value = {"id": "cus_123"}
+        checkout_create_mock.return_value = {
+            "id": "cs_test_123",
+            "url": "https://checkout.stripe.com/pay/cs_test_123",
+        }
+
+        response = self.client.post(
+            "/api/payments/stripe/create-checkout/",
+            {
+                "plan_id": str(self.pro_plan.id),
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["checkout_url"],
+            "https://checkout.stripe.com/pay/cs_test_123",
+        )
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(subscription.stripe_customer_id, "cus_123")
+        checkout_create_mock.assert_called_once()
+
+    def test_create_checkout_rejects_free_plan(self):
+        response = self.client.post(
+            "/api/payments/stripe/create-checkout/",
+            {
+                "plan_id": str(self.free_plan.id),
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch("subscriptions.stripe_service.stripe.billing_portal.Session.create")
+    def test_customer_portal_returns_portal_url(self, portal_create_mock):
+        subscription = UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+        )
+        portal_create_mock.return_value = {
+            "url": "https://billing.stripe.com/session/test",
+        }
+
+        response = self.client.post("/api/payments/stripe/customer-portal/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["portal_url"],
+            "https://billing.stripe.com/session/test",
+        )
+        subscription.refresh_from_db()
+        self.assertEqual(subscription.stripe_customer_id, "cus_123")
+
+    @patch("subscriptions.stripe_service.stripe.Subscription.retrieve")
+    @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
+    def test_webhook_checkout_session_completed_updates_subscription(
+        self,
+        construct_event_mock,
+        subscription_retrieve_mock,
+    ):
+        construct_event_mock.return_value = {
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "mode": "subscription",
+                    "customer": "cus_123",
+                    "subscription": "sub_123",
+                    "metadata": {"user_id": str(self.user.id)},
+                }
+            },
+        }
+        subscription_retrieve_mock.return_value = {
+            "id": "sub_123",
+            "customer": "cus_123",
+            "status": "active",
+            "current_period_start": 1735689600,
+            "current_period_end": 1738368000,
+            "items": {
+                "data": [
+                    {
+                        "price": {"id": "price_pro_yearly"},
+                    }
+                ]
+            },
+            "metadata": {"user_id": str(self.user.id)},
+        }
+
+        response = self.public_client.post(
+            "/api/payments/stripe/webhook/",
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="sig_test",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(subscription.status, UserSubscription.Status.ACTIVE)
+        self.assertEqual(
+            subscription.payment_provider,
+            UserSubscription.PaymentProvider.STRIPE,
+        )
+        self.assertEqual(
+            subscription.billing_cycle,
+            UserSubscription.BillingCycle.YEARLY,
+        )
+        self.assertEqual(subscription.stripe_subscription_id, "sub_123")
+
+    @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
+    def test_webhook_invoice_payment_failed_marks_subscription_past_due(
+        self,
+        construct_event_mock,
+    ):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+        )
+        construct_event_mock.return_value = {
+            "type": "invoice.payment_failed",
+            "data": {
+                "object": {
+                    "customer": "cus_123",
+                    "subscription": "sub_123",
+                }
+            },
+        }
+
+        response = self.public_client.post(
+            "/api/payments/stripe/webhook/",
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="sig_test",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(subscription.status, UserSubscription.Status.PAST_DUE)
+
+    @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
+    def test_webhook_subscription_deleted_downgrades_to_free(self, construct_event_mock):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+        )
+        construct_event_mock.return_value = {
+            "type": "customer.subscription.deleted",
+            "data": {
+                "object": {
+                    "id": "sub_123",
+                    "customer": "cus_123",
+                    "metadata": {"user_id": str(self.user.id)},
+                }
+            },
+        }
+
+        response = self.public_client.post(
+            "/api/payments/stripe/webhook/",
+            data=b"{}",
+            content_type="application/json",
+            HTTP_STRIPE_SIGNATURE="sig_test",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(subscription.plan.slug, "free")
+        self.assertEqual(
+            subscription.payment_provider,
+            UserSubscription.PaymentProvider.NONE,
+        )

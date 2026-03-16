@@ -14,6 +14,7 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
 import { resolveApiAssetUrl } from '@/services/api'
+import { createStripeCustomerPortalSession } from '@/services/payments'
 import PlanBadge from '@/components/subscription/PlanBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -83,6 +84,7 @@ const Profile = () => {
   const [formData, setFormData] = useState(() => buildFormState(user))
   const [savingProfile, setSavingProfile] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [openingBilling, setOpeningBilling] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState('')
 
   useEffect(() => {
@@ -197,6 +199,25 @@ const Profile = () => {
 
     setUploadingAvatar(false)
     event.target.value = ''
+  }
+
+  const handleManageBilling = async () => {
+    setOpeningBilling(true)
+
+    try {
+      const response = await createStripeCustomerPortalSession()
+      window.location.assign(response.portal_url)
+    } catch (error) {
+      toast({
+        title: 'Billing portal unavailable',
+        description:
+          error.response?.data?.detail ||
+          'Stripe billing is not available for this account yet.',
+        variant: 'error',
+        duration: 4500,
+      })
+      setOpeningBilling(false)
+    }
   }
 
   const profileFields = [
@@ -324,6 +345,15 @@ const Profile = () => {
                 </div>
                 <Button asChild variant="outline" className="rounded-full">
                   <Link to="/pricing">Manage plan</Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-full"
+                  disabled={openingBilling}
+                  onClick={handleManageBilling}
+                >
+                  {openingBilling ? 'Opening billing...' : 'Manage billing'}
                 </Button>
                 <div className="theme-panel-soft flex items-center gap-3 px-4 py-3">
                   <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">

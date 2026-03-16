@@ -44,3 +44,11 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             "current_period_start",
             "current_period_end",
         ]
+
+
+class StripeCheckoutSessionSerializer(serializers.Serializer):
+    plan_id = serializers.UUIDField(required=True)
+    billing_cycle = serializers.ChoiceField(
+        choices=UserSubscription.BillingCycle.choices,
+        required=True,
+    )

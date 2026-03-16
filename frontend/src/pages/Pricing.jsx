@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Check } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Check, LoaderCircle } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import PlanBadge from '@/components/subscription/PlanBadge'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
+import { createStripeCheckoutSession } from '@/services/payments'
 import { getPlans } from '@/services/subscriptions'
 import { cn } from '@/lib/utils'
 
@@ -91,11 +92,13 @@ function getPricingDetails(plan, { yearlyBilling, isBangladeshiBilling }) {
 export default function Pricing() {
   const { user, isAuthenticated } = useAuth()
   const { toast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [yearlyBilling, setYearlyBilling] = useState(false)
   const [isBangladeshiBilling, setIsBangladeshiBilling] = useState(false)
+  const [checkoutPlanId, setCheckoutPlanId] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -127,20 +130,67 @@ export default function Pricing() {
     }
   }, [])
 
+  useEffect(() => {
+    if (searchParams.get('canceled') !== 'true') {
+      return
+    }
+
+    toast({
+      title: 'Checkout canceled',
+      description: 'Your Stripe checkout session was canceled before payment completed.',
+      variant: 'warning',
+    })
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('canceled')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams, toast])
+
   const currentPlanSlug = user?.current_plan?.slug || 'free'
+  const selectedBillingCycle = yearlyBilling ? 'yearly' : 'monthly'
 
   const handleChangePlan = (plan) => {
+    if (plan.slug === 'free') {
+      return
+    }
+
+    if (isBangladeshiBilling) {
+      toast({
+        title: 'bKash comes next',
+        description:
+          'Bangladeshi billing will use bKash in Phase 5. Switch to Non-Bangladeshi Nationals to continue with Stripe checkout right now.',
+        variant: 'warning',
+        duration: 5000,
+      })
+      return
+    }
+
     const providerLabel = isBangladeshiBilling ? 'bKash' : 'Stripe'
     const audienceLabel = isBangladeshiBilling
       ? 'Bangladeshi Nationals'
       : 'Non-Bangladeshi Nationals'
 
-    toast({
-      title: `${plan.name} plan selected`,
-      description: `${providerLabel} pricing for ${audienceLabel} is selected. Online checkout and plan changes are enabled in the next billing phase. For now, keep testing with Django admin-managed plans.`,
-      variant: 'warning',
-      duration: 5000,
+    setCheckoutPlanId(plan.id)
+
+    createStripeCheckoutSession({
+      planId: plan.id,
+      billingCycle: selectedBillingCycle,
     })
+      .then((response) => {
+        window.location.assign(response.checkout_url)
+      })
+      .catch((error) => {
+        const detail =
+          error.response?.data?.detail ||
+          `${providerLabel} checkout for ${audienceLabel} could not be created.`
+        toast({
+          title: 'Checkout unavailable',
+          description: detail,
+          variant: 'error',
+          duration: 5000,
+        })
+        setCheckoutPlanId('')
+      })
   }
 
   return (
@@ -228,12 +278,16 @@ export default function Pricing() {
                 isBangladeshiBilling,
               })
               const isCurrentPlan = currentPlanSlug === plan.slug
+              const isCheckoutPlan = checkoutPlanId === plan.id
+              const billingUnavailable = isBangladeshiBilling && plan.slug !== 'free'
               const actionLabel = !isAuthenticated
                 ? plan.slug === 'free'
                   ? 'Start free'
                   : 'Choose plan'
                 : isCurrentPlan
                   ? 'Current plan'
+                  : billingUnavailable
+                    ? 'bKash soon'
                   : (user?.current_plan?.tier ?? 0) < plan.tier
                     ? 'Upgrade'
                     : 'Downgrade'
@@ -341,16 +395,29 @@ export default function Pricing() {
                       <Button
                         className="w-full rounded-full"
                         variant={isCurrentPlan ? 'outline' : 'default'}
-                        disabled={isCurrentPlan}
+                        disabled={isCurrentPlan || isCheckoutPlan}
                         onClick={() => handleChangePlan(plan)}
                       >
-                        {actionLabel}
+                        {isCheckoutPlan ? (
+                          <>
+                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                            Redirecting...
+                          </>
+                        ) : (
+                          actionLabel
+                        )}
                       </Button>
                     )}
 
-                    {isAuthenticated && !isCurrentPlan ? (
+                    {billingUnavailable ? (
                       <p className="text-xs text-muted-foreground">
-                        Online billing is enabled in the next phase. Plan switching remains admin-managed for now.
+                        Bangladeshi billing will connect to bKash in Phase 5. Stripe checkout is only available under Non-Bangladeshi Nationals.
+                      </p>
+                    ) : null}
+
+                    {isAuthenticated && !isCurrentPlan && !billingUnavailable ? (
+                      <p className="text-xs text-muted-foreground">
+                        Stripe Checkout opens a hosted payment page. Existing active Stripe subscriptions should be changed from Manage Billing to avoid duplicates.
                       </p>
                     ) : null}
                   </CardContent>
