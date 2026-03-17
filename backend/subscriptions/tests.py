@@ -1,12 +1,20 @@
-from unittest.mock import patch
+from datetime import timedelta
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.core import mail
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from subscriptions.models import Plan, UserSubscription
+from subscriptions.bkash_service import BkashApiError, BkashService, BkashServiceError
+from subscriptions.models import BkashTransaction, Plan, UserSubscription
+from subscriptions.tasks import (
+    check_expired_subscriptions,
+    check_expiring_subscriptions,
+)
 from surveys.models import Collector, Page, Question, Survey, SurveyResponse
 
 User = get_user_model()
@@ -50,7 +58,9 @@ class SubscriptionApiAndLimitsTests(TestCase):
         response = self.public_client.get("/api/plans/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual([plan["slug"] for plan in response.data], ["free", "pro", "enterprise"])
+        self.assertEqual(
+            [plan["slug"] for plan in response.data], ["free", "pro", "enterprise"]
+        )
         self.assertIn("bkash_price_monthly", response.data[0])
         self.assertIn("bkash_price_yearly", response.data[0])
 
@@ -61,7 +71,11 @@ class SubscriptionApiAndLimitsTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["plan"]["slug"], "free")
-        self.assertTrue(UserSubscription.objects.filter(user=self.user, plan=self.free_plan).exists())
+        self.assertTrue(
+            UserSubscription.objects.filter(
+                user=self.user, plan=self.free_plan
+            ).exists()
+        )
 
     def test_usage_endpoint_returns_plan_and_usage_snapshot(self):
         self.create_survey(title="Survey A")
@@ -140,7 +154,9 @@ class SubscriptionApiAndLimitsTests(TestCase):
         self.free_plan.max_responses_per_survey = 1
         self.free_plan.save(update_fields=["max_responses_per_survey"])
 
-        survey = self.create_survey(title="Response limited survey", status=Survey.Status.ACTIVE)
+        survey = self.create_survey(
+            title="Response limited survey", status=Survey.Status.ACTIVE
+        )
         page = self.create_page(survey)
         question = self.create_question(page, text="Your feedback?")
         Collector.objects.create(
@@ -363,7 +379,9 @@ class StripePaymentTests(TestCase):
         self.assertEqual(subscription.status, UserSubscription.Status.PAST_DUE)
 
     @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
-    def test_webhook_subscription_deleted_downgrades_to_free(self, construct_event_mock):
+    def test_webhook_subscription_deleted_downgrades_to_free(
+        self, construct_event_mock
+    ):
         UserSubscription.objects.create(
             user=self.user,
             plan=self.pro_plan,
@@ -398,3 +416,395 @@ class StripePaymentTests(TestCase):
             subscription.payment_provider,
             UserSubscription.PaymentProvider.NONE,
         )
+
+
+@override_settings(
+    API_ORIGIN="http://localhost:8000",
+    PUBLIC_APP_URL="http://localhost:5555",
+    BKASH_APP_KEY="app_key",
+    BKASH_APP_SECRET="app_secret",
+    BKASH_USERNAME="username",
+    BKASH_PASSWORD="password",
+    BKASH_BASE_URL="https://tokenized.sandbox.bka.sh/v1.2.0-beta",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
+)
+class BkashServiceTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user(
+            username="bkashservice",
+            email="bkashservice@example.com",
+            password="TestPass123!",
+        )
+        self.plan = Plan.objects.get(slug="pro")
+        self.plan.bkash_price_monthly = 2900
+        self.plan.bkash_price_yearly = 29000
+        self.plan.save(update_fields=["bkash_price_monthly", "bkash_price_yearly"])
+
+    def _mock_urlopen_response(self, payload):
+        response = Mock()
+        response.read.return_value = payload.encode("utf-8")
+        context_manager = Mock()
+        context_manager.__enter__ = Mock(return_value=response)
+        context_manager.__exit__ = Mock(return_value=False)
+        return context_manager
+
+    @patch("subscriptions.bkash_service.urlopen")
+    def test_grant_token_caches_id_token(self, urlopen_mock):
+        urlopen_mock.return_value = self._mock_urlopen_response(
+            '{"statusCode":"0000","id_token":"token_1","refresh_token":"refresh_1","expires_in":3600}'
+        )
+
+        first_token = BkashService.grant_token(force_refresh=True)
+        second_token = BkashService.grant_token()
+
+        self.assertEqual(first_token, "token_1")
+        self.assertEqual(second_token, "token_1")
+        self.assertEqual(urlopen_mock.call_count, 1)
+
+    @patch.object(BkashService, "_request")
+    def test_authorized_request_refreshes_token_after_auth_failure(self, request_mock):
+        cache.set(
+            BkashService.TOKEN_CACHE_KEY,
+            {
+                "id_token": "stale_token",
+                "refresh_token": "refresh_token",
+                "expires_in": 3600,
+            },
+        )
+        request_mock.side_effect = [
+            BkashApiError(
+                "expired token", response_data={"statusCode": "2001"}, http_status=401
+            ),
+            {
+                "statusCode": "0000",
+                "id_token": "fresh_token",
+                "refresh_token": "refresh_token_2",
+                "expires_in": 3600,
+            },
+            {
+                "statusCode": "0000",
+                "transactionStatus": "Completed",
+                "trxID": "trx_123",
+            },
+        ]
+
+        response = BkashService.query_payment("payment_123")
+
+        self.assertEqual(response["trxID"], "trx_123")
+        self.assertEqual(request_mock.call_count, 3)
+
+    @patch.object(BkashService, "_authorized_request")
+    def test_create_payment_uses_bdt_amount_and_callback_url(
+        self, authorized_request_mock
+    ):
+        authorized_request_mock.return_value = {
+            "statusCode": "0000",
+            "paymentID": "payment_123",
+            "bkashURL": "https://sandbox.payment/bkash/123",
+        }
+
+        response = BkashService.create_payment(
+            self.user,
+            self.plan,
+            UserSubscription.BillingCycle.YEARLY,
+        )
+
+        payload = authorized_request_mock.call_args.kwargs["payload"]
+        self.assertEqual(payload["currency"], "BDT")
+        self.assertEqual(payload["amount"], "29000.00")
+        self.assertEqual(
+            payload["callbackURL"],
+            "http://localhost:8000/api/payments/bkash/callback/",
+        )
+        self.assertEqual(response["payment_id"], "payment_123")
+        self.assertTrue(response["invoice_number"].startswith("QTZ-BK-"))
+
+    @patch.object(BkashService, "_authorized_request")
+    def test_execute_payment_raises_on_gateway_failure(self, authorized_request_mock):
+        authorized_request_mock.return_value = {
+            "statusCode": "2062",
+            "statusMessage": "Payment execution failed",
+        }
+
+        with self.assertRaises(BkashServiceError):
+            BkashService.execute_payment("payment_123")
+
+
+@override_settings(
+    API_ORIGIN="http://localhost:8000",
+    PUBLIC_APP_URL="http://localhost:5555",
+    BKASH_APP_KEY="app_key",
+    BKASH_APP_SECRET="app_secret",
+    BKASH_USERNAME="username",
+    BKASH_PASSWORD="password",
+    BKASH_BASE_URL="https://tokenized.sandbox.bka.sh/v1.2.0-beta",
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    CACHES={"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}},
+)
+class BkashPaymentTests(TestCase):
+    def setUp(self):
+        cache.clear()
+        self.client = APIClient()
+        self.public_client = APIClient()
+        self.user = User.objects.create_user(
+            username="bkashuser",
+            email="bkashuser@example.com",
+            password="TestPass123!",
+        )
+        self.other_user = User.objects.create_user(
+            username="otheruser",
+            email="other@example.com",
+            password="TestPass123!",
+        )
+        self.client.force_authenticate(self.user)
+        self.free_plan = Plan.objects.get(slug="free")
+        self.pro_plan = Plan.objects.get(slug="pro")
+        self.pro_plan.bkash_price_monthly = 2900
+        self.pro_plan.bkash_price_yearly = 29000
+        self.pro_plan.save(update_fields=["bkash_price_monthly", "bkash_price_yearly"])
+
+    @patch.object(BkashService, "create_payment")
+    def test_create_checkout_stores_initiated_transaction_and_returns_url(
+        self,
+        create_payment_mock,
+    ):
+        create_payment_mock.return_value = {
+            "payment_id": "payment_123",
+            "bkash_url": "https://sandbox.payment/bkash/123",
+            "invoice_number": "INV-123",
+            "amount": self.pro_plan.bkash_price_monthly,
+            "response": {"statusCode": "0000"},
+        }
+
+        response = self.client.post(
+            "/api/payments/bkash/create/",
+            {
+                "plan_id": str(self.pro_plan.id),
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["payment_id"], "payment_123")
+        transaction_record = BkashTransaction.objects.get(payment_id="payment_123")
+        self.assertEqual(transaction_record.status, BkashTransaction.Status.INITIATED)
+        self.assertEqual(transaction_record.target_plan, self.pro_plan)
+
+    def test_create_checkout_rejects_missing_bdt_price(self):
+        self.pro_plan.bkash_price_monthly = 0
+        self.pro_plan.save(update_fields=["bkash_price_monthly"])
+
+        response = self.client.post(
+            "/api/payments/bkash/create/",
+            {
+                "plan_id": str(self.pro_plan.id),
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @patch.object(BkashService, "create_payment")
+    def test_create_checkout_rejects_active_stripe_subscription(
+        self, create_payment_mock
+    ):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=30),
+        )
+
+        response = self.client.post(
+            "/api/payments/bkash/create/",
+            {
+                "plan_id": str(self.pro_plan.id),
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        create_payment_mock.assert_not_called()
+
+    @patch.object(BkashService, "verify_payment")
+    def test_callback_success_activates_subscription_idempotently(
+        self, verify_payment_mock
+    ):
+        verify_payment_mock.return_value = (
+            BkashTransaction.Status.COMPLETED,
+            {"trxID": "trx_123", "statusCode": "0000"},
+        )
+        BkashTransaction.objects.create(
+            user=self.user,
+            subscription=UserSubscription.objects.create(
+                user=self.user,
+                plan=self.free_plan,
+                status=UserSubscription.Status.ACTIVE,
+                billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+                payment_provider=UserSubscription.PaymentProvider.NONE,
+            ),
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_123",
+            invoice_number="INV-123",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+
+        first_response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_123", "status": "success"},
+        )
+        second_response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_123", "status": "success"},
+        )
+
+        subscription = UserSubscription.objects.get(user=self.user)
+        transaction_record = BkashTransaction.objects.get(payment_id="payment_123")
+
+        self.assertEqual(first_response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(second_response.status_code, status.HTTP_302_FOUND)
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(
+            subscription.payment_provider, UserSubscription.PaymentProvider.BKASH
+        )
+        self.assertEqual(transaction_record.status, BkashTransaction.Status.COMPLETED)
+        self.assertEqual(transaction_record.trx_id, "trx_123")
+        self.assertEqual(verify_payment_mock.call_count, 1)
+
+    def test_callback_cancel_does_not_change_subscription_access(self):
+        BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_cancelled",
+            invoice_number="INV-CANCELLED",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+
+        response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_cancelled", "status": "cancel"},
+        )
+
+        transaction_record = BkashTransaction.objects.get(
+            payment_id="payment_cancelled"
+        )
+        subscription = UserSubscription.objects.get(user=self.user)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("/payment/failed", response.url)
+        self.assertEqual(transaction_record.status, BkashTransaction.Status.CANCELLED)
+        self.assertEqual(subscription.plan, self.free_plan)
+
+    @patch.object(BkashService, "sync_transaction", side_effect=Exception("boom"))
+    def test_callback_unexpected_error_still_redirects_to_failure_page(
+        self, sync_transaction_mock
+    ):
+        response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_any", "status": "failure"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("/payment/failed", response.url)
+        sync_transaction_mock.assert_called_once()
+
+    def test_status_endpoint_is_owner_only(self):
+        BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_owner_only",
+            invoice_number="INV-OWNER",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+        other_client = APIClient()
+        other_client.force_authenticate(self.other_user)
+
+        response = other_client.get("/api/payments/bkash/status/payment_owner_only/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cancel_endpoint_flags_bkash_subscription_for_period_end(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=20),
+        )
+
+        response = self.client.post("/api/subscription/cancel/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertTrue(subscription.cancel_at_period_end)
+        self.assertIsNotNone(subscription.cancel_requested_at)
+
+    def test_cancel_endpoint_rejects_stripe_subscription(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+            current_period_start=timezone.now(),
+            current_period_end=timezone.now() + timedelta(days=20),
+        )
+
+        response = self.client.post("/api/subscription/cancel/")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_check_expiring_subscriptions_sends_reminder_email(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+            current_period_start=timezone.now() - timedelta(days=25),
+            current_period_end=timezone.now() + timedelta(days=2),
+        )
+
+        sent_count = check_expiring_subscriptions()
+
+        self.assertEqual(sent_count, 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("expires soon", mail.outbox[0].subject)
+
+    def test_check_expired_subscriptions_downgrades_after_grace_period(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+            current_period_start=timezone.now() - timedelta(days=40),
+            current_period_end=timezone.now() - timedelta(days=4),
+        )
+
+        downgraded_count = check_expired_subscriptions()
+
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(downgraded_count, 1)
+        self.assertEqual(subscription.plan, self.free_plan)
+        self.assertEqual(
+            subscription.payment_provider, UserSubscription.PaymentProvider.NONE
+        )
+        self.assertEqual(len(mail.outbox), 1)

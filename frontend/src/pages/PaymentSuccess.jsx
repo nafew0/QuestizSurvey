@@ -30,7 +30,17 @@ export default function PaymentSuccess() {
   const { toast } = useToast()
   const [syncing, setSyncing] = useState(true)
   const announcedRef = useRef(false)
+  const refreshUserRef = useRef(refreshUser)
+  const toastRef = useRef(toast)
   const provider = (searchParams.get('provider') || 'stripe').toLowerCase()
+
+  useEffect(() => {
+    refreshUserRef.current = refreshUser
+  }, [refreshUser])
+
+  useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
 
   useEffect(() => {
     let cancelled = false
@@ -47,26 +57,26 @@ export default function PaymentSuccess() {
         try {
           const subscription = await getSubscription()
           if (
-            subscription?.payment_provider === 'stripe' &&
+            subscription?.payment_provider === provider &&
             subscription?.plan?.slug &&
             subscription.plan.slug !== 'free'
           ) {
-            await refreshUser()
+            await refreshUserRef.current()
             if (!cancelled) {
               setSyncing(false)
             }
             if (!announcedRef.current) {
               announcedRef.current = true
-              toast({
+              toastRef.current({
                 title: 'Payment confirmed',
-                description: 'Your Stripe subscription is now active.',
+                description: `Your ${provider === 'bkash' ? 'bKash' : 'Stripe'} subscription is now active.`,
                 variant: 'success',
               })
             }
             return
           }
         } catch (error) {
-          console.error('Unable to confirm Stripe subscription yet:', error)
+          console.error('Unable to confirm subscription yet:', error)
         }
 
         await delay(SYNC_INTERVAL_MS)
@@ -79,17 +89,34 @@ export default function PaymentSuccess() {
 
     syncSubscription()
 
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, provider])
+
+  useEffect(() => {
+    if (syncing) {
+      return undefined
+    }
+
     const redirectTimer = window.setTimeout(() => {
       navigate('/dashboard', { replace: true })
     }, REDIRECT_DELAY_MS)
 
     return () => {
-      cancelled = true
       window.clearTimeout(redirectTimer)
     }
-  }, [isAuthenticated, navigate, refreshUser, toast])
+  }, [navigate, syncing])
 
-  const providerLabel = provider === 'stripe' ? 'Stripe' : provider
+  const providerLabel = provider === 'bkash' ? 'bKash' : 'Stripe'
+  const syncCopy =
+    provider === 'bkash'
+      ? 'Questiz is confirming your bKash payment and refreshing your workspace access.'
+      : 'Questiz is syncing the Stripe subscription state and will return you to the dashboard automatically.'
+  const pendingCopy =
+    provider === 'bkash'
+      ? 'Confirming your subscription with bKash and refreshing your workspace access.'
+      : 'Confirming your subscription with Stripe and refreshing your workspace access.'
 
   return (
     <div className="theme-app-gradient flex min-h-[calc(100vh-4rem)] items-center px-4 py-10 sm:px-6 lg:px-8">
@@ -107,7 +134,7 @@ export default function PaymentSuccess() {
                 Payment successful
               </CardTitle>
               <CardDescription className="mx-auto max-w-2xl text-base leading-8">
-                Your billing request has been accepted. Questiz is syncing the Stripe subscription state and will return you to the dashboard automatically.
+                Your billing request has been accepted. {syncCopy}
               </CardDescription>
             </div>
           </CardHeader>
@@ -117,7 +144,7 @@ export default function PaymentSuccess() {
                 <div className="flex flex-col items-center gap-3">
                   <LoaderCircle className="h-6 w-6 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">
-                    Confirming your subscription with Stripe and refreshing your workspace access.
+                    {pendingCopy}
                   </p>
                 </div>
               ) : (

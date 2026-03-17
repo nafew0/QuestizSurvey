@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Plan, UserSubscription
+from .models import BkashTransaction, Plan, UserSubscription
 
 
 @admin.register(Plan)
@@ -28,10 +28,64 @@ class UserSubscriptionAdmin(admin.ModelAdmin):
         "status",
         "billing_cycle",
         "payment_provider",
+        "cancel_at_period_end",
         "current_period_end",
         "updated_at",
     ]
-    list_filter = ["status", "billing_cycle", "payment_provider", "plan"]
-    search_fields = ["user__username", "user__email", "stripe_customer_id", "stripe_subscription_id"]
+    list_filter = [
+        "status",
+        "billing_cycle",
+        "payment_provider",
+        "cancel_at_period_end",
+        "plan",
+    ]
+    search_fields = [
+        "user__username",
+        "user__email",
+        "stripe_customer_id",
+        "stripe_subscription_id",
+    ]
     autocomplete_fields = ["user", "plan"]
 
+
+@admin.register(BkashTransaction)
+class BkashTransactionAdmin(admin.ModelAdmin):
+    list_display = [
+        "invoice_number",
+        "user",
+        "target_plan",
+        "billing_cycle",
+        "amount",
+        "currency",
+        "status",
+        "payment_id",
+        "trx_id",
+        "updated_at",
+    ]
+    list_filter = ["status", "billing_cycle", "currency", "target_plan"]
+    search_fields = [
+        "invoice_number",
+        "payment_id",
+        "trx_id",
+        "user__username",
+        "user__email",
+    ]
+    autocomplete_fields = ["user", "subscription", "target_plan"]
+    readonly_fields = [
+        "user",
+        "subscription",
+        "target_plan",
+        "billing_cycle",
+        "payment_id",
+        "trx_id",
+        "invoice_number",
+        "amount",
+        "currency",
+        "status",
+        "bkash_response",
+        "created_at",
+        "updated_at",
+    ]
+
+    def has_add_permission(self, request):
+        return False

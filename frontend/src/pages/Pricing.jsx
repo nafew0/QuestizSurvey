@@ -15,7 +15,10 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
-import { createStripeCheckoutSession } from '@/services/payments'
+import {
+  createBkashCheckoutSession,
+  createStripeCheckoutSession,
+} from '@/services/payments'
 import { getPlans } from '@/services/subscriptions'
 import { cn } from '@/lib/utils'
 
@@ -154,17 +157,6 @@ export default function Pricing() {
       return
     }
 
-    if (isBangladeshiBilling) {
-      toast({
-        title: 'bKash comes next',
-        description:
-          'Bangladeshi billing will use bKash in Phase 5. Switch to Non-Bangladeshi Nationals to continue with Stripe checkout right now.',
-        variant: 'warning',
-        duration: 5000,
-      })
-      return
-    }
-
     const providerLabel = isBangladeshiBilling ? 'bKash' : 'Stripe'
     const audienceLabel = isBangladeshiBilling
       ? 'Bangladeshi Nationals'
@@ -172,12 +164,16 @@ export default function Pricing() {
 
     setCheckoutPlanId(plan.id)
 
-    createStripeCheckoutSession({
+    const createCheckout = isBangladeshiBilling
+      ? createBkashCheckoutSession
+      : createStripeCheckoutSession
+
+    createCheckout({
       planId: plan.id,
       billingCycle: selectedBillingCycle,
     })
       .then((response) => {
-        window.location.assign(response.checkout_url)
+        window.location.assign(response.bkash_url || response.checkout_url)
       })
       .catch((error) => {
         const detail =
@@ -279,15 +275,12 @@ export default function Pricing() {
               })
               const isCurrentPlan = currentPlanSlug === plan.slug
               const isCheckoutPlan = checkoutPlanId === plan.id
-              const billingUnavailable = isBangladeshiBilling && plan.slug !== 'free'
               const actionLabel = !isAuthenticated
                 ? plan.slug === 'free'
                   ? 'Start free'
                   : 'Choose plan'
                 : isCurrentPlan
                   ? 'Current plan'
-                  : billingUnavailable
-                    ? 'bKash soon'
                   : (user?.current_plan?.tier ?? 0) < plan.tier
                     ? 'Upgrade'
                     : 'Downgrade'
@@ -395,7 +388,7 @@ export default function Pricing() {
                       <Button
                         className="w-full rounded-full"
                         variant={isCurrentPlan ? 'outline' : 'default'}
-                        disabled={isCurrentPlan || isCheckoutPlan}
+                        disabled={isCurrentPlan || isCheckoutPlan || pricing.missingPrice}
                         onClick={() => handleChangePlan(plan)}
                       >
                         {isCheckoutPlan ? (
@@ -409,15 +402,11 @@ export default function Pricing() {
                       </Button>
                     )}
 
-                    {billingUnavailable ? (
+                    {isAuthenticated && !isCurrentPlan && !pricing.missingPrice ? (
                       <p className="text-xs text-muted-foreground">
-                        Bangladeshi billing will connect to bKash in Phase 5. Stripe checkout is only available under Non-Bangladeshi Nationals.
-                      </p>
-                    ) : null}
-
-                    {isAuthenticated && !isCurrentPlan && !billingUnavailable ? (
-                      <p className="text-xs text-muted-foreground">
-                        Stripe Checkout opens a hosted payment page. Existing active Stripe subscriptions should be changed from Manage Billing to avoid duplicates.
+                        {isBangladeshiBilling
+                          ? 'bKash opens a hosted payment page in BDT. Active Stripe subscriptions must end before switching to bKash, and active bKash plans renew from the profile page.'
+                          : 'Stripe Checkout opens a hosted payment page. Existing active Stripe subscriptions should be changed from Manage Billing to avoid duplicates.'}
                       </p>
                     ) : null}
                   </CardContent>

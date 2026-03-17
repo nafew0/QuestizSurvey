@@ -14,7 +14,11 @@ import {
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
 import { resolveApiAssetUrl } from '@/services/api'
-import { createStripeCustomerPortalSession } from '@/services/payments'
+import {
+  createBkashCheckoutSession,
+  createStripeCustomerPortalSession,
+} from '@/services/payments'
+import { cancelSubscription, getSubscription } from '@/services/subscriptions'
 import PlanBadge from '@/components/subscription/PlanBadge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -58,6 +62,23 @@ function formatMemberSince(value) {
   })
 }
 
+function formatBillingDate(value) {
+  if (!value) {
+    return 'Not scheduled'
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return 'Not scheduled'
+  }
+
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+}
+
 function getInitials(user, formData) {
   const first = (formData.first_name || user?.first_name || '').trim()
   const last = (formData.last_name || user?.last_name || '').trim()
@@ -85,6 +106,10 @@ const Profile = () => {
   const [savingProfile, setSavingProfile] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [openingBilling, setOpeningBilling] = useState(false)
+  const [loadingSubscription, setLoadingSubscription] = useState(true)
+  const [subscription, setSubscription] = useState(null)
+  const [renewingBkash, setRenewingBkash] = useState(false)
+  const [cancelingSubscription, setCancelingSubscription] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState('')
 
   useEffect(() => {
@@ -92,9 +117,57 @@ const Profile = () => {
     setAvatarPreview(resolveApiAssetUrl(user?.avatar))
   }, [user])
 
+  useEffect(() => {
+    let cancelled = false
+
+    if (!user) {
+      setSubscription(null)
+      setLoadingSubscription(false)
+      return undefined
+    }
+
+    const loadSubscription = async () => {
+      setLoadingSubscription(true)
+
+      try {
+        const response = await getSubscription()
+        if (!cancelled) {
+          setSubscription(response)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSubscription(null)
+          toast({
+            title: 'Subscription details unavailable',
+            description:
+              error.response?.data?.detail ||
+              'Questiz could not load your current subscription right now.',
+            variant: 'warning',
+            duration: 4000,
+          })
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingSubscription(false)
+        }
+      }
+    }
+
+    loadSubscription()
+
+    return () => {
+      cancelled = true
+    }
+  }, [toast, user])
+
   const displayName =
     `${formData.first_name} ${formData.last_name}`.trim() || user?.username || 'Your profile'
-  const currentPlan = user?.current_plan || { name: 'Free', slug: 'free', tier: 0 }
+  const currentPlan = subscription?.plan || user?.current_plan || { name: 'Free', slug: 'free', tier: 0 }
+  const billingProvider = subscription?.payment_provider || 'none'
+  const isStripeSubscription =
+    billingProvider === 'stripe' && currentPlan?.slug && currentPlan.slug !== 'free'
+  const isBkashSubscription =
+    billingProvider === 'bkash' && currentPlan?.slug && currentPlan.slug !== 'free'
 
   const handleChange = (event) => {
     const { name, value } = event.target
@@ -220,6 +293,57 @@ const Profile = () => {
     }
   }
 
+  const handleBkashRenewal = async () => {
+    if (!subscription?.plan?.id || !subscription?.billing_cycle) {
+      return
+    }
+
+    setRenewingBkash(true)
+
+    try {
+      const response = await createBkashCheckoutSession({
+        planId: subscription.plan.id,
+        billingCycle: subscription.billing_cycle,
+      })
+      window.location.assign(response.bkash_url)
+    } catch (error) {
+      toast({
+        title: 'Renewal unavailable',
+        description:
+          error.response?.data?.detail ||
+          'Questiz could not start the bKash renewal flow right now.',
+        variant: 'error',
+        duration: 4500,
+      })
+      setRenewingBkash(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setCancelingSubscription(true)
+
+    try {
+      const updatedSubscription = await cancelSubscription()
+      setSubscription(updatedSubscription)
+      toast({
+        title: 'Cancellation scheduled',
+        description: 'Your bKash subscription will end after the current billing period.',
+        variant: 'success',
+      })
+    } catch (error) {
+      toast({
+        title: 'Could not schedule cancellation',
+        description:
+          error.response?.data?.detail ||
+          'Questiz could not update the subscription right now.',
+        variant: 'error',
+        duration: 4500,
+      })
+    } finally {
+      setCancelingSubscription(false)
+    }
+  }
+
   const profileFields = [
     {
       id: 'first_name',
@@ -338,23 +462,69 @@ const Profile = () => {
                 <p className="mt-1 text-sm text-muted-foreground">@{user?.username}</p>
               </div>
 
-              <div className="grid gap-3">
-                <div className="theme-panel-soft flex items-center justify-between px-4 py-3">
-                  <span className="text-sm font-medium text-muted-foreground">Current plan</span>
-                  <PlanBadge plan={currentPlan} />
-                </div>
+                <div className="grid gap-3">
+                  <div className="theme-panel-soft flex items-center justify-between px-4 py-3">
+                    <span className="text-sm font-medium text-muted-foreground">Current plan</span>
+                    <PlanBadge plan={currentPlan} />
+                  </div>
+                  <div className="theme-panel-soft flex items-center gap-3 px-4 py-3">
+                    <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">
+                      <CalendarDays className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        Next billing date
+                      </p>
+                      <p className="text-sm font-medium">
+                        {loadingSubscription ? 'Loading...' : formatBillingDate(subscription?.current_period_end)}
+                      </p>
+                      {subscription?.cancel_at_period_end ? (
+                        <p className="mt-1 text-xs text-amber-700">
+                          Cancellation scheduled at period end.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
                 <Button asChild variant="outline" className="rounded-full">
                   <Link to="/pricing">Manage plan</Link>
                 </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-full"
-                  disabled={openingBilling}
-                  onClick={handleManageBilling}
-                >
-                  {openingBilling ? 'Opening billing...' : 'Manage billing'}
-                </Button>
+                {isStripeSubscription ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="rounded-full"
+                    disabled={openingBilling}
+                    onClick={handleManageBilling}
+                  >
+                    {openingBilling ? 'Opening billing...' : 'Manage billing'}
+                  </Button>
+                ) : null}
+                {isBkashSubscription ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={renewingBkash || subscription?.cancel_at_period_end}
+                      onClick={handleBkashRenewal}
+                    >
+                      {renewingBkash ? 'Opening bKash...' : 'Renew now'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      disabled={cancelingSubscription || subscription?.cancel_at_period_end}
+                      onClick={handleCancelSubscription}
+                    >
+                      {cancelingSubscription
+                        ? 'Scheduling cancellation...'
+                        : subscription?.cancel_at_period_end
+                          ? 'Cancellation scheduled'
+                          : 'Cancel at period end'}
+                    </Button>
+                  </>
+                ) : null}
                 <div className="theme-panel-soft flex items-center gap-3 px-4 py-3">
                   <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">
                     <CalendarDays className="h-4 w-4" />

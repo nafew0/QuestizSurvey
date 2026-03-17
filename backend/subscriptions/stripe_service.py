@@ -106,7 +106,9 @@ class StripeService:
             Q(stripe_price_id_monthly=price_id) | Q(stripe_price_id_yearly=price_id)
         ).first()
         if not plan:
-            raise StripeConfigurationError("No Questiz plan is mapped to the Stripe price.")
+            raise StripeConfigurationError(
+                "No Questiz plan is mapped to the Stripe price."
+            )
 
         if plan.stripe_price_id_yearly == price_id:
             billing_cycle = UserSubscription.BillingCycle.YEARLY
@@ -139,7 +141,9 @@ class StripeService:
         price = cls._value(data[0], "price", {}) or {}
         price_id = cls._value(price, "id")
         if not price_id:
-            raise StripeConfigurationError("Stripe subscription line item has no price ID.")
+            raise StripeConfigurationError(
+                "Stripe subscription line item has no price ID."
+            )
         return price_id
 
     @classmethod
@@ -216,13 +220,16 @@ class StripeService:
         if not plan.is_active:
             raise StripeUserInputError("This plan is no longer available.")
         if plan.slug == LicenseService.FREE_PLAN_SLUG:
-            raise StripeUserInputError("The Free plan does not require Stripe checkout.")
+            raise StripeUserInputError(
+                "The Free plan does not require Stripe checkout."
+            )
 
         with transaction.atomic():
             subscription = LicenseService.get_user_subscription(user, for_update=True)
             if (
                 subscription.plan_id == plan.id
-                and subscription.payment_provider == UserSubscription.PaymentProvider.STRIPE
+                and subscription.payment_provider
+                == UserSubscription.PaymentProvider.STRIPE
                 and subscription.status
                 in {
                     UserSubscription.Status.ACTIVE,
@@ -350,6 +357,8 @@ class StripeService:
         local_subscription.current_period_end = cls._timestamp_to_datetime(
             cls._value(stripe_subscription, "current_period_end")
         )
+        local_subscription.cancel_at_period_end = False
+        local_subscription.cancel_requested_at = None
         local_subscription.save()
         return local_subscription
 
@@ -397,6 +406,8 @@ class StripeService:
         if stripe_customer_id:
             local_subscription.stripe_customer_id = stripe_customer_id
         local_subscription.stripe_subscription_id = None
+        local_subscription.cancel_at_period_end = False
+        local_subscription.cancel_requested_at = None
         local_subscription.current_period_start = None
         local_subscription.current_period_end = None
         local_subscription.save()
@@ -416,9 +427,13 @@ class StripeService:
                 settings.STRIPE_WEBHOOK_SECRET,
             )
         except ValueError as exc:
-            raise StripeWebhookSignatureError("Invalid Stripe webhook payload.") from exc
+            raise StripeWebhookSignatureError(
+                "Invalid Stripe webhook payload."
+            ) from exc
         except stripe.error.SignatureVerificationError as exc:
-            raise StripeWebhookSignatureError("Invalid Stripe webhook signature.") from exc
+            raise StripeWebhookSignatureError(
+                "Invalid Stripe webhook signature."
+            ) from exc
 
         event_type = cls._value(event, "type")
         event_data = cls._value(cls._value(event, "data", {}), "object", {})

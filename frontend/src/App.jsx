@@ -11,6 +11,7 @@ const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
+const PaymentFailed = lazy(() => import('./pages/PaymentFailed'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Profile = lazy(() => import('./pages/Profile'))
@@ -54,6 +55,7 @@ function App() {
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
                   <Route path="/payment/success" element={<PaymentSuccess />} />
+                  <Route path="/payment/failed" element={<PaymentFailed />} />
                   <Route path="/pricing" element={<Pricing />} />
 
                   <Route

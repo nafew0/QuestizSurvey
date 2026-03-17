@@ -16,7 +16,9 @@ class Plan(models.Model):
     price_yearly = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     stripe_price_id_monthly = models.CharField(max_length=255, blank=True, null=True)
     stripe_price_id_yearly = models.CharField(max_length=255, blank=True, null=True)
-    bkash_price_monthly = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bkash_price_monthly = models.DecimalField(
+        max_digits=10, decimal_places=2, default=0
+    )
     bkash_price_yearly = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     currency = models.CharField(max_length=10, default="USD")
     is_active = models.BooleanField(default=True)
@@ -73,6 +75,8 @@ class UserSubscription(models.Model):
         choices=PaymentProvider.choices,
         default=PaymentProvider.NONE,
     )
+    cancel_at_period_end = models.BooleanField(default=False)
+    cancel_requested_at = models.DateTimeField(null=True, blank=True)
     stripe_customer_id = models.CharField(max_length=255, blank=True, null=True)
     stripe_subscription_id = models.CharField(max_length=255, blank=True, null=True)
     bkash_subscription_id = models.CharField(max_length=255, blank=True, null=True)
@@ -87,3 +91,53 @@ class UserSubscription(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.plan.name}"
 
+
+class BkashTransaction(models.Model):
+    class Status(models.TextChoices):
+        INITIATED = "initiated", "Initiated"
+        COMPLETED = "completed", "Completed"
+        FAILED = "failed", "Failed"
+        CANCELLED = "cancelled", "Cancelled"
+        EXPIRED = "expired", "Expired"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="bkash_transactions",
+    )
+    subscription = models.ForeignKey(
+        UserSubscription,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="bkash_transactions",
+    )
+    target_plan = models.ForeignKey(
+        Plan,
+        on_delete=models.PROTECT,
+        related_name="bkash_transactions",
+    )
+    billing_cycle = models.CharField(
+        max_length=20,
+        choices=UserSubscription.BillingCycle.choices,
+    )
+    payment_id = models.CharField(max_length=255, unique=True)
+    trx_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    invoice_number = models.CharField(max_length=255, unique=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default="BDT")
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.INITIATED,
+    )
+    bkash_response = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"{self.invoice_number} - {self.status}"

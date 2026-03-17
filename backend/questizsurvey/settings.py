@@ -8,6 +8,7 @@ from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlparse
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -16,7 +17,12 @@ load_dotenv(BASE_DIR / ".env")
 
 
 def env_bool(name, default=False):
-    return os.environ.get(name, str(default)).strip().lower() in {"1", "true", "yes", "on"}
+    return os.environ.get(name, str(default)).strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def env_list(name, default=None):
@@ -41,6 +47,7 @@ def origin_to_host(value):
     parsed = urlparse(value)
     return parsed.hostname or value.split(":")[0].strip("/")
 
+
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY", "django-insecure-CHANGE-THIS-IN-PRODUCTION"
@@ -55,7 +62,11 @@ API_ORIGIN = os.environ.get("API_ORIGIN", "").rstrip("/")
 PUBLIC_APP_URL = os.environ.get("PUBLIC_APP_URL", APP_ORIGIN).rstrip("/")
 API_BASE_URL = os.environ.get(
     "API_BASE_URL",
-    f"{API_ORIGIN}/api" if API_ORIGIN else (f"{PUBLIC_APP_URL}/api" if PUBLIC_APP_URL else ""),
+    (
+        f"{API_ORIGIN}/api"
+        if API_ORIGIN
+        else (f"{PUBLIC_APP_URL}/api" if PUBLIC_APP_URL else "")
+    ),
 ).rstrip("/")
 
 default_allowed_hosts = [
@@ -71,7 +82,9 @@ default_allowed_hosts = [
 if DEBUG:
     default_allowed_hosts.extend(["localhost", "127.0.0.1"])
 
-ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", default_allowed_hosts or ["localhost", "127.0.0.1"])
+ALLOWED_HOSTS = env_list(
+    "ALLOWED_HOSTS", default_allowed_hosts or ["localhost", "127.0.0.1"]
+)
 
 default_dev_frontend_origins = (
     ["http://localhost:5555", "http://127.0.0.1:5555"] if DEBUG else []
@@ -272,12 +285,20 @@ EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", False)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@questiz.local")
 
 # Celery
-CELERY_BROKER_URL = os.environ.get(
-    "CELERY_BROKER_URL", "redis://127.0.0.1:6379/2"
-)
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://127.0.0.1:6379/2")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", CELERY_BROKER_URL)
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", False)
 CELERY_TASK_EAGER_PROPAGATES = env_bool("CELERY_TASK_EAGER_PROPAGATES", True)
+CELERY_BEAT_SCHEDULE = {
+    "subscriptions-check-expiring-subscriptions": {
+        "task": "subscriptions.tasks.check_expiring_subscriptions",
+        "schedule": crontab(hour=2, minute=0),
+    },
+    "subscriptions-check-expired-subscriptions": {
+        "task": "subscriptions.tasks.check_expired_subscriptions",
+        "schedule": crontab(hour=3, minute=0),
+    },
+}
 
 USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -288,3 +309,13 @@ SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+# bKash
+BKASH_APP_KEY = os.environ.get("BKASH_APP_KEY", "")
+BKASH_APP_SECRET = os.environ.get("BKASH_APP_SECRET", "")
+BKASH_USERNAME = os.environ.get("BKASH_USERNAME", "")
+BKASH_PASSWORD = os.environ.get("BKASH_PASSWORD", "")
+BKASH_BASE_URL = os.environ.get(
+    "BKASH_BASE_URL",
+    "https://tokenized.sandbox.bka.sh/v1.2.0-beta",
+)

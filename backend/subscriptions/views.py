@@ -1,4 +1,5 @@
-from rest_framework import generics
+from django.db import transaction
+from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -31,3 +32,38 @@ class SubscriptionUsageView(APIView):
 
     def get(self, request):
         return Response(LicenseService.get_usage_snapshot(request.user))
+
+
+class SubscriptionCancelView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        with transaction.atomic():
+            subscription = LicenseService.get_user_subscription(
+                request.user, for_update=True
+            )
+
+            if not LicenseService.is_subscription_paid_and_active(subscription):
+                return Response(
+                    {"detail": "There is no active paid subscription to cancel."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if subscription.payment_provider == subscription.PaymentProvider.STRIPE:
+                return Response(
+                    {
+                        "detail": "Stripe-managed subscriptions must be canceled from the billing portal.",
+                        "code": "stripe_customer_portal_required",
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            if subscription.payment_provider != subscription.PaymentProvider.BKASH:
+                return Response(
+                    {"detail": "This subscription cannot be canceled from here."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            LicenseService.cancel_bkash_subscription_at_period_end(subscription)
+            serializer = UserSubscriptionSerializer(subscription)
+        return Response(serializer.data, status=status.HTTP_200_OK)

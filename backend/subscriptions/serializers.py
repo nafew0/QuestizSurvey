@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Plan, UserSubscription
+from .models import BkashTransaction, Plan, UserSubscription
 
 
 class PlanSummarySerializer(serializers.ModelSerializer):
@@ -43,6 +43,8 @@ class UserSubscriptionSerializer(serializers.ModelSerializer):
             "payment_provider",
             "current_period_start",
             "current_period_end",
+            "cancel_at_period_end",
+            "cancel_requested_at",
         ]
 
 
@@ -52,3 +54,31 @@ class StripeCheckoutSessionSerializer(serializers.Serializer):
         choices=UserSubscription.BillingCycle.choices,
         required=True,
     )
+
+
+class BkashCheckoutSessionSerializer(serializers.Serializer):
+    plan_id = serializers.UUIDField(required=True)
+    billing_cycle = serializers.ChoiceField(
+        choices=UserSubscription.BillingCycle.choices,
+        required=True,
+    )
+
+
+class BkashTransactionSerializer(serializers.ModelSerializer):
+    target_plan = PlanSummarySerializer(read_only=True)
+
+    class Meta:
+        model = BkashTransaction
+        fields = [
+            "id",
+            "payment_id",
+            "trx_id",
+            "invoice_number",
+            "amount",
+            "currency",
+            "status",
+            "billing_cycle",
+            "target_plan",
+            "created_at",
+            "updated_at",
+        ]
