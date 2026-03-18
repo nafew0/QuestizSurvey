@@ -4,7 +4,7 @@ from .ai_service import (
     AIServiceConfigurationError,
     AIServiceRequestError,
 )
-from .ai_insights import AnalyticsTextInsightsService
+from .ai_insights import AnalyticsTextInsightsService, QuestionAnalyticsInsightsService
 from .filters import ResponseFilterService
 from .reports import (
     SharedReportAccessError,
@@ -19,6 +19,7 @@ __all__ = [
     "AIServiceConfigurationError",
     "AIServiceRequestError",
     "AnalyticsTextInsightsService",
+    "QuestionAnalyticsInsightsService",
     "ResponseFilterService",
     "SharedReportAccessError",
     "build_saved_report_payload",

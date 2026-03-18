@@ -25,6 +25,14 @@ export async function fetchQuestionAnalytics(surveyId, filters = {}, includeInsi
   return response.data
 }
 
+export async function fetchQuestionInsights(surveyId, questionId, filters = {}) {
+  const response = await api.post(
+    `/surveys/${surveyId}/analytics/questions/${questionId}/insights/`,
+    { filters }
+  )
+  return response.data
+}
+
 export async function fetchCrossTab(surveyId, rowQuestionId, colQuestionId, filters = {}, includeInsights = true) {
   const params = buildAnalyticsParams(filters, includeInsights)
   params.row = rowQuestionId

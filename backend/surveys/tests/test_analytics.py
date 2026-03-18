@@ -2,19 +2,35 @@ import json
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from accounts.models import SiteSettings
 from surveys.models import Answer, Choice, Collector, Page, Question, Survey, SurveyResponse
+from surveys.services.ai_service import (
+    AIProviderConfig,
+    AIServiceConfigurationError,
+    AIServiceRequestError,
+)
 
 User = get_user_model()
 
 
+@override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "analytics-tests",
+        }
+    }
+)
 class AnalyticsApiTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(
             username="analytics-owner",
             email="analytics-owner@example.com",
@@ -187,6 +203,14 @@ class AnalyticsApiTests(TestCase):
             constant_sum_data={
                 str(self.price_choice.id): 70,
                 str(self.quality_choice.id): 30,
+            },
+        )
+        SiteSettings.objects.update_or_create(
+            id=1,
+            defaults={
+                "ai_provider": SiteSettings.AIProvider.OPENAI,
+                "ai_model_openai": "gpt-5-mini",
+                "ai_api_key_openai": "test-key",
             },
         )
 
@@ -383,6 +407,233 @@ class AnalyticsApiTests(TestCase):
             response.data["insights"]["headline"],
             "Delivery strength stands out.",
         )
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value={
+            "takeaway": "Decision-makers see clear delivery strength.",
+            "insights": [
+                "Strong promoters consistently mention speed and support together.",
+                "The smaller dissatisfied group is concentrated in incomplete or lower-value responses.",
+                "The wording of raw comments suggests experience quality matters more than price alone.",
+            ],
+            "recommended_action": "Use the strongest verbatim themes to reinforce the core value story.",
+        },
+    )
+    def test_question_ai_insights_endpoint_returns_lazy_payload(
+        self,
+        mocked_call,
+        _mocked_provider_config,
+    ):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.text_question.id}/insights/",
+            {"filters": {"status": "completed"}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["available"])
+        self.assertEqual(response.data["provider"], "openai")
+        self.assertEqual(response.data["responses_total"], 2)
+        self.assertEqual(response.data["responses_included"], 2)
+        self.assertFalse(response.data["truncated"])
+        self.assertEqual(mocked_call.call_count, 1)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value={
+            "takeaway": "Filtered results isolate one respondent segment.",
+            "insights": ["One", "Two", "Three"],
+            "recommended_action": "Act.",
+        },
+    )
+    def test_question_ai_insights_honors_filters_in_raw_response_payload(
+        self,
+        mocked_call,
+        _mocked_provider_config,
+    ):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.choice_question.id}/insights/",
+            {
+                "filters": {
+                    "status": "completed",
+                    "collector_id": str(self.email_collector.id),
+                }
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user_prompt = mocked_call.call_args.args[1]
+        self.assertEqual(
+            user_prompt["analytics"]["total_responses"],
+            1,
+        )
+        self.assertEqual(len(user_prompt["raw_responses"]), 1)
+        self.assertEqual(
+            user_prompt["raw_responses"][0]["selected_options"],
+            ["Okay"],
+        )
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value={
+            "takeaway": "Protected input stays masked.",
+            "insights": ["One", "Two", "Three"],
+            "recommended_action": "Act.",
+        },
+    )
+    def test_question_ai_insights_masks_pii_and_excludes_file_urls(
+        self,
+        mocked_call,
+        _mocked_provider_config,
+    ):
+        Answer.objects.filter(question=self.text_question, response=self.response_1).update(
+            text_value="Reach me at owner@example.com or +8801712345678. Visit https://example.com."
+        )
+        file_question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.FILE_UPLOAD,
+            text="Upload supporting file",
+            order=8,
+        )
+        Answer.objects.create(
+            response=self.response_1,
+            question=file_question,
+            file_url="https://cdn.example.com/private/path/report.pdf?token=abc123",
+        )
+
+        text_response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.text_question.id}/insights/",
+            {},
+            format="json",
+        )
+        self.assertEqual(text_response.status_code, status.HTTP_200_OK)
+        text_prompt = mocked_call.call_args.args[1]
+        masked_text = next(
+            item["text"]
+            for item in text_prompt["raw_responses"]
+            if "[email]" in item.get("text", "")
+        )
+        self.assertIn("[email]", masked_text)
+        self.assertIn("[phone]", masked_text)
+        self.assertIn("[url]", masked_text)
+        self.assertNotIn("owner@example.com", masked_text)
+
+        file_response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{file_question.id}/insights/",
+            {},
+            format="json",
+        )
+        self.assertEqual(file_response.status_code, status.HTTP_200_OK)
+        file_prompt = mocked_call.call_args.args[1]
+        self.assertEqual(
+            file_prompt["raw_responses"][0]["file_type"],
+            "pdf",
+        )
+        self.assertNotIn("file_url", file_prompt["raw_responses"][0])
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value={
+            "takeaway": "Cache stays warm.",
+            "insights": ["One", "Two", "Three"],
+            "recommended_action": "Act.",
+        },
+    )
+    def test_question_ai_insights_uses_cache(
+        self,
+        mocked_call,
+        _mocked_provider_config,
+    ):
+        url = f"/api/surveys/{self.survey.id}/analytics/questions/{self.choice_question.id}/insights/"
+
+        first = self.client.post(url, {"filters": {"status": "completed"}}, format="json")
+        second = self.client.post(url, {"filters": {"status": "completed"}}, format="json")
+
+        self.assertEqual(first.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(mocked_call.call_count, 1)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        side_effect=AIServiceConfigurationError("OpenAI API key is not configured."),
+    )
+    def test_question_ai_insights_returns_503_for_provider_configuration(self, _mocked_provider):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.choice_question.id}/insights/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        side_effect=AIServiceRequestError("The AI provider timed out."),
+    )
+    def test_question_ai_insights_returns_502_for_provider_errors(
+        self,
+        _mocked_call,
+        _mocked_provider_config,
+    ):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.choice_question.id}/insights/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_502_BAD_GATEWAY)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value={
+            "takeaway": "Throttle test.",
+            "insights": ["One", "Two", "Three"],
+            "recommended_action": "Act.",
+        },
+    )
+    def test_question_ai_insights_throttle_blocks_after_limit(
+        self,
+        _mocked_call,
+        _mocked_provider_config,
+    ):
+        url = f"/api/surveys/{self.survey.id}/analytics/questions/{self.choice_question.id}/insights/"
+        last_response = None
+
+        for index in range(11):
+            last_response = self.client.post(
+                url,
+                {"filters": {"collector_id": str(self.web_collector.id), "attempt": index}},
+                format="json",
+            )
+
+        self.assertIsNotNone(last_response)
+        self.assertEqual(last_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_response_list_detail_delete_and_bulk_delete(self):
         list_response = self.client.get(

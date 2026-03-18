@@ -12,6 +12,7 @@ from surveys.views import (
     SavedReportViewSet,
     SurveyAnalyticsCrossTabView,
     SurveyAnalyticsQuestionDetailView,
+    SurveyAnalyticsQuestionInsightsView,
     SurveyAnalyticsQuestionListView,
     SurveyAnalyticsSummaryView,
     SurveyResponseViewSet,
@@ -135,6 +136,11 @@ urlpatterns = [
         "surveys/<uuid:survey_pk>/analytics/questions/<uuid:question_pk>/",
         SurveyAnalyticsQuestionDetailView.as_view(),
         name="analytics-question-detail",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/analytics/questions/<uuid:question_pk>/insights/",
+        SurveyAnalyticsQuestionInsightsView.as_view(),
+        name="analytics-question-insights",
     ),
     path(
         "surveys/<uuid:survey_pk>/analytics/crosstab/",

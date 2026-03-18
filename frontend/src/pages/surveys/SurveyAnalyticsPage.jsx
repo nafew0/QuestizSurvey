@@ -194,13 +194,13 @@ export default function SurveyAnalyticsPage() {
 
   const summaryQuery = useQuery({
     queryKey: ['analytics-summary', surveyId, filters],
-    queryFn: () => fetchAnalyticsSummary(surveyId, filters, true),
+    queryFn: () => fetchAnalyticsSummary(surveyId, filters, false),
     enabled: Boolean(surveyId),
   })
 
   const questionAnalyticsQuery = useQuery({
     queryKey: ['analytics-questions', surveyId, filters],
-    queryFn: () => fetchQuestionAnalytics(surveyId, filters, true),
+    queryFn: () => fetchQuestionAnalytics(surveyId, filters, false),
     enabled: Boolean(surveyId),
   })
 
@@ -872,6 +872,8 @@ export default function SurveyAnalyticsPage() {
               orderedQuestionAnalytics.map((analytics) => (
                 <QuestionAnalyticsCard
                   key={analytics.question.id}
+                  surveyId={surveyId}
+                  filters={filters}
                   analytics={analytics}
                   serialNumber={questionNumberLookup[analytics.question.id] ?? null}
                   preference={cardPreferences[analytics.question.id]}

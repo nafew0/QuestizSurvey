@@ -1,6 +1,7 @@
 from .analytics_views import (
     SurveyAnalyticsCrossTabView,
     SurveyAnalyticsQuestionDetailView,
+    SurveyAnalyticsQuestionInsightsView,
     SurveyAnalyticsQuestionListView,
     SurveyAnalyticsSummaryView,
 )
@@ -15,6 +16,7 @@ from .survey_views import SurveyViewSet
 __all__ = [
     "SurveyAnalyticsCrossTabView",
     "SurveyAnalyticsQuestionDetailView",
+    "SurveyAnalyticsQuestionInsightsView",
     "SurveyAnalyticsQuestionListView",
     "SurveyAnalyticsSummaryView",
     "CollectorViewSet",

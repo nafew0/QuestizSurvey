@@ -1,7 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import html2canvas from 'html2canvas'
+import { useQuery } from '@tanstack/react-query'
 import { useReactTable, getCoreRowModel, getSortedRowModel, flexRender } from '@tanstack/react-table'
-import { BarChart3, Expand, PieChart as PieChartIcon, Table2, Tags } from 'lucide-react'
+import {
+  BarChart3,
+  Expand,
+  LoaderCircle,
+  PieChart as PieChartIcon,
+  Table2,
+  Tags,
+  WandSparkles,
+} from 'lucide-react'
 
 import QBarChart from '@/components/charts/QBarChart'
 import QGaugeChart from '@/components/charts/QGaugeChart'
@@ -38,6 +47,8 @@ import {
   buildTextFrequencyRows,
   getQuestionTypeLabel,
 } from '@/lib/analytics'
+import { useToast } from '@/hooks/useToast'
+import { fetchQuestionInsights } from '@/services/analytics'
 
 const COLOR_OPTIONS = Object.entries(ANALYTICS_COLOR_SCHEMES).map(([value, scheme]) => ({
   value,
@@ -527,6 +538,8 @@ function isTableOnlyAnalyticsType(analyticsType) {
 }
 
 export default function QuestionAnalyticsCard({
+  surveyId,
+  filters = {},
   analytics,
   preference,
   onPreferenceChange,
@@ -535,7 +548,10 @@ export default function QuestionAnalyticsCard({
   serialNumber = null,
 }) {
   const cardRef = useRef(null)
+  const insightErrorHandledAtRef = useRef(0)
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
+  const [aiInsightOpen, setAiInsightOpen] = useState(false)
+  const { toast } = useToast()
   const [localPreference, setLocalPreference] = useState(() => ({
     chartType: preference?.chartType || getDefaultChartType(analytics),
     showTable: preference?.showTable || false,
@@ -560,6 +576,31 @@ export default function QuestionAnalyticsCard({
   const chartOptions = getChartOptions(analytics)
   const isTableOnlyType = isTableOnlyAnalyticsType(analytics.type)
   const canShowLabels = chartSupportsLabels(analytics, localPreference.chartType)
+  const hasUsableResponses = Number(analytics.total_responses || 0) > 0
+
+  const aiInsightQuery = useQuery({
+    queryKey: ['analytics-question-insight', surveyId, analytics.question.id, filters],
+    queryFn: () => fetchQuestionInsights(surveyId, analytics.question.id, filters),
+    enabled: aiInsightOpen && !readOnly && hasUsableResponses && Boolean(surveyId),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  useEffect(() => {
+    if (!aiInsightQuery.error || aiInsightQuery.errorUpdatedAt === insightErrorHandledAtRef.current) {
+      return
+    }
+
+    insightErrorHandledAtRef.current = aiInsightQuery.errorUpdatedAt
+    setAiInsightOpen(false)
+    toast({
+      title: 'AI insight unavailable',
+      description:
+        aiInsightQuery.error?.response?.data?.detail ||
+        'Questiz could not generate AI insights for this question right now.',
+      variant: 'error',
+    })
+  }, [aiInsightQuery.error, aiInsightQuery.errorUpdatedAt, toast])
 
   const handleDownload = async () => {
     if (!cardRef.current) {
@@ -601,19 +642,77 @@ export default function QuestionAnalyticsCard({
           </div>
 
           {!readOnly ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type="button" variant="outline" size="icon" className="rounded-2xl">
-                  <Expand className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="rounded-2xl">
-                <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant={aiInsightOpen ? 'default' : 'outline'}
+                size="icon"
+                className="rounded-2xl"
+                disabled={!hasUsableResponses}
+                onClick={() => setAiInsightOpen((current) => !current)}
+              >
+                {aiInsightQuery.isLoading ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <WandSparkles className="h-4 w-4" />
+                )}
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="icon" className="rounded-2xl">
+                    <Expand className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="rounded-2xl">
+                  <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           ) : null}
         </div>
+
+        {!readOnly && aiInsightOpen && (aiInsightQuery.isLoading || aiInsightQuery.data) ? (
+          <div className="mt-4 rounded-[1.75rem] border border-[rgb(var(--theme-primary-rgb)/0.7)] bg-white px-5 py-4 shadow-sm shadow-primary/5">
+            <div className="flex items-start gap-3">
+              <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-[rgb(var(--theme-secondary-ink-rgb))]">
+                <WandSparkles className="h-5 w-5" />
+              </div>
+
+              <div className="min-w-0 flex-1">
+                {aiInsightQuery.isLoading ? (
+                  <div className="space-y-3">
+                    <div className="h-4 w-32 rounded-full bg-[rgb(var(--theme-neutral-rgb))]" />
+                    <div className="h-5 w-full rounded-full bg-[rgb(var(--theme-neutral-rgb))]" />
+                    <div className="h-4 w-full rounded-full bg-[rgb(var(--theme-neutral-rgb))]" />
+                    <div className="h-4 w-11/12 rounded-full bg-[rgb(var(--theme-neutral-rgb))]" />
+                    <div className="h-4 w-10/12 rounded-full bg-[rgb(var(--theme-neutral-rgb))]" />
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      AI Insight
+                    </p>
+                    <p className="mt-2 text-base font-semibold tracking-tight text-foreground">
+                      {aiInsightQuery.data?.takeaway}
+                    </p>
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
+                      {(aiInsightQuery.data?.insights || []).map((item) => (
+                        <li key={item}>• {item}</li>
+                      ))}
+                    </ul>
+                    {aiInsightQuery.data?.recommended_action ? (
+                      <p className="mt-3 text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
+                        Recommended action: {aiInsightQuery.data.recommended_action}
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         {!readOnly ? (
           <div className="mt-4 flex flex-wrap items-center gap-2">

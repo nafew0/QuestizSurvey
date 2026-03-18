@@ -10,7 +10,11 @@ from django.db.models.functions import TruncDate
 
 from surveys.answer_formatting import OPEN_ENDED_OTHER_KEY
 from surveys.models import Answer, Choice, Question, Survey, SurveyResponse
-from surveys.services.ai_insights import AnalyticsTextInsightsService
+from surveys.services.ai_service import AIServiceRequestError
+from surveys.services.ai_insights import (
+    AnalyticsTextInsightsService,
+    QuestionAnalyticsInsightsService,
+)
 from surveys.services.filters import ResponseFilterService
 
 
@@ -100,6 +104,7 @@ class AnalyticsService:
         self.raw_filters = raw_filters or {}
         self.include_insights = include_insights
         self.insights_service = AnalyticsTextInsightsService()
+        self.question_insights_service = QuestionAnalyticsInsightsService()
 
     def get_filtered_responses(self):
         queryset = (
@@ -172,11 +177,7 @@ class AnalyticsService:
     def get_question_analytics(self, question_id, *, question=None):
         question = question or self._get_question(question_id)
         responses = self.get_filtered_responses()
-        answers = list(
-            Answer.objects.filter(response__in=responses, question=question)
-            .select_related("response")
-            .order_by("-answered_at")
-        )
+        answers = self._get_question_answers(question, responses)
 
         if question.question_type in CATEGORICAL_TYPES:
             data = self._categorical_analytics(question, answers)
@@ -214,11 +215,29 @@ class AnalyticsService:
                 "question": {
                     "id": str(question.id),
                     "text": question.text,
+                    "description": question.description,
                     "type": question.question_type,
                 }
             }
         )
         return self._attach_insights("question", data)
+
+    def get_question_ai_insights(self, question_id):
+        question = self._get_question(question_id)
+        responses = self.get_filtered_responses()
+        answers = self._get_question_answers(question, responses)
+
+        if not answers:
+            raise AIServiceRequestError("No responses are available for AI insights yet.")
+
+        analytics_payload = self.get_question_analytics(question.id, question=question)
+        return self.question_insights_service.build_insights(
+            survey=self.survey,
+            question=question,
+            analytics_payload=analytics_payload,
+            answers=answers,
+            raw_filters=self.raw_filters,
+        )
 
     def get_cross_tabulation(self, row_question_id, col_question_id):
         row_question = self._get_question(row_question_id)
@@ -319,6 +338,13 @@ class AnalyticsService:
             .prefetch_related("choices")
             .select_related("page")
             .get()
+        )
+
+    def _get_question_answers(self, question, responses):
+        return list(
+            Answer.objects.filter(response__in=responses, question=question)
+            .select_related("response")
+            .order_by("-answered_at")
         )
 
     def _attach_insights(self, insight_type, data):
