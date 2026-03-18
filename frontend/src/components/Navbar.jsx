@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { ClipboardList, CreditCard, User, LogOut, LayoutDashboard, Settings } from "lucide-react"
+import { ClipboardList, CreditCard, User, LogOut, LayoutDashboard, Settings, ShieldCheck } from "lucide-react"
 import BrandLogo from '@/components/branding/BrandLogo'
 import PlanBadge from '@/components/subscription/PlanBadge'
 import ThemeStudioDialog from '@/components/theme/ThemeStudioDialog'
@@ -98,6 +98,12 @@ const Navbar = () => {
                       <CreditCard className="mr-2 h-4 w-4" />
                       <span>Pricing</span>
                     </DropdownMenuItem>
+                    {user?.is_superuser ? (
+                      <DropdownMenuItem onClick={() => navigate('/admin')}>
+                        <ShieldCheck className="mr-2 h-4 w-4" />
+                        <span>Admin Panel</span>
+                      </DropdownMenuItem>
+                    ) : null}
                     <DropdownMenuItem>
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>

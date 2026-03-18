@@ -4,13 +4,15 @@ from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.core.cache import cache
-from django.test import TestCase, override_settings
+from django.db import connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from subscriptions.bkash_service import BkashApiError, BkashService, BkashServiceError
-from subscriptions.models import BkashTransaction, Plan, UserSubscription
+from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent, UserSubscription
 from subscriptions.tasks import (
     check_expired_subscriptions,
     check_expiring_subscriptions,
@@ -342,6 +344,12 @@ class StripePaymentTests(TestCase):
             UserSubscription.BillingCycle.YEARLY,
         )
         self.assertEqual(subscription.stripe_subscription_id, "sub_123")
+        self.assertTrue(
+            SubscriptionEvent.objects.filter(
+                user=self.user,
+                event_type=SubscriptionEvent.EventType.STRIPE_SYNC,
+            ).exists()
+        )
 
     @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
     def test_webhook_invoice_payment_failed_marks_subscription_past_due(
@@ -753,6 +761,12 @@ class BkashPaymentTests(TestCase):
         subscription = UserSubscription.objects.get(user=self.user)
         self.assertTrue(subscription.cancel_at_period_end)
         self.assertIsNotNone(subscription.cancel_requested_at)
+        self.assertTrue(
+            SubscriptionEvent.objects.filter(
+                user=self.user,
+                event_type=SubscriptionEvent.EventType.BKASH_CANCEL_REQUESTED,
+            ).exists()
+        )
 
     def test_cancel_endpoint_rejects_stripe_subscription(self):
         UserSubscription.objects.create(
@@ -808,3 +822,58 @@ class BkashPaymentTests(TestCase):
             subscription.payment_provider, UserSubscription.PaymentProvider.NONE
         )
         self.assertEqual(len(mail.outbox), 1)
+
+
+class SubscriptionEventMigrationTestCase(TransactionTestCase):
+    migrate_from = [("subscriptions", "0002_usersubscription_cancel_at_period_end_and_more")]
+    migrate_to = [("subscriptions", "0003_subscriptionevent")]
+
+    def test_existing_subscriptions_get_baseline_events(self):
+        executor = MigrationExecutor(connection)
+        executor.migrate(self.migrate_from)
+
+        old_apps = executor.loader.project_state(self.migrate_from).apps
+        UserModel = old_apps.get_model("accounts", "User")
+        PlanModel = old_apps.get_model("subscriptions", "Plan")
+        UserSubscriptionModel = old_apps.get_model("subscriptions", "UserSubscription")
+
+        user = UserModel.objects.create(
+            username="legacy-subscription-user",
+            email="legacy-subscription@example.com",
+            password="password",
+        )
+        plan = PlanModel.objects.create(
+            name="Legacy Pro",
+            slug="legacy-pro",
+            tier=999,
+            max_surveys=50,
+            max_questions_per_survey=50,
+            max_responses_per_survey=500,
+            price_monthly="29.00",
+            price_yearly="290.00",
+            bkash_price_monthly="2500.00",
+            bkash_price_yearly="25000.00",
+            currency="USD",
+            is_active=True,
+            features=[],
+        )
+        UserSubscriptionModel.objects.create(
+            user_id=user.pk,
+            plan_id=plan.pk,
+            status="active",
+            billing_cycle="monthly",
+            payment_provider="none",
+        )
+
+        executor = MigrationExecutor(connection)
+        executor.loader.build_graph()
+        executor.migrate(self.migrate_to)
+
+        migrated_apps = executor.loader.project_state(self.migrate_to).apps
+        SubscriptionEventModel = migrated_apps.get_model(
+            "subscriptions", "SubscriptionEvent"
+        )
+
+        self.assertTrue(
+            SubscriptionEventModel.objects.filter(event_type="baseline").exists()
+        )

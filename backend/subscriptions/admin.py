@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BkashTransaction, Plan, UserSubscription
+from .models import BkashTransaction, Plan, SubscriptionEvent, UserSubscription
 
 
 @admin.register(Plan)
@@ -85,6 +85,36 @@ class BkashTransactionAdmin(admin.ModelAdmin):
         "bkash_response",
         "created_at",
         "updated_at",
+    ]
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SubscriptionEvent)
+class SubscriptionEventAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "event_type",
+        "plan",
+        "status",
+        "payment_provider",
+        "billing_cycle",
+        "created_at",
+    ]
+    list_filter = ["event_type", "status", "payment_provider", "billing_cycle"]
+    search_fields = ["user__username", "user__email"]
+    autocomplete_fields = ["subscription", "user", "plan"]
+    readonly_fields = [
+        "subscription",
+        "user",
+        "event_type",
+        "plan",
+        "status",
+        "payment_provider",
+        "billing_cycle",
+        "metadata",
+        "created_at",
     ]
 
     def has_add_permission(self, request):

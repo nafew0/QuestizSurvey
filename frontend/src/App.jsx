@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { SiteThemeProvider } from './contexts/SiteThemeContext'
 import { ToastProvider } from './hooks/useToast'
+import AdminRoute from './components/AdminRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
 
@@ -10,11 +11,18 @@ const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const PaymentFailed = lazy(() => import('./pages/PaymentFailed'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Profile = lazy(() => import('./pages/Profile'))
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'))
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers'))
+const AdminUserDetail = lazy(() => import('./pages/admin/AdminUserDetail'))
+const AdminPayments = lazy(() => import('./pages/admin/AdminPayments'))
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'))
 const SurveyBuilder = lazy(() => import('./pages/surveys/SurveyBuilder'))
 const SurveyPreviewPage = lazy(() => import('./pages/surveys/SurveyPreviewPage'))
 const PublicSurveyPage = lazy(() => import('./pages/surveys/PublicSurveyPage'))
@@ -38,8 +46,13 @@ function App() {
   const isBuilderRoute = /^\/surveys\/[^/]+\/edit\/?$/.test(location.pathname)
   const isPublicSurveyRoute = /^\/s\/[^/]+\/?$/.test(location.pathname)
   const isPublicReportRoute = /^\/reports\/[^/]+\/?$/.test(location.pathname)
+  const isAdminRoute = location.pathname === '/admin' || location.pathname.startsWith('/admin/')
   const hideNavbar =
-    location.pathname.includes('/preview') || isPublicSurveyRoute || isPublicReportRoute
+    location.pathname.includes('/preview') ||
+    isPublicSurveyRoute ||
+    isPublicReportRoute ||
+    isAdminRoute ||
+    location.pathname === '/reset-password'
 
   return (
     <AuthProvider>
@@ -54,6 +67,7 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/payment/success" element={<PaymentSuccess />} />
                   <Route path="/payment/failed" element={<PaymentFailed />} />
                   <Route path="/pricing" element={<Pricing />} />
@@ -132,6 +146,20 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
+                  <Route
+                    path="/admin"
+                    element={
+                      <AdminRoute>
+                        <AdminLayout />
+                      </AdminRoute>
+                    }
+                  >
+                    <Route index element={<AdminDashboard />} />
+                    <Route path="users" element={<AdminUsers />} />
+                    <Route path="users/:userId" element={<AdminUserDetail />} />
+                    <Route path="payments" element={<AdminPayments />} />
+                    <Route path="settings" element={<AdminSettings />} />
+                  </Route>
 
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

@@ -113,7 +113,13 @@ def check_expired_subscriptions():
                 continue
 
             previous_plan_name = locked_subscription.plan.name
-            LicenseService.downgrade_to_free(locked_subscription)
+            previous_state = LicenseService.serialize_subscription_state(
+                locked_subscription
+            )
+            LicenseService.downgrade_to_free(
+                locked_subscription,
+                event_metadata={"previous_state": previous_state},
+            )
 
         _send_email(
             subject="Your Questiz subscription has expired",

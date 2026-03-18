@@ -6,7 +6,7 @@ from .models import BkashTransaction, Plan, UserSubscription
 class PlanSummarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Plan
-        fields = ["name", "slug", "tier"]
+        fields = ["id", "name", "slug", "tier"]
 
 
 class PlanSerializer(serializers.ModelSerializer):

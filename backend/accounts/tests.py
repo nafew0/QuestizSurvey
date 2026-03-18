@@ -1,4 +1,7 @@
 from datetime import timedelta
+from decimal import Decimal
+import re
+from unittest.mock import patch
 
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -14,8 +17,11 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .admin import EmailVerificationTokenAdmin
+from .ai_testing import AITestService
 from .models import EmailVerificationToken, SiteSettings
 from .verification import send_verification_email
+from subscriptions.admin_services import StripePaymentsResult
+from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent, UserSubscription
 
 User = get_user_model()
 
@@ -377,3 +383,302 @@ class EmailVerificationTokenAdminTestCase(TestCase):
         )
 
         self.assertTrue(self.admin.has_delete_permission(request))
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    PUBLIC_APP_URL="http://localhost:5555",
+    CACHES=TEST_CACHES,
+    STRIPE_SECRET_KEY="sk_test_admin",
+)
+class AdminApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.superuser = User.objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="AdminPass123!",
+            email_verified=True,
+        )
+        self.user = User.objects.create_user(
+            username="member",
+            email="member@example.com",
+            password="MemberPass123!",
+            first_name="Member",
+            last_name="User",
+            email_verified=True,
+        )
+        self.free_plan = Plan.objects.get(slug="free")
+        self.pro_plan = Plan.objects.get(slug="pro")
+        self.enterprise_plan = Plan.objects.get(slug="enterprise")
+
+    def authenticate_admin(self):
+        self.client.force_authenticate(self.superuser)
+
+    def test_admin_endpoints_require_superuser(self):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch("accounts.admin_views.AdminPaymentsService.fetch_stripe_payments")
+    def test_dashboard_returns_warning_when_stripe_is_unavailable(self, stripe_mock):
+        stripe_mock.return_value = StripePaymentsResult(
+            payments=[],
+            warnings=["Stripe payment history is temporarily unavailable."],
+        )
+        self.authenticate_admin()
+
+        response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("warnings", response.data)
+        self.assertTrue(response.data["warnings"])
+
+    def test_admin_users_list_supports_search(self):
+        User.objects.create_user(
+            username="another",
+            email="another@example.com",
+            password="AnotherPass123!",
+            email_verified=True,
+        )
+        self.authenticate_admin()
+
+        response = self.client.get("/api/admin/users/?search=member")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["username"], "member")
+
+    def test_admin_cannot_deactivate_self(self):
+        self.authenticate_admin()
+
+        response = self.client.patch(
+            f"/api/admin/users/{self.superuser.id}/",
+            {"is_active": False},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.superuser.refresh_from_db()
+        self.assertTrue(self.superuser.is_active)
+
+    def test_admin_cannot_override_active_stripe_subscription(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_admin_123",
+            stripe_subscription_id="sub_admin_123",
+        )
+        self.authenticate_admin()
+
+        response = self.client.patch(
+            f"/api/admin/users/{self.user.id}/",
+            {"plan_id": str(self.enterprise_plan.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_admin_plan_override_records_subscription_event(self):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.free_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.NONE,
+        )
+        self.authenticate_admin()
+
+        response = self.client.patch(
+            f"/api/admin/users/{self.user.id}/",
+            {"plan_id": str(self.pro_plan.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["subscription"]["plan"]["slug"],
+            self.pro_plan.slug,
+        )
+        self.assertTrue(
+            SubscriptionEvent.objects.filter(
+                user=self.user,
+                event_type=SubscriptionEvent.EventType.ADMIN_OVERRIDE,
+            ).exists()
+        )
+
+    @patch("accounts.admin_views.AdminPaymentsService.fetch_stripe_payments")
+    def test_admin_payments_combines_sources_and_exports_csv(self, stripe_mock):
+        subscription = UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+        )
+        BkashTransaction.objects.create(
+            user=self.user,
+            subscription=subscription,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="pay_bkash_1",
+            invoice_number="INV-BKASH-1",
+            amount=Decimal("499.00"),
+            currency="BDT",
+            status=BkashTransaction.Status.COMPLETED,
+            bkash_response={"paymentID": "pay_bkash_1"},
+        )
+        stripe_mock.return_value = StripePaymentsResult(
+            payments=[
+                {
+                    "id": "in_test",
+                    "provider": "stripe",
+                    "provider_reference": "in_test",
+                    "invoice_number": "Q-1001",
+                    "trx_id": "",
+                    "status": "paid",
+                    "amount": "29.00",
+                    "currency": "USD",
+                    "created_at": timezone.now().isoformat(),
+                    "description": "Stripe invoice",
+                    "billing_cycle": "monthly",
+                    "user": {
+                        "id": str(self.user.id),
+                        "username": self.user.username,
+                        "email": self.user.email,
+                    },
+                    "plan": {
+                        "id": str(self.pro_plan.id),
+                        "name": self.pro_plan.name,
+                        "slug": self.pro_plan.slug,
+                    },
+                    "revenue_amount": 29.0,
+                }
+            ],
+            warnings=[],
+        )
+        self.authenticate_admin()
+
+        list_response = self.client.get("/api/admin/payments/")
+        export_response = self.client.get("/api/admin/payments/export/")
+
+        self.assertEqual(list_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(list_response.data["count"], 2)
+        self.assertEqual(export_response.status_code, status.HTTP_200_OK)
+        self.assertIn("text/csv", export_response["Content-Type"])
+        export_text = export_response.content.decode("utf-8")
+        self.assertIn("INV-BKASH-1", export_text)
+        self.assertIn("in_test", export_text)
+
+    def test_admin_settings_masks_keys_and_updates_write_only_fields(self):
+        SiteSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "require_email_verification": True,
+                "logged_in_users_only_default": False,
+                "ai_provider": "openai",
+                "ai_model_openai": "gpt-5-mini",
+                "ai_model_anthropic": "claude-3-5-haiku-latest",
+                "ai_api_key_openai": "sk-test-openai-1234",
+                "ai_api_key_anthropic": "sk-ant-test-5678",
+            },
+        )
+        self.authenticate_admin()
+
+        get_response = self.client.get("/api/admin/settings/")
+        patch_response = self.client.patch(
+            "/api/admin/settings/",
+            {
+                "ai_provider": "anthropic",
+                "ai_model_anthropic": "claude-3-7-sonnet-latest",
+                "ai_api_key_anthropic": "sk-ant-updated-9999",
+            },
+            format="json",
+        )
+
+        self.assertEqual(get_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(get_response.data["ai_api_key_openai_meta"]["configured"])
+        self.assertNotIn("sk-test-openai-1234", str(get_response.data))
+        self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
+        settings_obj = SiteSettings.objects.get(pk=1)
+        self.assertEqual(settings_obj.ai_provider, "anthropic")
+        self.assertEqual(settings_obj.ai_api_key_anthropic, "sk-ant-updated-9999")
+
+    @patch.object(AITestService, "test_connection")
+    def test_admin_test_ai_does_not_persist_unsaved_values(self, test_connection_mock):
+        SiteSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "require_email_verification": True,
+                "logged_in_users_only_default": False,
+                "ai_provider": "openai",
+                "ai_model_openai": "gpt-5-mini",
+                "ai_model_anthropic": "",
+                "ai_api_key_openai": "sk-existing-openai",
+                "ai_api_key_anthropic": "",
+            },
+        )
+        test_connection_mock.return_value = {
+            "provider": "openai",
+            "model": "gpt-5",
+            "message": "ok",
+        }
+        self.authenticate_admin()
+
+        response = self.client.post(
+            "/api/admin/settings/test-ai/",
+            {
+                "provider": "openai",
+                "model": "gpt-5",
+                "api_key": "sk-unsaved-openai",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            SiteSettings.objects.get(pk=1).ai_api_key_openai,
+            "sk-existing-openai",
+        )
+
+    def test_admin_password_reset_flow(self):
+        self.authenticate_admin()
+
+        send_response = self.client.post(
+            f"/api/admin/users/{self.user.id}/send-password-reset/",
+        )
+
+        self.assertEqual(send_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        html_body = mail.outbox[0].alternatives[0][0]
+        match = re.search(
+            r"reset-password\?uid=(?P<uid>[^&]+)&amp;token=(?P<token>[^\"]+)",
+            html_body,
+        )
+        self.assertIsNotNone(match)
+        params = match.groupdict()
+
+        validate_response = self.client.get(
+            "/api/auth/password-reset/validate/",
+            params,
+        )
+        confirm_response = self.client.post(
+            "/api/auth/password-reset/confirm/",
+            {
+                "uid": params["uid"],
+                "token": params["token"],
+                "new_password": "UpdatedPass123!",
+                "new_password2": "UpdatedPass123!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(validate_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.check_password("UpdatedPass123!"))

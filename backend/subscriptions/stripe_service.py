@@ -7,7 +7,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 
-from .models import Plan, UserSubscription
+from .models import Plan, SubscriptionEvent, UserSubscription
 from .services import LicenseService
 
 logger = logging.getLogger(__name__)
@@ -339,6 +339,7 @@ class StripeService:
         price_id = cls._extract_subscription_price_id(stripe_subscription)
         plan, billing_cycle = cls._get_plan_for_price_id(price_id)
 
+        previous_state = LicenseService.serialize_subscription_state(local_subscription)
         local_subscription.plan = plan
         local_subscription.status = cls._map_subscription_status(
             cls._value(stripe_subscription, "status")
@@ -360,6 +361,11 @@ class StripeService:
         local_subscription.cancel_at_period_end = False
         local_subscription.cancel_requested_at = None
         local_subscription.save()
+        LicenseService.record_subscription_event(
+            local_subscription,
+            SubscriptionEvent.EventType.STRIPE_SYNC,
+            metadata={"previous_state": previous_state},
+        )
         return local_subscription
 
     @classmethod
@@ -368,6 +374,7 @@ class StripeService:
             stripe_customer_id=stripe_customer_id,
             stripe_subscription_id=stripe_subscription_id,
         )
+        previous_state = LicenseService.serialize_subscription_state(local_subscription)
         local_subscription.status = UserSubscription.Status.PAST_DUE
         local_subscription.payment_provider = UserSubscription.PaymentProvider.STRIPE
         if stripe_subscription_id:
@@ -382,6 +389,11 @@ class StripeService:
                 "stripe_customer_id",
                 "updated_at",
             ]
+        )
+        LicenseService.record_subscription_event(
+            local_subscription,
+            SubscriptionEvent.EventType.STRIPE_PAST_DUE,
+            metadata={"previous_state": previous_state},
         )
         return local_subscription
 
@@ -398,6 +410,7 @@ class StripeService:
             stripe_subscription_id=stripe_subscription_id,
             user_id=user_id,
         )
+        previous_state = LicenseService.serialize_subscription_state(local_subscription)
         free_plan = LicenseService.get_free_plan()
         local_subscription.plan = free_plan
         local_subscription.status = UserSubscription.Status.ACTIVE
@@ -411,6 +424,11 @@ class StripeService:
         local_subscription.current_period_start = None
         local_subscription.current_period_end = None
         local_subscription.save()
+        LicenseService.record_subscription_event(
+            local_subscription,
+            SubscriptionEvent.EventType.STRIPE_CANCELLED,
+            metadata={"previous_state": previous_state},
+        )
         return local_subscription
 
     @classmethod

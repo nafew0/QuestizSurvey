@@ -91,7 +91,15 @@ class SiteSettingsAdmin(admin.ModelAdmin):
         ),
         (
             "AI settings",
-            {"fields": ("ai_provider", "ai_api_key_openai", "ai_api_key_anthropic")},
+            {
+                "fields": (
+                    "ai_provider",
+                    "ai_model_openai",
+                    "ai_model_anthropic",
+                    "ai_api_key_openai",
+                    "ai_api_key_anthropic",
+                )
+            },
         ),
         ("Timestamps", {"fields": ("created_at", "updated_at")}),
     )

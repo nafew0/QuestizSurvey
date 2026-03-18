@@ -1,5 +1,6 @@
 from django.urls import path
 
+from .password_reset_views import PasswordResetConfirmView, PasswordResetValidateView
 from .views import (
     RegisterView,
     VerifiedTokenRefreshView,
@@ -33,6 +34,16 @@ urlpatterns = [
         name="resend_verification_email",
     ),
     path("verify-email/", verify_email_view, name="verify_email"),
+    path(
+        "password-reset/validate/",
+        PasswordResetValidateView.as_view(),
+        name="password_reset_validate",
+    ),
+    path(
+        "password-reset/confirm/",
+        PasswordResetConfirmView.as_view(),
+        name="password_reset_confirm",
+    ),
     # User management
     path("user/", get_user_view, name="get_user"),
     path("user/update/", UpdateProfileView.as_view(), name="update_profile"),

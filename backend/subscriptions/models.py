@@ -141,3 +141,66 @@ class BkashTransaction(models.Model):
 
     def __str__(self):
         return f"{self.invoice_number} - {self.status}"
+
+
+class SubscriptionEvent(models.Model):
+    class EventType(models.TextChoices):
+        BASELINE = "baseline", "Baseline"
+        ADMIN_OVERRIDE = "admin_override", "Admin override"
+        STRIPE_SYNC = "stripe_sync", "Stripe sync"
+        STRIPE_PAST_DUE = "stripe_past_due", "Stripe past due"
+        STRIPE_CANCELLED = "stripe_cancelled", "Stripe cancelled"
+        BKASH_ACTIVATED = "bkash_activated", "bKash activated"
+        BKASH_CANCEL_REQUESTED = "bkash_cancel_requested", "bKash cancel requested"
+        BKASH_DOWNGRADED = "bkash_downgraded", "bKash downgraded"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    subscription = models.ForeignKey(
+        UserSubscription,
+        on_delete=models.CASCADE,
+        related_name="events",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="subscription_events",
+    )
+    event_type = models.CharField(max_length=40, choices=EventType.choices)
+    plan = models.ForeignKey(
+        Plan,
+        on_delete=models.PROTECT,
+        related_name="subscription_events",
+        null=True,
+        blank=True,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=UserSubscription.Status.choices,
+        blank=True,
+        default="",
+    )
+    payment_provider = models.CharField(
+        max_length=20,
+        choices=UserSubscription.PaymentProvider.choices,
+        blank=True,
+        default="",
+    )
+    billing_cycle = models.CharField(
+        max_length=20,
+        choices=UserSubscription.BillingCycle.choices,
+        blank=True,
+        default="",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["subscription", "created_at"]),
+            models.Index(fields=["event_type", "created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.user} - {self.event_type}"

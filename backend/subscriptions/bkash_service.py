@@ -551,6 +551,7 @@ class BkashService:
                 transaction_record.user,
                 for_update=True,
             )
+            previous_state = LicenseService.serialize_subscription_state(subscription)
 
             if transaction_record.status == BkashTransaction.Status.COMPLETED:
                 return transaction_record
@@ -560,6 +561,11 @@ class BkashService:
                     subscription,
                     plan=transaction_record.target_plan,
                     billing_cycle=transaction_record.billing_cycle,
+                    event_metadata={
+                        "previous_state": previous_state,
+                        "payment_id": transaction_record.payment_id,
+                        "invoice_number": transaction_record.invoice_number,
+                    },
                 )
                 transaction_record.subscription = subscription
                 transaction_record.trx_id = (

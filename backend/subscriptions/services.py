@@ -8,7 +8,7 @@ from django.utils import timezone
 from accounts.models import SiteSettings
 from surveys.models import Question, Survey, SurveyResponse
 
-from .models import Plan, UserSubscription
+from .models import Plan, SubscriptionEvent, UserSubscription
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,46 @@ class LicenseService:
     BKASH_RENEWAL_WINDOW_DAYS = 7
     BKASH_REMINDER_WINDOW_DAYS = 3
     BKASH_GRACE_PERIOD_DAYS = 3
+
+    @classmethod
+    def serialize_subscription_state(cls, subscription):
+        return {
+            "plan_id": str(subscription.plan_id) if subscription.plan_id else "",
+            "plan_name": subscription.plan.name if subscription.plan_id else "",
+            "status": subscription.status,
+            "payment_provider": subscription.payment_provider,
+            "billing_cycle": subscription.billing_cycle,
+            "current_period_start": (
+                subscription.current_period_start.isoformat()
+                if subscription.current_period_start
+                else None
+            ),
+            "current_period_end": (
+                subscription.current_period_end.isoformat()
+                if subscription.current_period_end
+                else None
+            ),
+            "cancel_at_period_end": subscription.cancel_at_period_end,
+        }
+
+    @classmethod
+    def record_subscription_event(
+        cls,
+        subscription,
+        event_type,
+        *,
+        metadata=None,
+    ):
+        SubscriptionEvent.objects.create(
+            subscription=subscription,
+            user=subscription.user,
+            event_type=event_type,
+            plan=subscription.plan,
+            status=subscription.status,
+            payment_provider=subscription.payment_provider,
+            billing_cycle=subscription.billing_cycle,
+            metadata=metadata or {},
+        )
 
     @classmethod
     def get_free_plan(cls):
@@ -250,6 +290,7 @@ class LicenseService:
         plan,
         billing_cycle,
         activated_at=None,
+        event_metadata=None,
     ):
         activated_at = activated_at or timezone.now()
         next_period_start = activated_at
@@ -287,6 +328,11 @@ class LicenseService:
                 "updated_at",
             ]
         )
+        cls.record_subscription_event(
+            subscription,
+            SubscriptionEvent.EventType.BKASH_ACTIVATED,
+            metadata=event_metadata or {},
+        )
         return subscription
 
     @classmethod
@@ -300,11 +346,21 @@ class LicenseService:
                 "updated_at",
             ]
         )
+        cls.record_subscription_event(
+            subscription,
+            SubscriptionEvent.EventType.BKASH_CANCEL_REQUESTED,
+            metadata={"cancel_requested_at": subscription.cancel_requested_at.isoformat()},
+        )
         return subscription
 
     @classmethod
     def downgrade_to_free(
-        cls, subscription, *, status=UserSubscription.Status.CANCELLED
+        cls,
+        subscription,
+        *,
+        status=UserSubscription.Status.CANCELLED,
+        event_type=SubscriptionEvent.EventType.BKASH_DOWNGRADED,
+        event_metadata=None,
     ):
         free_plan = cls.get_free_plan()
         subscription.plan = free_plan
@@ -327,5 +383,10 @@ class LicenseService:
                 "current_period_end",
                 "updated_at",
             ]
+        )
+        cls.record_subscription_event(
+            subscription,
+            event_type,
+            metadata=event_metadata or {},
         )
         return subscription
