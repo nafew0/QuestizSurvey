@@ -20,16 +20,21 @@ export async function fetchPublicSurvey(
 
   const response = await api.get(`/public/surveys/${slug}/`, {
     params: Object.keys(params).length ? params : undefined,
+    preserveAuthError: true,
   })
   return response.data
 }
 
 export async function submitPublicSurvey(slug, payload) {
-  const response = await api.post(`/public/surveys/${slug}/`, payload)
+  const response = await api.post(`/public/surveys/${slug}/`, payload, {
+    preserveAuthError: true,
+  })
   return response.data
 }
 
 export async function updatePublicSurvey(slug, payload) {
-  const response = await api.put(`/public/surveys/${slug}/`, payload)
+  const response = await api.put(`/public/surveys/${slug}/`, payload, {
+    preserveAuthError: true,
+  })
   return response.data
 }

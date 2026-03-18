@@ -1,5 +1,12 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
+import {
+  ChevronDown,
+  ChevronUp,
+  LoaderCircle,
+  Plus,
+  Trash2,
+  WandSparkles,
+} from 'lucide-react'
 
 import SurveyThemeEditor from '@/components/builder/SurveyThemeEditor'
 import { Badge } from '@/components/ui/badge'
@@ -134,6 +141,8 @@ export default function QuestionSettingsPanel({
   onSurveyFieldChange,
   onPageFieldChange,
   onQuestionFieldChange,
+  onImproveQuestion,
+  improvingQuestions,
 }) {
   const [activeTab, setActiveTab] = useState('settings')
   const [surveyTab, setSurveyTab] = useState('settings')
@@ -269,10 +278,16 @@ export default function QuestionSettingsPanel({
                   ['numbering', 'Show numbering'],
                   ['save_continue', 'Allow save and continue'],
                   ['multi_response', 'Allow multiple responses'],
+                  ['require_login', 'Require login to respond'],
                 ].map(([settingKey, label]) => (
                   <div key={settingKey} className="flex items-center justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-slate-700">{label}</p>
+                      {settingKey === 'require_login' ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Respondents must sign in before taking this survey.
+                        </p>
+                      ) : null}
                     </div>
                     <Switch
                       checked={Boolean(survey.settings?.[settingKey])}
@@ -345,6 +360,7 @@ export default function QuestionSettingsPanel({
   const currentRules = question.skip_logic ?? []
   const defaultRule = currentRules.find((rule) => rule.condition?.default)
   const ratingRules = currentRules.filter((rule) => !rule.condition?.default)
+  const isImprovingQuestion = Boolean(question && improvingQuestions?.[question.id])
 
   return (
     <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] p-4">
@@ -393,11 +409,27 @@ export default function QuestionSettingsPanel({
             description="Write clear prompts and optional helper text."
           >
             <Field label="Question text">
-              <Textarea
-                value={question.text}
-                onChange={(event) => onQuestionFieldChange(question.id, 'text', event.target.value)}
-                className="rounded-2xl"
-              />
+              <div className="space-y-3">
+                <Textarea
+                  value={question.text}
+                  onChange={(event) => onQuestionFieldChange(question.id, 'text', event.target.value)}
+                  className="rounded-2xl"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="rounded-2xl"
+                  onClick={() => onImproveQuestion(question.id)}
+                  disabled={isImprovingQuestion || !`${question.text || ''}`.trim()}
+                >
+                  {isImprovingQuestion ? (
+                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <WandSparkles className="mr-2 h-4 w-4" />
+                  )}
+                  Improve with AI
+                </Button>
+              </div>
             </Field>
             <Field label="Description / help text">
               <Textarea

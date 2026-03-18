@@ -8,6 +8,7 @@ import {
   deletePage,
   deleteQuestion,
   fetchSurvey,
+  improveQuestion,
   publishSurvey,
   reorderPages,
   reorderQuestions,
@@ -94,6 +95,8 @@ export function useSurveyBuilder(surveyId) {
     pages: {},
     questions: {},
   })
+  const [improvingQuestions, setImprovingQuestions] = useState({})
+  const [pendingQuestionImprovement, setPendingQuestionImprovement] = useState(null)
   const [selectedQuestionId, setSelectedQuestionId] = useState(null)
   const [selectedPageId, setSelectedPageId] = useState(null)
 
@@ -728,6 +731,9 @@ export function useSurveyBuilder(surveyId) {
         pages: nextPages,
       }))
       clearQuestionSaveState(questionId)
+      setPendingQuestionImprovement((current) =>
+        current?.questionId === questionId ? null : current
+      )
       setSelectedQuestionId((current) => (current === questionId ? null : current))
       setSelectedPageId(location.page.id)
 
@@ -891,6 +897,142 @@ export function useSurveyBuilder(surveyId) {
     [selectedQuestionId, updateQuestionField]
   )
 
+  const improveQuestionById = useCallback(
+    async (questionId) => {
+      const currentSurvey = surveyRef.current
+      const location = currentSurvey ? findQuestionLocation(currentSurvey.pages, questionId) : null
+
+      if (!currentSurvey || !location) {
+        return
+      }
+
+      const draftText = `${location.question.text || ''}`.trim()
+      if (!draftText) {
+        toast({
+          title: 'Add question text first',
+          description: 'Write the question before asking AI to improve it.',
+          variant: 'info',
+        })
+        return
+      }
+
+      setImprovingQuestions((current) => ({
+        ...current,
+        [questionId]: true,
+      }))
+
+      try {
+        const response = await improveQuestion(
+          currentSurvey.id,
+          location.page.id,
+          location.question.id,
+          { draft_text: draftText }
+        )
+        const improvedText = `${response.improved_text || ''}`.trim()
+
+        if (!improvedText) {
+          throw new Error('The AI provider returned an empty response.')
+        }
+
+        setPendingQuestionImprovement({
+          questionId,
+          pageId: location.page.id,
+          questionType: location.question.question_type,
+          questionLabel: location.question.text || 'Untitled question',
+          originalText: draftText,
+          suggestedText: improvedText,
+        })
+
+        if (improvedText === draftText) {
+          toast({
+            title: 'No improvements needed',
+            description: 'The current question is already strong for the provided context.',
+            variant: 'info',
+          })
+        }
+      } catch (err) {
+        toast({
+          title: 'Question improve failed',
+          description:
+            err.response?.status === 429
+              ? err.response?.data?.detail || 'You have reached the AI improve rate limit. Try again in a minute.'
+              : err.response?.data?.detail || err.message || 'Questiz could not improve this question right now.',
+          variant: 'error',
+        })
+      } finally {
+        setImprovingQuestions((current) => {
+          if (!current[questionId]) {
+            return current
+          }
+
+          const nextState = { ...current }
+          delete nextState[questionId]
+          return nextState
+        })
+      }
+    },
+    [surveyRef, toast]
+  )
+
+  const dismissQuestionImprovement = useCallback(() => {
+    setPendingQuestionImprovement(null)
+  }, [])
+
+  const applyQuestionImprovement = useCallback(() => {
+    const pendingImprovement = pendingQuestionImprovement
+    if (!pendingImprovement) {
+      return
+    }
+
+    const currentSurvey = surveyRef.current
+    const location = currentSurvey
+      ? findQuestionLocation(currentSurvey.pages, pendingImprovement.questionId)
+      : null
+
+    if (!currentSurvey || !location) {
+      setPendingQuestionImprovement(null)
+      toast({
+        title: 'Question unavailable',
+        description: 'This question is no longer available to update.',
+        variant: 'error',
+      })
+      return
+    }
+
+    const nextText = pendingImprovement.suggestedText
+
+    updateLocalSurvey((existing) => ({
+      ...existing,
+      pages: existing.pages.map((page) => ({
+        ...page,
+        questions: page.questions.map((question) =>
+          question.id === pendingImprovement.questionId
+            ? {
+                ...question,
+                text: nextText,
+              }
+            : question
+        ),
+      })),
+    }))
+    scheduleQuestionSave(pendingImprovement.questionId)
+    setPendingQuestionImprovement(null)
+
+    if (nextText !== pendingImprovement.originalText) {
+      toast({
+        title: 'Question improved',
+        description: 'Questiz applied the AI rewrite to your question.',
+        variant: 'success',
+      })
+    }
+  }, [
+    pendingQuestionImprovement,
+    scheduleQuestionSave,
+    surveyRef,
+    toast,
+    updateLocalSurvey,
+  ])
+
   const publishCurrentSurvey = useCallback(async () => {
     const currentSurvey = surveyRef.current
     if (!currentSurvey) {
@@ -933,6 +1075,8 @@ export function useSurveyBuilder(surveyId) {
     loading,
     error,
     savingState,
+    improvingQuestions,
+    pendingQuestionImprovement,
     selectedQuestionId,
     selectedQuestion,
     selectedPageId,
@@ -954,6 +1098,9 @@ export function useSurveyBuilder(surveyId) {
     removeQuestion,
     duplicateQuestionById,
     moveQuestion,
+    improveQuestionById,
+    applyQuestionImprovement,
+    dismissQuestionImprovement,
     updateSelectedQuestionSettings,
     publishCurrentSurvey,
     closeCurrentSurvey,

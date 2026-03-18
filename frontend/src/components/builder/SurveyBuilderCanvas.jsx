@@ -1,5 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, Copy, GripVertical, LayoutPanelTop, Plus, Trash2 } from 'lucide-react'
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  GripVertical,
+  LayoutPanelTop,
+  LoaderCircle,
+  Plus,
+  Sparkles,
+  Trash2,
+  WandSparkles,
+  X,
+} from 'lucide-react'
 
 import { QUESTION_TYPE_ICONS } from '@/components/builder/questionTypeIcons'
 import QuestionRenderer from '@/components/survey/QuestionRenderer'
@@ -404,123 +417,202 @@ function QuestionCard({
   onQuestionFieldChange,
   onDuplicate,
   onDelete,
+  onImprove,
   onChoiceFieldChange,
   onAddChoice,
   onRemoveChoice,
   onMoveChoice,
+  improving,
+  suggestion,
+  onApplySuggestion,
+  onDismissSuggestion,
 }) {
   const isChoiceQuestion = questionHasChoices(question.question_type)
   const isInstructional = question.question_type === 'instructional_text'
   const isStructural = isStructuralQuestion(question)
 
   return (
-    <article
-      className={`survey-theme-card p-5 transition ${
-        selected
-          ? 'border-primary shadow-lg shadow-primary/10'
-          : 'hover:border-[rgb(var(--theme-mix-strong-rgb)/0.95)]'
-      }`}
-      onClick={(event) => {
-        event.stopPropagation()
-        onSelect()
-      }}
-    >
-      <div className="flex items-start gap-3">
-        <div className="flex shrink-0 flex-col items-center gap-2">
-          {questionNumber ? (
-            <span className="theme-panel-soft inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
-              {questionNumber}
-            </span>
-          ) : null}
-          <button
-            type="button"
-            draggable
-            onDragStart={onDragStart}
-            className="theme-panel-soft rounded-2xl p-2 text-muted-foreground hover:text-foreground"
-          >
-            <GripVertical className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-5">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 flex-1 items-start gap-2">
-              {isInstructional ? (
-                <Textarea
-                  value={question.text}
-                  onChange={(event) => onTitleChange(event.target.value)}
-                  className="min-h-[100px] border-0 bg-transparent px-0 py-0 text-[0.95rem] leading-7 text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                />
-              ) : (
-                <div className="flex min-w-0 flex-1 items-start gap-2">
-                  <Input
-                    value={question.text}
-                    onChange={(event) => onTitleChange(event.target.value)}
-                    className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base"
-                  />
-                  {question.required ? (
-                    <span className="pt-0.5 text-sm font-semibold text-rose-500 md:text-base">*</span>
-                  ) : null}
-                </div>
-              )}
+    <div className="space-y-3">
+      {suggestion ? (
+        <article
+          className="survey-theme-card border-primary bg-white px-5 py-4 shadow-lg shadow-primary/10 transition"
+          onClick={(event) => {
+            event.stopPropagation()
+            onSelect()
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex shrink-0 flex-col items-center gap-2">
+              <span className="inline-flex h-10 w-10 items-center justify-center text-[rgb(var(--theme-secondary-ink-rgb))]">
+                <Sparkles className="h-5 w-5" />
+              </span>
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <HelpPopover title="Question block" align="end">
-                {isChoiceQuestion
-                  ? 'Edit the question and answer options in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'
-                  : 'Edit the main question in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'}
-              </HelpPopover>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onDuplicate()
-                }}
-                className="h-9 w-9 rounded-full text-muted-foreground"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onDelete()
-                }}
-                className="h-9 w-9 rounded-full text-muted-foreground"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-2">
+                  <p className="min-h-0 py-0 text-sm font-semibold tracking-tight text-foreground md:text-base">
+                    {suggestion.suggestedText}
+                  </p>
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full bg-emerald-50/90 text-emerald-600 shadow-sm shadow-emerald-100/70 transition hover:bg-emerald-100 hover:text-emerald-700 hover:shadow-md hover:shadow-emerald-200/80"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onApplySuggestion()
+                    }}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 rounded-full bg-rose-50/90 text-rose-500 shadow-sm shadow-rose-100/70 transition hover:bg-rose-100 hover:text-rose-600 hover:shadow-md hover:shadow-rose-200/80"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onDismissSuggestion()
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
+        </article>
+      ) : null}
 
-          {isChoiceQuestion ? (
-            <ChoiceEditor
-              question={question}
-              selected={selected}
-              onQuestionFieldChange={onQuestionFieldChange}
-              onChoiceFieldChange={onChoiceFieldChange}
-              onAddChoice={onAddChoice}
-              onRemoveChoice={onRemoveChoice}
-              onMoveChoice={onMoveChoice}
-            />
-          ) : !isStructural ? (
-            <QuestionRenderer
-              question={question}
-              value={previewValue}
-              onChange={onPreviewValueChange}
-              showPrompt={false}
-              showDescription={false}
-              frameClassName="border-0 bg-transparent p-0 shadow-none"
-            />
-          ) : null}
+      <article
+        className={`survey-theme-card p-5 transition ${
+          selected
+            ? 'border-primary shadow-lg shadow-primary/10'
+            : 'hover:border-[rgb(var(--theme-mix-strong-rgb)/0.95)]'
+        }`}
+        onClick={(event) => {
+          event.stopPropagation()
+          onSelect()
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            {questionNumber ? (
+              <span className="theme-panel-soft inline-flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
+                {questionNumber}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              draggable
+              onDragStart={onDragStart}
+              className="theme-panel-soft rounded-2xl p-2 text-muted-foreground hover:text-foreground"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-1 items-start gap-2">
+                {isInstructional ? (
+                  <Textarea
+                    value={question.text}
+                    onChange={(event) => onTitleChange(event.target.value)}
+                    className="min-h-[100px] border-0 bg-transparent px-0 py-0 text-[0.95rem] leading-7 text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                ) : (
+                  <div className="flex min-w-0 flex-1 items-start gap-2">
+                    <Input
+                      value={question.text}
+                      onChange={(event) => onTitleChange(event.target.value)}
+                      className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base"
+                    />
+                    {question.required ? (
+                      <span className="pt-0.5 text-sm font-semibold text-rose-500 md:text-base">*</span>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                <HelpPopover title="Question block" align="end">
+                  {isChoiceQuestion
+                    ? 'Edit the question and answer options in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'
+                    : 'Edit the main question in the canvas. Helper text, required state, behavior, and branching stay in the right panel.'}
+                </HelpPopover>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onImprove()
+                  }}
+                  className="h-9 w-9 rounded-full text-muted-foreground"
+                  disabled={improving || !`${question.text || ''}`.trim()}
+                >
+                  {improving ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <WandSparkles className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDuplicate()
+                  }}
+                  className="h-9 w-9 rounded-full text-muted-foreground"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDelete()
+                  }}
+                  className="h-9 w-9 rounded-full text-muted-foreground"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {isChoiceQuestion ? (
+              <ChoiceEditor
+                question={question}
+                selected={selected}
+                onQuestionFieldChange={onQuestionFieldChange}
+                onChoiceFieldChange={onChoiceFieldChange}
+                onAddChoice={onAddChoice}
+                onRemoveChoice={onRemoveChoice}
+                onMoveChoice={onMoveChoice}
+              />
+            ) : !isStructural ? (
+              <QuestionRenderer
+                question={question}
+                value={previewValue}
+                onChange={onPreviewValueChange}
+                showPrompt={false}
+                showDescription={false}
+                frameClassName="border-0 bg-transparent p-0 shadow-none"
+              />
+            ) : null}
+          </div>
         </div>
-      </div>
-    </article>
+      </article>
+    </div>
   )
 }
 
@@ -543,6 +635,11 @@ export default function SurveyBuilderCanvas({
   onAddChoice,
   onRemoveChoice,
   onMoveChoice,
+  onImproveQuestion,
+  improvingQuestions,
+  pendingQuestionImprovement,
+  onApplyQuestionImprovement,
+  onDismissQuestionImprovement,
 }) {
   const [previewAnswers, setPreviewAnswers] = useState(() =>
     buildInitialPreviewAnswers(survey.pages)
@@ -760,6 +857,7 @@ export default function SurveyBuilderCanvas({
                       onPreviewValueChange={(value) => updatePreviewAnswer(question.id, value)}
                       onQuestionFieldChange={onQuestionFieldChange}
                       onDuplicate={() => onDuplicateQuestion(question.id)}
+                      onImprove={() => onImproveQuestion(question.id)}
                       onDelete={() =>
                         setPendingDeleteQuestion({
                           id: question.id,
@@ -773,6 +871,14 @@ export default function SurveyBuilderCanvas({
                       onAddChoice={onAddChoice}
                       onRemoveChoice={onRemoveChoice}
                       onMoveChoice={onMoveChoice}
+                      improving={Boolean(improvingQuestions?.[question.id])}
+                      suggestion={
+                        pendingQuestionImprovement?.questionId === question.id
+                          ? pendingQuestionImprovement
+                          : null
+                      }
+                      onApplySuggestion={onApplyQuestionImprovement}
+                      onDismissSuggestion={onDismissQuestionImprovement}
                     />
 
                     <QuestionInsertSlot

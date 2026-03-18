@@ -11,6 +11,7 @@ const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
 const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'))
 const PaymentFailed = lazy(() => import('./pages/PaymentFailed'))
@@ -52,7 +53,8 @@ function App() {
     isPublicSurveyRoute ||
     isPublicReportRoute ||
     isAdminRoute ||
-    location.pathname === '/reset-password'
+    location.pathname === '/reset-password' ||
+    location.pathname === '/forgot-password'
 
   return (
     <AuthProvider>
@@ -67,6 +69,7 @@ function App() {
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
                   <Route path="/verify-email" element={<VerifyEmail />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
                   <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/payment/success" element={<PaymentSuccess />} />
                   <Route path="/payment/failed" element={<PaymentFailed />} />

@@ -275,6 +275,11 @@ const Login = () => {
                   required
                   className="h-11 w-full rounded-xl border border-[rgb(var(--theme-border-rgb))] bg-white/80 px-4 text-sm text-foreground placeholder-muted-foreground outline-none backdrop-blur-sm transition focus:border-primary focus:ring-2 focus:ring-primary/20"
                 />
+                <div className="pt-1 text-right">
+                  <Link to="/forgot-password" className="text-xs font-semibold text-primary transition hover:text-primary/80">
+                    Forgot password?
+                  </Link>
+                </div>
               </div>
 
               <button

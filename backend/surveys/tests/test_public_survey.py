@@ -15,8 +15,22 @@ class PublicSurveyTests(TestCase):
             email="publisher@example.com",
             password="TestPass123!",
         )
+        self.respondent = User.objects.create_user(
+            username="respondent",
+            email="respondent@example.com",
+            password="TestPass123!",
+        )
+        self.other_user = User.objects.create_user(
+            username="other-user",
+            email="other@example.com",
+            password="TestPass123!",
+        )
         self.authenticated_client = APIClient()
         self.authenticated_client.force_authenticate(self.owner)
+        self.respondent_client = APIClient()
+        self.respondent_client.force_authenticate(self.respondent)
+        self.other_client = APIClient()
+        self.other_client.force_authenticate(self.other_user)
         self.public_client = APIClient()
 
         self.survey = Survey.objects.create(
@@ -222,3 +236,134 @@ class PublicSurveyTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("answers", response.data)
+
+    def test_logged_in_only_public_survey_requires_authentication(self):
+        self.survey.settings = {"require_login": True}
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        response = self.public_client.get(f"/api/public/surveys/{self.survey.slug}/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertTrue(response.data["require_login"])
+        self.assertEqual(response.data["code"], "login_required")
+
+    def test_logged_in_only_public_submission_requires_authentication(self):
+        self.survey.settings = {"require_login": True}
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertTrue(response.data["require_login"])
+        self.assertEqual(response.data["code"], "login_required")
+
+    def test_logged_in_only_survey_allows_authenticated_submission_and_binds_user(self):
+        self.survey.settings = {"require_login": True}
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        get_response = self.respondent_client.get(
+            f"/api/public/surveys/{self.survey.slug}/"
+        )
+        post_response = self.respondent_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "respondent_email": "spoof@example.com",
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(get_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(post_response.status_code, status.HTTP_201_CREATED)
+
+        survey_response = SurveyResponse.objects.get(survey=self.survey)
+        self.assertEqual(survey_response.user, self.respondent)
+        self.assertEqual(survey_response.respondent_email, self.respondent.email)
+
+    def test_logged_in_only_resume_token_cannot_be_used_by_different_user(self):
+        self.survey.settings = {"require_login": True}
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        created_response = self.respondent_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        resume_token = created_response.data["resume_token"]
+
+        response = self.other_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": resume_token,
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["code"], "invalid_resume")
+
+    def test_logged_in_only_single_response_blocks_same_user_repeat_submission(self):
+        self.survey.settings = {
+            "require_login": True,
+            "allow_multiple": False,
+        }
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        first_response = self.respondent_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        second_response = self.respondent_client.get(
+            f"/api/public/surveys/{self.survey.slug}/"
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(second_response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(second_response.data["code"], "already_completed")

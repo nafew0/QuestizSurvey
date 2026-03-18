@@ -1,6 +1,7 @@
 from django.db import models
 from rest_framework import serializers
 
+from subscriptions.services import LicenseService
 from surveys.models import Survey
 from surveys.theme import normalize_survey_theme
 
@@ -58,6 +59,12 @@ class SurveyDetailSerializer(SurveyThemeSerializerMixin, serializers.ModelSerial
 
 
 class SurveyCreateUpdateSerializer(SurveyThemeSerializerMixin, serializers.ModelSerializer):
+    def validate_settings(self, value):
+        normalized = dict(value or {})
+        if self.instance is None and "require_login" not in normalized:
+            normalized["require_login"] = LicenseService.get_logged_in_users_only_default()
+        return normalized
+
     class Meta:
         model = Survey
         fields = [

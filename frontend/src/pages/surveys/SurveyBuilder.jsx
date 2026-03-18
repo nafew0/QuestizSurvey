@@ -1,4 +1,13 @@
-import { ArrowLeft, BarChart3, Eye, LoaderCircle, Rocket, Save, Share2, XCircle } from 'lucide-react'
+import {
+  ArrowLeft,
+  BarChart3,
+  Eye,
+  LoaderCircle,
+  Rocket,
+  Save,
+  Share2,
+  XCircle,
+} from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import QuestionSettingsPanel from '@/components/builder/QuestionSettingsPanel'
@@ -18,6 +27,8 @@ export default function SurveyBuilder() {
     loading,
     error,
     savingState,
+    improvingQuestions,
+    pendingQuestionImprovement,
     selectedQuestionId,
     selectedQuestion,
     selectedPageId,
@@ -38,6 +49,9 @@ export default function SurveyBuilder() {
     removeQuestion,
     duplicateQuestionById,
     moveQuestion,
+    improveQuestionById,
+    applyQuestionImprovement,
+    dismissQuestionImprovement,
     publishCurrentSurvey,
     closeCurrentSurvey,
   } = useSurveyBuilder(surveyId)
@@ -192,6 +206,11 @@ export default function SurveyBuilder() {
                 onAddChoice={addChoice}
                 onRemoveChoice={removeChoice}
                 onMoveChoice={moveChoice}
+                onImproveQuestion={improveQuestionById}
+                improvingQuestions={improvingQuestions}
+                pendingQuestionImprovement={pendingQuestionImprovement}
+                onApplyQuestionImprovement={applyQuestionImprovement}
+                onDismissQuestionImprovement={dismissQuestionImprovement}
               />
             </div>
           </div>
@@ -204,6 +223,8 @@ export default function SurveyBuilder() {
               onSurveyFieldChange={updateSurveyField}
               onPageFieldChange={updatePageField}
               onQuestionFieldChange={updateQuestionField}
+              onImproveQuestion={improveQuestionById}
+              improvingQuestions={improvingQuestions}
             />
           </div>
         </div>

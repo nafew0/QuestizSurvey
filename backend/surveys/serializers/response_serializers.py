@@ -372,6 +372,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
         validated_data = dict(self.validated_data)
         response = SurveyResponse.objects.create(
             survey=survey,
+            user=self.context.get("authenticated_user"),
             collector=self.context.get("default_collector"),
             ip_address=self.context.get("ip_address"),
             user_agent=self.context.get("user_agent", ""),
@@ -384,6 +385,11 @@ class SubmitAnswerSerializer(serializers.Serializer):
 
     def _apply_submission(self, response, validated_data):
         answers_data = validated_data.pop("answers", [])
+        authenticated_user = self.context.get("authenticated_user")
+
+        if authenticated_user is not None:
+            response.user = authenticated_user
+            response.respondent_email = authenticated_user.email
 
         if "collector" in validated_data:
             response.collector = validated_data["collector"]
@@ -394,7 +400,7 @@ class SubmitAnswerSerializer(serializers.Serializer):
             response.email_invitation = validated_data["email_invitation"]
             response.collector = validated_data["email_invitation"].collector
 
-        if "respondent_email" in validated_data:
+        if "respondent_email" in validated_data and authenticated_user is None:
             response.respondent_email = validated_data["respondent_email"]
 
         if "status" in validated_data:

@@ -125,6 +125,18 @@ class PublicSurveyView(APIView):
             settings.update(collector.settings or {})
         return settings
 
+    def build_login_required_response(self, survey):
+        return Response(
+            {
+                "detail": "This survey requires you to log in.",
+                "message": "This survey requires you to log in.",
+                "code": "login_required",
+                "require_login": True,
+                "survey_title": survey.title,
+            },
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
+
     def build_block_response(self, message, error_status, code):
         return Response(
             {
@@ -166,6 +178,7 @@ class PublicSurveyView(APIView):
         collector,
         *,
         resume_token=None,
+        survey_response=None,
         request=None,
         access_key="",
     ):
@@ -177,6 +190,22 @@ class PublicSurveyView(APIView):
             )
 
         settings = self.get_public_settings(survey, collector)
+
+        require_login = bool(settings.get("require_login"))
+        if require_login:
+            if not request or not request.user or not request.user.is_authenticated:
+                return self.build_login_required_response(survey)
+
+            if (
+                survey_response
+                and survey_response.user_id
+                and str(survey_response.user_id) != str(request.user.id)
+            ):
+                return self.build_block_response(
+                    "This resume link is invalid.",
+                    status.HTTP_404_NOT_FOUND,
+                    "invalid_resume",
+                )
 
         password = (settings.get("password") or "").strip()
         if settings.get("password_enabled") and password:
@@ -231,16 +260,27 @@ class PublicSurveyView(APIView):
         )
 
         if request and not allow_multiple and not resume_token:
-            client_ip = self._get_client_ip(request)
-            if client_ip and survey.responses.filter(
-                ip_address=client_ip,
-                status=SurveyResponse.Status.COMPLETED,
-            ).exists():
-                return self.build_block_response(
-                    "You have already completed this survey.",
-                    status.HTTP_403_FORBIDDEN,
-                    "already_completed",
-                )
+            if require_login and request.user.is_authenticated:
+                if survey.responses.filter(
+                    user=request.user,
+                    status=SurveyResponse.Status.COMPLETED,
+                ).exists():
+                    return self.build_block_response(
+                        "You have already completed this survey.",
+                        status.HTTP_403_FORBIDDEN,
+                        "already_completed",
+                    )
+            else:
+                client_ip = self._get_client_ip(request)
+                if client_ip and survey.responses.filter(
+                    ip_address=client_ip,
+                    status=SurveyResponse.Status.COMPLETED,
+                ).exists():
+                    return self.build_block_response(
+                        "You have already completed this survey.",
+                        status.HTTP_403_FORBIDDEN,
+                        "already_completed",
+                    )
 
         return None
 
@@ -287,6 +327,7 @@ class PublicSurveyView(APIView):
             survey,
             collector,
             resume_token=resume_token,
+            survey_response=survey_response,
             request=request,
             access_key=self.get_access_key(request),
         )
@@ -323,6 +364,12 @@ class PublicSurveyView(APIView):
             context={
                 "survey": survey,
                 "default_collector": collector,
+                "authenticated_user": (
+                    request.user
+                    if bool((survey.settings or {}).get("require_login"))
+                    and request.user.is_authenticated
+                    else None
+                ),
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },
@@ -375,6 +422,7 @@ class PublicSurveyView(APIView):
             survey,
             collector,
             resume_token=resume_token,
+            survey_response=survey_response,
             request=request,
             access_key=self.get_access_key(request),
         )
@@ -386,6 +434,12 @@ class PublicSurveyView(APIView):
             context={
                 "survey": survey,
                 "default_collector": collector,
+                "authenticated_user": (
+                    request.user
+                    if bool((survey.settings or {}).get("require_login"))
+                    and request.user.is_authenticated
+                    else None
+                ),
                 "ip_address": self._get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },

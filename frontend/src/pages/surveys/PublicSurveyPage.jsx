@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
   ArrowLeft,
@@ -27,7 +27,6 @@ import { normalizeSurvey, resolveNextPreviewStep } from '@/utils/surveyBuilder'
 import {
   buildInitialPublicAnswers,
   buildResumePageHistory,
-  hasRespondedCookie,
   restorePublicAnswers,
   serializePublicAnswers,
   setRespondedCookie,
@@ -211,6 +210,41 @@ function PasswordGate({ password, setPassword, errorMessage, onUnlock, loading }
   )
 }
 
+function LoginRequiredGate({ surveyTitle, redirectTarget }) {
+  return (
+    <div className="theme-app-gradient min-h-screen px-4 py-10 text-foreground">
+      <div className="mx-auto max-w-2xl">
+        <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
+          <div className="theme-icon-primary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
+          <Badge variant="outline" className="mt-5">
+            Sign in required
+          </Badge>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+            {surveyTitle || 'This survey'} requires you to sign in.
+          </h1>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+            Log in or create an account to continue to this survey.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button asChild className="rounded-2xl">
+              <Link to={`/login?redirect=${encodeURIComponent(redirectTarget)}`}>
+                Log in
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="rounded-2xl">
+              <Link to={`/register?redirect=${encodeURIComponent(redirectTarget)}`}>
+                Register
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PublicSurveyPage() {
   const { slug = '' } = useParams()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -226,6 +260,7 @@ export default function PublicSurveyPage() {
   const [pageHistory, setPageHistory] = useState([])
   const [resumeToken, setResumeToken] = useState('')
   const [blockedState, setBlockedState] = useState(null)
+  const [loginRequiredState, setLoginRequiredState] = useState(null)
   const [disqualifyMessage, setDisqualifyMessage] = useState('')
   const [accessKey, setAccessKey] = useState('')
   const [passwordDraft, setPasswordDraft] = useState('')
@@ -236,6 +271,11 @@ export default function PublicSurveyPage() {
   const inviteParam = searchParams.get('invite')?.trim() || ''
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
+  const redirectTarget = useMemo(() => {
+    const params = new URLSearchParams(searchParams)
+    const query = params.toString()
+    return query ? `/s/${slug}?${query}` : `/s/${slug}`
+  }, [searchParams, slug])
 
   const surveyTheme = useMemo(
     () =>
@@ -290,16 +330,8 @@ export default function PublicSurveyPage() {
     const loadSurvey = async () => {
       setLoading(true)
       setBlockedState(null)
+      setLoginRequiredState(null)
       setPasswordError('')
-
-      if (hasRespondedCookie(slug) && !resumeParam) {
-        if (!cancelled) {
-          setStage('blocked')
-          setBlockedState(BLOCKED_STATE_MAP.already_completed)
-          setLoading(false)
-        }
-        return
-      }
 
       try {
         const responseData = await fetchPublicSurvey(slug, {
@@ -351,6 +383,15 @@ export default function PublicSurveyPage() {
         }
       } catch (error) {
         if (cancelled) {
+          return
+        }
+
+        if (error?.response?.status === 401 && error?.response?.data?.require_login) {
+          setSurvey(null)
+          setStage('login-required')
+          setLoginRequiredState({
+            surveyTitle: error.response?.data?.survey_title || '',
+          })
           return
         }
 
@@ -485,7 +526,12 @@ export default function PublicSurveyPage() {
 
       return responseData
     } catch (error) {
-      if ([403, 404, 410].includes(error?.response?.status)) {
+      if (error?.response?.status === 401 && error?.response?.data?.require_login) {
+        setStage('login-required')
+        setLoginRequiredState({
+          surveyTitle: error.response?.data?.survey_title || survey?.title || '',
+        })
+      } else if ([403, 404, 410].includes(error?.response?.status)) {
         setStage('blocked')
         setBlockedState(getBlockedState(error, resumeToken || resumeParam))
       } else {
@@ -620,6 +666,15 @@ export default function PublicSurveyPage() {
 
   if (blockedState) {
     return <PublicStateCard state={blockedState} />
+  }
+
+  if (stage === 'login-required') {
+    return (
+      <LoginRequiredGate
+        surveyTitle={loginRequiredState?.surveyTitle}
+        redirectTarget={redirectTarget}
+      />
+    )
   }
 
   if (stage === 'password') {

@@ -50,6 +50,7 @@ class AccountsAuthFlowTestCase(TestCase):
         self.send_verification_url = "/api/auth/send-verification-email/"
         self.resend_verification_url = "/api/auth/resend-verification-email/"
         self.verify_email_url = "/api/auth/verify-email/"
+        self.password_reset_request_url = "/api/auth/password-reset/request/"
         self.set_verification_required(True)
 
     def set_verification_required(self, enabled):
@@ -261,6 +262,44 @@ class AccountsAuthFlowTestCase(TestCase):
 
         self.assertEqual(missing_response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(expired_response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_public_password_reset_request_is_generic_and_sends_when_eligible(self):
+        self.create_user(username="resetme", email="resetme@example.com")
+
+        missing_response = self.client.post(
+            self.password_reset_request_url,
+            {"identifier": "missing@example.com"},
+            format="json",
+        )
+        existing_response = self.client.post(
+            self.password_reset_request_url,
+            {"identifier": "resetme@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(missing_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(existing_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(missing_response.data, existing_response.data)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_public_password_reset_request_respects_cooldown_without_enumeration(self):
+        self.create_user(username="cooldownuser", email="cooldown@example.com")
+
+        first_response = self.client.post(
+            self.password_reset_request_url,
+            {"identifier": "cooldown@example.com"},
+            format="json",
+        )
+        second_response = self.client.post(
+            self.password_reset_request_url,
+            {"identifier": "cooldown@example.com"},
+            format="json",
+        )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(first_response.data, second_response.data)
+        self.assertEqual(len(mail.outbox), 1)
 
     def test_get_user_includes_extended_profile_and_email_verification_fields(self):
         user = self.create_user(
@@ -645,6 +684,52 @@ class AdminApiTests(TestCase):
             SiteSettings.objects.get(pk=1).ai_api_key_openai,
             "sk-existing-openai",
         )
+
+    @patch.object(AITestService, "_request")
+    def test_openai_ai_test_accepts_incomplete_status_when_text_exists(
+        self,
+        request_mock,
+    ):
+        request_mock.return_value = {
+            "status": "incomplete",
+            "incomplete_details": {"reason": "max_output_tokens"},
+            "output_text": "OK",
+        }
+
+        result = AITestService.test_connection(
+            provider="openai",
+            model="gpt-5-mini",
+            api_key="sk-test-openai",
+        )
+
+        self.assertEqual(result["provider"], "openai")
+        self.assertIn("succeeded", result["message"])
+
+    @patch.object(AITestService, "_request")
+    def test_openai_ai_test_reads_text_from_output_array_when_output_text_missing(
+        self,
+        request_mock,
+    ):
+        request_mock.return_value = {
+            "status": "completed",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [
+                        {"type": "output_text", "text": "OK"},
+                    ],
+                }
+            ],
+        }
+
+        result = AITestService.test_connection(
+            provider="openai",
+            model="gpt-5-mini",
+            api_key="sk-test-openai",
+        )
+
+        self.assertEqual(result["provider"], "openai")
+        self.assertIn("succeeded", result["message"])
 
     def test_admin_password_reset_flow(self):
         self.authenticate_admin()

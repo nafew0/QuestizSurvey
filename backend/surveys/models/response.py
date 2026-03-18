@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 
 from surveys.utils import generate_short_token
@@ -15,6 +16,13 @@ class SurveyResponse(models.Model):
         "surveys.Survey",
         on_delete=models.CASCADE,
         related_name="responses",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name="survey_responses",
+        null=True,
+        blank=True,
     )
     collector = models.ForeignKey(
         "surveys.Collector",

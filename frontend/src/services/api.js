@@ -64,6 +64,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+    const preserveAuthError = Boolean(originalRequest?.preserveAuthError)
 
     // If error is 401 and we haven't retried yet
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -73,7 +74,7 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refreshToken')
 
         if (!refreshToken) {
-          throw new Error('No refresh token available')
+          return Promise.reject(error)
         }
 
         // Try to refresh the token
@@ -96,8 +97,11 @@ api.interceptors.response.use(
         // Refresh failed, clear tokens and redirect to login
         localStorage.removeItem('accessToken')
         localStorage.removeItem('refreshToken')
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
+        if (!preserveAuthError) {
+          window.location.href = '/login'
+          return Promise.reject(refreshError)
+        }
+        return Promise.reject(error)
       }
     }
 

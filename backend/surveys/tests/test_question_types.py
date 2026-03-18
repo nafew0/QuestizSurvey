@@ -3,6 +3,7 @@ from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from subscriptions.models import Plan, UserSubscription
 from surveys.models import Question, Survey
 
 User = get_user_model()
@@ -25,6 +26,16 @@ class QuestionTypeSerializationTests(TestCase):
             username="builder",
             email="builder@example.com",
             password="TestPass123!",
+        )
+        unlimited_plan = Plan.objects.filter(max_questions_per_survey=0).order_by("-tier").first()
+        UserSubscription.objects.update_or_create(
+            user=self.user,
+            defaults={
+                "plan": unlimited_plan,
+                "status": UserSubscription.Status.ACTIVE,
+                "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                "payment_provider": UserSubscription.PaymentProvider.NONE,
+            },
         )
         self.client.force_authenticate(self.user)
         self.survey = Survey.objects.create(user=self.user, title="Question Types")

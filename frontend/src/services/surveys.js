@@ -88,6 +88,14 @@ export async function updateQuestion(surveyId, pageId, questionId, payload) {
   return response.data
 }
 
+export async function improveQuestion(surveyId, pageId, questionId, payload = {}) {
+  const response = await api.post(
+    `/surveys/${surveyId}/pages/${pageId}/questions/${questionId}/improve/`,
+    payload
+  )
+  return response.data
+}
+
 export async function deleteQuestion(surveyId, pageId, questionId) {
   await api.delete(`/surveys/${surveyId}/pages/${pageId}/questions/${questionId}/`)
 }

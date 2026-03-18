@@ -957,7 +957,6 @@ POST /api/surveys/{survey_id}/questions/{question_id}/improve/
     question_text)
   - Returns: {
       improved_text: "...",
-      explanation: "..."
     }
   - Rate limit: 10 requests per minute per user (to control costs)
 ```
@@ -976,9 +975,8 @@ On click:
 2. POST to /api/surveys/{id}/questions/{qId}/improve/
 3. On response, show a popover/dialog:
    - "Suggested improvement:"
-   - The improved text displayed in a highlighted box
-   - The explanation in muted text
-   - Two buttons: "Apply" (replaces question text) | "Dismiss"
+   - The improved text displayed in a not so highlighted box on just top of the old question so that user can get a vision of easier comparison with the old one. 
+   - Two buttons: "Tick" (replaces question text) | "Cross"
 4. If "Apply" is clicked:
    - Update the question text in the builder state (zustand)
    - Trigger the auto-save debounce

@@ -70,6 +70,11 @@ urlpatterns = [
         name="question-detail",
     ),
     path(
+        "surveys/<uuid:survey_pk>/pages/<uuid:page_pk>/questions/<uuid:pk>/improve/",
+        QuestionViewSet.as_view({"post": "improve"}),
+        name="question-improve",
+    ),
+    path(
         "surveys/<uuid:survey_pk>/collectors/",
         CollectorViewSet.as_view({"get": "list", "post": "create"}),
         name="collector-list",

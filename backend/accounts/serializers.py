@@ -190,6 +190,18 @@ class VerificationEmailRequestSerializer(serializers.Serializer):
         return normalized
 
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Public forgot-password request payload."""
+
+    identifier = serializers.CharField(required=True, max_length=255)
+
+    def validate_identifier(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Identifier is required.")
+        return normalized
+
+
 class VerifyEmailQuerySerializer(serializers.Serializer):
     """Verification query string payload."""
 

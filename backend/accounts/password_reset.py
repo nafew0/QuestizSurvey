@@ -1,13 +1,24 @@
+import logging
+
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
+from django.core.cache import cache
 from django.core.exceptions import ImproperlyConfigured
 from django.core.mail import EmailMultiAlternatives
+from django.db import models
 from django.template.loader import render_to_string
+from django.utils import timezone
 from django.utils.html import strip_tags
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from .models import User
+
+logger = logging.getLogger(__name__)
+
+PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS = 120
+PUBLIC_PASSWORD_RESET_WINDOW_SECONDS = 15 * 60
+PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS = 10
 
 
 def build_password_reset_link(user):
@@ -63,4 +74,67 @@ def send_password_reset_email(user, *, requested_by=None):
     )
     message.attach_alternative(html_body, "text/html")
     message.send(fail_silently=False)
+    mark_password_reset_sent(user)
     return {"uid": uid, "token": token, "reset_url": reset_url}
+
+
+def get_password_reset_cache_key(user):
+    return f"accounts:password-reset:user:{user.pk}"
+
+
+def get_public_password_reset_cache_key(ip_address):
+    return f"accounts:password-reset:public:{ip_address or 'unknown'}"
+
+
+def get_password_reset_retry_after_seconds(user):
+    cache_key = get_password_reset_cache_key(user)
+    try:
+        sent_at = cache.get(cache_key)
+    except Exception:
+        logger.warning("Password reset cooldown cache unavailable.", exc_info=True)
+        return 0
+
+    if not sent_at:
+        return 0
+
+    remaining = PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS - int(timezone.now().timestamp() - sent_at)
+    return max(remaining, 0)
+
+
+def mark_password_reset_sent(user):
+    try:
+        cache.set(
+            get_password_reset_cache_key(user),
+            int(timezone.now().timestamp()),
+            timeout=PASSWORD_RESET_EMAIL_COOLDOWN_SECONDS,
+        )
+    except Exception:
+        logger.warning("Password reset cooldown cache unavailable.", exc_info=True)
+
+
+def should_throttle_public_password_reset(ip_address):
+    cache_key = get_public_password_reset_cache_key(ip_address)
+
+    try:
+        added = cache.add(cache_key, 1, timeout=PUBLIC_PASSWORD_RESET_WINDOW_SECONDS)
+        if added:
+            return False
+        attempts = cache.incr(cache_key)
+        return attempts > PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS
+    except Exception:
+        logger.warning("Public password reset throttle unavailable.", exc_info=True)
+        return False
+
+
+def get_public_password_reset_user(identifier):
+    normalized = (identifier or "").strip()
+    if not normalized:
+        return None
+
+    return (
+        User.objects.filter(
+            is_active=True,
+        )
+        .filter(models.Q(username__iexact=normalized) | models.Q(email__iexact=normalized))
+        .first()
+    )

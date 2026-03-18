@@ -1,15 +1,43 @@
 from django.db.models import Max
 from django.db import transaction
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import SimpleRateThrottle
 
 from subscriptions.services import LicenseService
 from surveys.models import Page, Question
+from surveys.services import (
+    AIService,
+    AIServiceConfigurationError,
+    AIServiceRequestError,
+)
 from surveys.serializers import QuestionCreateSerializer, QuestionSerializer
 
 from .common import get_owned_page, get_owned_survey
+
+
+class QuestionImproveThrottle(SimpleRateThrottle):
+    scope = "question_improve"
+    rate = "10/min"
+
+    def get_cache_key(self, request, view):
+        if not request.user or not request.user.is_authenticated:
+            return None
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": request.user.pk,
+        }
+
+
+class ImproveQuestionRequestSerializer(serializers.Serializer):
+    draft_text = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        max_length=4000,
+        trim_whitespace=True,
+    )
 
 
 class QuestionViewSet(viewsets.ModelViewSet):
@@ -42,6 +70,11 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if self.action in {"create", "update", "partial_update"}:
             return QuestionCreateSerializer
         return QuestionSerializer
+
+    def get_throttles(self):
+        if self.action == "improve":
+            return [QuestionImproveThrottle()]
+        return super().get_throttles()
 
     def perform_create(self, serializer):
         page = self.get_page()
@@ -109,3 +142,44 @@ class QuestionViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(self.get_page().questions.all(), many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def improve(self, request, survey_pk=None, page_pk=None, pk=None):
+        serializer = ImproveQuestionRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        survey = self.get_survey()
+        question = self.get_object()
+        draft_text = serializer.validated_data.get("draft_text")
+        source_text = draft_text if draft_text is not None else question.text
+
+        if not (source_text or "").strip():
+            return Response(
+                {"detail": "Add question text before using AI improve."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ai_service = AIService()
+        try:
+            improved_text = ai_service.improve_question(
+                survey.title,
+                question.get_question_type_display(),
+                source_text,
+            )
+        except AIServiceConfigurationError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except AIServiceRequestError as exc:
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(
+            {
+                "improved_text": improved_text,
+                "provider": ai_service.provider,
+            },
+            status=status.HTTP_200_OK,
+        )
