@@ -2,12 +2,13 @@ import logging
 
 from django.contrib.auth.models import update_last_login
 from django.core.exceptions import ImproperlyConfigured
-from django.db.models import Q
 from django.db import transaction
+from django.db.models import Q
 from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.exceptions import APIException
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -16,6 +17,12 @@ from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
 
 from .models import EmailVerificationToken
+from .throttles import LoginRateThrottle, RegisterRateThrottle
+from .token_cookies import (
+    clear_refresh_cookie,
+    get_refresh_token_from_request,
+    set_refresh_cookie,
+)
 from .serializers import (
     UserSerializer,
     UserRegistrationSerializer,
@@ -97,6 +104,7 @@ class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
     permission_classes = [AllowAny]
     serializer_class = UserRegistrationSerializer
+    throttle_classes = [RegisterRateThrottle]
 
     def create(self, request, *args, **kwargs):
         site_settings = get_site_settings()
@@ -121,15 +129,15 @@ class RegisterView(generics.CreateAPIView):
             return Response(response_payload, status=status.HTTP_201_CREATED)
 
         refresh = RefreshToken.for_user(user)
-        response_payload["tokens"] = {
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-        }
-        return Response(response_payload, status=status.HTTP_201_CREATED)
+        response_payload["access_token"] = str(refresh.access_token)
+        response = Response(response_payload, status=status.HTTP_201_CREATED)
+        set_refresh_cookie(response, str(refresh))
+        return response
 
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
+@throttle_classes([LoginRateThrottle])
 def login_view(request):
     """
     User login endpoint.
@@ -165,17 +173,14 @@ def login_view(request):
     refresh = RefreshToken.for_user(user)
     update_last_login(None, user)
 
-    return Response(
-        {
-            "user": UserSerializer(user).data,
-            "tokens": {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-            },
-            "message": "Login successful.",
-        },
-        status=status.HTTP_200_OK,
-    )
+    data = {
+        "user": UserSerializer(user).data,
+        "access_token": str(refresh.access_token),
+        "message": "Login successful.",
+    }
+    response = Response(data, status=status.HTTP_200_OK)
+    set_refresh_cookie(response, str(refresh))
+    return response
 
 
 class VerifiedTokenRefreshView(TokenRefreshView):
@@ -184,7 +189,10 @@ class VerifiedTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        refresh_token = request.data.get("refresh")
+        refresh_token = (
+            (request.data.get("refresh") or "").strip()
+            or get_refresh_token_from_request(request)
+        )
         if refresh_token:
             try:
                 token = RefreshToken(refresh_token)
@@ -198,30 +206,46 @@ class VerifiedTokenRefreshView(TokenRefreshView):
             except TokenError:
                 pass
 
-        return super().post(request, *args, **kwargs)
+        serializer = self.get_serializer(data={"refresh": refresh_token})
+        try:
+            serializer.is_valid(raise_exception=True)
+        except DRFValidationError:
+            response = Response({"detail": "Refresh token is invalid or expired."}, status=status.HTTP_401_UNAUTHORIZED)
+            clear_refresh_cookie(response)
+            return response
+
+        response_payload = dict(serializer.validated_data)
+        rotated_refresh = (response_payload.pop("refresh", "") or "").strip()
+        response = Response(response_payload, status=status.HTTP_200_OK)
+        if rotated_refresh:
+            set_refresh_cookie(response, rotated_refresh)
+        elif refresh_token:
+            set_refresh_cookie(response, refresh_token)
+        return response
 
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def logout_view(request):
     """
     User logout endpoint.
     Blacklists the refresh token.
     """
-    try:
-        refresh_token = request.data.get("refresh_token")
-        if not refresh_token:
-            return Response(
-                {"error": "Refresh token is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    refresh_token = (
+        (request.data.get("refresh_token") or "").strip()
+        or get_refresh_token_from_request(request)
+    )
 
-        token = RefreshToken(refresh_token)
-        token.blacklist()
+    if refresh_token:
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+        except Exception:
+            logger.warning("Refresh token blacklist failed during logout.", exc_info=True)
 
-        return Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
-    except Exception as e:
-        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+    response = Response({"message": "Logout successful."}, status=status.HTTP_200_OK)
+    clear_refresh_cookie(response)
+    return response
 
 
 @api_view(["GET"])

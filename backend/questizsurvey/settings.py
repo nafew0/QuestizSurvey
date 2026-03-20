@@ -9,11 +9,26 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from celery.schedules import crontab
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+
+dotenv_file = os.environ.get("DOTENV_FILE", ".env")
+load_dotenv(BASE_DIR / dotenv_file)
+
+ENVIRONMENT = (
+    os.environ.get("ENVIRONMENT")
+    or os.environ.get("APP_ENV")
+    or "development"
+).strip().lower()
+IS_PRODUCTION = ENVIRONMENT == "production"
+
+if IS_PRODUCTION and dotenv_file == ".env":
+    production_dotenv = BASE_DIR / ".env.production"
+    if production_dotenv.exists():
+        load_dotenv(production_dotenv, override=True)
 
 
 def env_bool(name, default=False):
@@ -54,7 +69,7 @@ SECRET_KEY = os.environ.get(
 )
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool("DEBUG", True)
+DEBUG = env_bool("DEBUG", not IS_PRODUCTION)
 
 APP_ORIGIN = os.environ.get("APP_ORIGIN", "").rstrip("/")
 API_ORIGIN = os.environ.get("API_ORIGIN", "").rstrip("/")
@@ -304,6 +319,50 @@ USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 CSRF_COOKIE_SECURE = env_bool("CSRF_COOKIE_SECURE", not DEBUG)
 SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", not DEBUG)
+SESSION_COOKIE_HTTPONLY = True
+
+AUTH_REFRESH_COOKIE_NAME = os.environ.get("AUTH_REFRESH_COOKIE_NAME", "questiz_refresh")
+AUTH_REFRESH_COOKIE_PATH = os.environ.get("AUTH_REFRESH_COOKIE_PATH", "/api/auth/")
+AUTH_REFRESH_COOKIE_SECURE = env_bool("AUTH_REFRESH_COOKIE_SECURE", IS_PRODUCTION)
+AUTH_REFRESH_COOKIE_SAMESITE = os.environ.get("AUTH_REFRESH_COOKIE_SAMESITE", "Lax")
+AUTH_REFRESH_COOKIE_DOMAIN = os.environ.get("AUTH_REFRESH_COOKIE_DOMAIN", "").strip()
+AI_SECRETS_ALLOW_DATABASE = env_bool("AI_SECRETS_ALLOW_DATABASE", not IS_PRODUCTION)
+
+if IS_PRODUCTION:
+    if SECRET_KEY == "django-insecure-CHANGE-THIS-IN-PRODUCTION":
+        raise ImproperlyConfigured(
+            "DJANGO_SECRET_KEY must be set explicitly in production."
+        )
+    if DEBUG:
+        raise ImproperlyConfigured("DEBUG must be False in production.")
+
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", True)
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+        False,
+    )
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
+    SECURE_REFERRER_POLICY = os.environ.get(
+        "SECURE_REFERRER_POLICY",
+        "strict-origin-when-cross-origin",
+    )
+    SECURE_CONTENT_TYPE_NOSNIFF = env_bool("SECURE_CONTENT_TYPE_NOSNIFF", True)
+    X_FRAME_OPTIONS = os.environ.get("X_FRAME_OPTIONS", "DENY")
+else:
+    SECURE_SSL_REDIRECT = env_bool("SECURE_SSL_REDIRECT", False)
+    SECURE_HSTS_SECONDS = int(os.environ.get("SECURE_HSTS_SECONDS", "0"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
+        "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+        False,
+    )
+    SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", False)
+    SECURE_REFERRER_POLICY = os.environ.get(
+        "SECURE_REFERRER_POLICY",
+        "strict-origin-when-cross-origin",
+    )
+    SECURE_CONTENT_TYPE_NOSNIFF = env_bool("SECURE_CONTENT_TYPE_NOSNIFF", True)
+    X_FRAME_OPTIONS = os.environ.get("X_FRAME_OPTIONS", "DENY")
 
 # Stripe
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")

@@ -38,8 +38,7 @@ class SavedReportViewSet(viewsets.ModelViewSet):
 class PublicSavedReportDataView(APIView):
     permission_classes = [AllowAny]
 
-    def get(self, request, report_pk):
-        password = (request.query_params.get("password") or "").strip()
+    def _handle_request(self, request, report_pk, *, password=""):
         session_key = f"shared_report_access:{report_pk}"
         session_authorized = bool(request.session.get(session_key))
 
@@ -72,3 +71,10 @@ class PublicSavedReportDataView(APIView):
 
         payload = build_saved_report_payload(report, include_insights=True)
         return Response(payload, status=status.HTTP_200_OK)
+
+    def get(self, request, report_pk):
+        return self._handle_request(request, report_pk)
+
+    def post(self, request, report_pk):
+        password = (request.data.get("password") or "").strip()
+        return self._handle_request(request, report_pk, password=password)

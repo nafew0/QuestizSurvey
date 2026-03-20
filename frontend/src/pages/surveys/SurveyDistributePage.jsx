@@ -62,6 +62,7 @@ const DEFAULT_COLLECTORS = [
     name: 'Web Link',
     settings: {
       password_enabled: false,
+      password_configured: false,
       password: '',
       response_limit: '',
       close_date: '',
@@ -213,6 +214,7 @@ export default function SurveyDistributePage() {
 
   const [webLinkForm, setWebLinkForm] = useState({
     password_enabled: false,
+    password_configured: false,
     password: '',
     response_limit: '',
     close_date: '',
@@ -301,7 +303,8 @@ export default function SurveyDistributePage() {
 
         setWebLinkForm({
           password_enabled: Boolean(nextWebCollector?.settings?.password_enabled),
-          password: nextWebCollector?.settings?.password || '',
+          password_configured: Boolean(nextWebCollector?.settings?.password_configured),
+          password: '',
           response_limit:
             nextWebCollector?.settings?.response_limit?.toString?.() || '',
           close_date: formatDateTimeInput(nextWebCollector?.settings?.close_date),
@@ -735,6 +738,7 @@ export default function SurveyDistributePage() {
                       setWebLinkForm((current) => ({
                         ...current,
                         password_enabled: checked,
+                        password: checked ? current.password : '',
                       }))
                     }
                   />
@@ -753,9 +757,18 @@ export default function SurveyDistributePage() {
                           password: event.target.value,
                         }))
                       }
-                      placeholder="Enter access password"
+                      placeholder={
+                        webLinkForm.password_configured
+                          ? 'Leave blank to keep the existing password'
+                          : 'Enter access password'
+                      }
                       className="rounded-2xl"
                     />
+                    {webLinkForm.password_configured ? (
+                      <p className="text-xs text-muted-foreground">
+                        A password is already configured. Enter a new one only if you want to replace it.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -803,7 +816,7 @@ export default function SurveyDistributePage() {
                     saveCollectorSettings('web_link', {
                       password_enabled: webLinkForm.password_enabled,
                       password: webLinkForm.password_enabled
-                        ? webLinkForm.password
+                        ? webLinkForm.password.trim()
                         : '',
                       response_limit: webLinkForm.response_limit
                         ? Number(webLinkForm.response_limit)

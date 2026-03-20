@@ -7,52 +7,52 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 222 47.4% 11.2%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 222 47.4% 11.2%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221 83% 53%;
+    --popover-foreground: 222 47.4% 11.2%;
+    --primary: 28 91.8% 62%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 171 54% 91%;
-    --secondary-foreground: 209 51% 13%;
-    --muted: 219 100% 97%;
-    --muted-foreground: 215 28% 33%;
-    --accent: 29 100% 92%;
-    --accent-foreground: 218 57% 16%;
+    --secondary: 305 44% 95.1%;
+    --secondary-foreground: 259 30.1% 20.2%;
+    --muted: 27 100% 97.8%;
+    --muted-foreground: 332 19.4% 28.2%;
+    --accent: 300 13.5% 92.7%;
+    --accent-foreground: 247 32.5% 15.7%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 209 40% 86%;
-    --input: 191 38% 90%;
-    --ring: 221 83% 53%;
+    --border: 0 57.6% 93.5%;
+    --input: 304 40.5% 92.7%;
+    --ring: 28 91.8% 62%;
     --radius: 0.38rem;
     --app-surface-radius: 0.95rem;
     --app-control-radius: 0.78rem;
     --theme-foreground-rgb: 15 23 42;
-    --theme-primary-rgb: 37 99 235;
-    --theme-secondary-rgb: 15 118 110;
-    --theme-accent-rgb: 249 115 22;
-    --theme-primary-soft-rgb: 229 237 253;
-    --theme-primary-strong-rgb: 195 214 249;
-    --theme-primary-ink-rgb: 20 40 84;
-    --theme-secondary-soft-rgb: 231 245 243;
-    --theme-secondary-strong-rgb: 194 226 221;
-    --theme-secondary-ink-rgb: 15 40 37;
-    --theme-accent-soft-rgb: 254 241 230;
-    --theme-accent-strong-rgb: 253 214 185;
-    --theme-accent-ink-rgb: 62 33 19;
-    --theme-mix-soft-rgb: 238 243 244;
-    --theme-mix-strong-rgb: 206 219 220;
-    --theme-neutral-rgb: 246 249 250;
-    --theme-neutral-strong-rgb: 236 242 243;
-    --theme-border-rgb: 209 223 225;
-    --theme-input-rgb: 214 234 231;
-    --theme-muted-rgb: 240 245 255;
-    --theme-muted-foreground-rgb: 74 92 114;
-    --theme-shadow-rgb: 18 32 65;
-    --theme-hero-start-rgb: 229 237 253;
-    --theme-hero-end-rgb: 238 243 244;
-    --theme-hero-spot-rgb: 254 229 206;
+    --theme-primary-rgb: 247 153 69;
+    --theme-secondary-rgb: 188 94 179;
+    --theme-accent-rgb: 91 45 98;
+    --theme-primary-soft-rgb: 254 243 233;
+    --theme-primary-strong-rgb: 253 226 203;
+    --theme-primary-ink-rgb: 66 52 48;
+    --theme-secondary-soft-rgb: 248 237 247;
+    --theme-secondary-strong-rgb: 238 213 235;
+    --theme-secondary-ink-rgb: 46 36 67;
+    --theme-accent-soft-rgb: 239 234 239;
+    --theme-accent-strong-rgb: 209 196 211;
+    --theme-accent-ink-rgb: 30 27 53;
+    --theme-mix-soft-rgb: 249 242 244;
+    --theme-mix-strong-rgb: 237 220 224;
+    --theme-neutral-rgb: 253 248 248;
+    --theme-neutral-strong-rgb: 251 242 242;
+    --theme-border-rgb: 248 229 229;
+    --theme-input-rgb: 244 229 243;
+    --theme-muted-rgb: 255 249 244;
+    --theme-muted-foreground-rgb: 86 58 71;
+    --theme-shadow-rgb: 43 39 45;
+    --theme-hero-start-rgb: 254 243 233;
+    --theme-hero-end-rgb: 249 242 244;
+    --theme-hero-spot-rgb: 225 217 227;
   }
 
   .dark {
@@ -108,46 +108,46 @@
   .theme-app-gradient {
     background-image:
       radial-gradient(
-        circle at top left,
-        rgb(var(--theme-hero-start-rgb) / 0.92),
-        transparent 27%
+        circle at 14% 118%,
+        rgb(var(--theme-primary-rgb) / 0.22),
+        transparent 30%
       ),
       radial-gradient(
-        circle at bottom right,
-        rgb(var(--theme-hero-spot-rgb) / 0.72),
-        transparent 30%
+        circle at 86% 122%,
+        rgb(var(--theme-secondary-rgb) / 0.2),
+        transparent 34%
+      ),
+      radial-gradient(
+        circle at 50% 126%,
+        rgb(var(--theme-mix-strong-rgb) / 0.22),
+        transparent 44%
       ),
       linear-gradient(
         180deg,
         rgb(255 255 255) 0%,
-        rgb(var(--theme-hero-end-rgb)) 100%
+        rgb(255 255 255) 56%,
+        rgb(var(--theme-neutral-rgb)) 100%
       );
   }
 
   .theme-panel {
-    border: 1px solid rgb(var(--theme-border-rgb) / 0.82);
-    background: rgb(255 255 255 / 0.88);
+    border: 1px solid rgb(var(--theme-border-rgb) / 0.92);
+    background: rgb(255 255 255 / 0.96);
     box-shadow: 0 20px 50px rgb(var(--theme-shadow-rgb) / 0.1);
     backdrop-filter: blur(18px);
     border-radius: var(--app-surface-radius) !important;
   }
 
   .theme-panel-soft {
-    border: 1px solid rgb(var(--theme-border-rgb) / 0.76);
-    background: rgb(var(--theme-neutral-rgb) / 0.92);
+    border: 1px solid rgb(var(--theme-border-rgb) / 0.88);
+    background: rgb(255 255 255 / 0.94);
     box-shadow: 0 16px 36px rgb(var(--theme-shadow-rgb) / 0.06);
     border-radius: var(--app-surface-radius) !important;
   }
 
   .theme-sidebar {
-    border: 1px solid rgb(var(--theme-border-rgb) / 0.82);
-    background:
-      linear-gradient(
-        180deg,
-        rgb(var(--theme-primary-soft-rgb) / 0.68) 0%,
-        rgb(255 255 255 / 0.98) 20%,
-        rgb(var(--theme-secondary-soft-rgb) / 0.82) 100%
-      );
+    border: 1px solid rgb(var(--theme-border-rgb) / 0.92);
+    background: rgb(255 255 255 / 0.97);
     box-shadow: 0 18px 40px rgb(var(--theme-shadow-rgb) / 0.08);
     border-radius: var(--app-surface-radius) !important;
   }
@@ -256,7 +256,7 @@
 
   .survey-theme-shell {
     border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
-    background: rgb(var(--survey-background-rgb) / 0.76);
+    background: rgb(255 255 255 / 0.94);
     backdrop-filter: blur(10px);
     border-radius: calc(var(--survey-card-radius) + 0.05rem) !important;
     box-shadow: 0 24px 56px rgb(var(--survey-shadow-rgb) / 0.1);
@@ -264,7 +264,7 @@
 
   .survey-theme-panel {
     border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
-    background: rgb(var(--survey-panel-rgb) / 0.9);
+    background: rgb(255 255 255 / 0.95);
     box-shadow: 0 18px 44px rgb(var(--survey-shadow-rgb) / 0.08);
     backdrop-filter: blur(12px);
     border-radius: var(--survey-card-radius) !important;

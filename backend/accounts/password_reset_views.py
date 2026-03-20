@@ -76,8 +76,6 @@ class PasswordResetValidateView(APIView):
         return Response(
             {
                 "valid": True,
-                "username": user.username,
-                "email": user.email,
             },
             status=status.HTTP_200_OK,
         )

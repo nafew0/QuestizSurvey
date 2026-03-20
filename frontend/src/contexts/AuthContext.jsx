@@ -1,6 +1,10 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useState, useEffect, useContext } from 'react'
-import api from '../services/api'
+import api, {
+  clearAccessToken,
+  refreshAccessToken,
+  setAccessToken,
+} from '../services/api'
 
 const AuthContext = createContext()
 
@@ -17,23 +21,19 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Initialize auth state from localStorage
+  // Initialize auth state from the refresh cookie.
   useEffect(() => {
     const initializeAuth = async () => {
-      const accessToken = localStorage.getItem('accessToken')
-      const refreshToken = localStorage.getItem('refreshToken')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
 
-      if (accessToken && refreshToken) {
-        try {
-          // Fetch user data
-          const response = await api.get('/auth/user/')
-          setUser(response.data)
-        } catch (err) {
-          console.error('Failed to fetch user:', err)
-          // Clear invalid tokens
-          localStorage.removeItem('accessToken')
-          localStorage.removeItem('refreshToken')
-        }
+      try {
+        await refreshAccessToken()
+        const response = await api.get('/auth/user/')
+        setUser(response.data)
+      } catch (err) {
+        clearAccessToken()
+        setUser(null)
       }
       setLoading(false)
     }
@@ -42,6 +42,7 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   const clearAuthState = () => {
+    clearAccessToken()
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     setUser(null)
@@ -83,11 +84,9 @@ export const AuthProvider = ({ children }) => {
       setError(null)
       const response = await api.post('/auth/login/', { username, password })
 
-      const { user, tokens } = response.data
+      const { user, access_token: accessToken } = response.data
 
-      // Store tokens
-      localStorage.setItem('accessToken', tokens.access)
-      localStorage.setItem('refreshToken', tokens.refresh)
+      setAccessToken(accessToken)
 
       setUser(user)
       return { success: true, user }
@@ -111,15 +110,14 @@ export const AuthProvider = ({ children }) => {
 
       const {
         user,
-        tokens,
+        access_token: accessToken,
         email_verification_required: emailVerificationRequired,
         email_hint: emailHint,
         message,
       } = response.data
 
-      if (tokens?.access && tokens?.refresh) {
-        localStorage.setItem('accessToken', tokens.access)
-        localStorage.setItem('refreshToken', tokens.refresh)
+      if (accessToken) {
+        setAccessToken(accessToken)
         setUser(user)
       } else {
         clearAuthState()
@@ -157,10 +155,7 @@ export const AuthProvider = ({ children }) => {
   // Logout function
   const logout = async () => {
     try {
-      const refreshToken = localStorage.getItem('refreshToken')
-      if (refreshToken) {
-        await api.post('/auth/logout/', { refresh_token: refreshToken })
-      }
+      await api.post('/auth/logout/', {})
     } catch (err) {
       console.error('Logout error:', err)
     } finally {

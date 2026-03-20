@@ -4,22 +4,21 @@ export async function fetchPublicSurvey(
   slug,
   { resumeToken = '', invitationToken = '', accessKey = '' } = {}
 ) {
-  const params = {}
+  const payload = {}
 
   if (resumeToken) {
-    params.resume_token = resumeToken
+    payload.resume_token = resumeToken
   }
 
   if (invitationToken) {
-    params.invite = invitationToken
+    payload.invitation_token = invitationToken
   }
 
   if (accessKey) {
-    params.access_key = accessKey
+    payload.access_key = accessKey
   }
 
-  const response = await api.get(`/public/surveys/${slug}/`, {
-    params: Object.keys(params).length ? params : undefined,
+  const response = await api.post(`/public/surveys/${slug}/load/`, payload, {
     preserveAuthError: true,
   })
   return response.data

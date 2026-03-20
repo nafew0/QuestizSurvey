@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from subscriptions.services import LicenseService
 from surveys.models import Survey
+from surveys.security import normalize_access_settings, sanitize_access_settings
 from surveys.theme import normalize_survey_theme
 
 from .page_serializers import PageSerializer
@@ -63,7 +64,13 @@ class SurveyCreateUpdateSerializer(SurveyThemeSerializerMixin, serializers.Model
         normalized = dict(value or {})
         if self.instance is None and "require_login" not in normalized:
             normalized["require_login"] = LicenseService.get_logged_in_users_only_default()
-        return normalized
+        try:
+            return normalize_access_settings(
+                normalized,
+                existing_settings=self.instance.settings if self.instance is not None else None,
+            )
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
 
     class Meta:
         model = Survey
@@ -100,6 +107,11 @@ class PublicSurveySerializer(SurveyThemeSerializerMixin, serializers.ModelSerial
             "thank_you_page",
             "pages",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["settings"] = sanitize_access_settings(data.get("settings"))
+        return data
 
 
 class SurveyThemeAssetUploadSerializer(serializers.Serializer):

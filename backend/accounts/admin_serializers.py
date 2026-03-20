@@ -6,6 +6,7 @@ from subscriptions.models import SubscriptionEvent, UserSubscription
 from subscriptions.serializers import PlanSummarySerializer
 from subscriptions.services import LicenseService
 
+from .ai_secrets import get_ai_api_key_meta, is_database_ai_secret_storage_enabled
 from .models import SiteSettings
 
 User = get_user_model()
@@ -123,6 +124,7 @@ class SubscriptionEventSerializer(serializers.ModelSerializer):
 class SiteSettingsAdminSerializer(serializers.ModelSerializer):
     ai_api_key_openai_meta = serializers.SerializerMethodField()
     ai_api_key_anthropic_meta = serializers.SerializerMethodField()
+    ai_secret_storage_mode = serializers.SerializerMethodField()
 
     class Meta:
         model = SiteSettings
@@ -132,20 +134,28 @@ class SiteSettingsAdminSerializer(serializers.ModelSerializer):
             "ai_provider",
             "ai_model_openai",
             "ai_model_anthropic",
+            "ai_secret_storage_mode",
             "ai_api_key_openai_meta",
             "ai_api_key_anthropic_meta",
         ]
 
+    def get_ai_secret_storage_mode(self, obj):
+        return "database_or_environment" if is_database_ai_secret_storage_enabled() else "environment_only"
+
     def get_ai_api_key_openai_meta(self, obj):
+        meta = get_ai_api_key_meta(obj, SiteSettings.AIProvider.OPENAI)
         return {
-            "configured": bool(obj.ai_api_key_openai),
-            "masked_value": mask_secret(obj.ai_api_key_openai),
+            "configured": meta["configured"],
+            "masked_value": mask_secret(meta["value"]),
+            "source": meta["source"],
         }
 
     def get_ai_api_key_anthropic_meta(self, obj):
+        meta = get_ai_api_key_meta(obj, SiteSettings.AIProvider.ANTHROPIC)
         return {
-            "configured": bool(obj.ai_api_key_anthropic),
-            "masked_value": mask_secret(obj.ai_api_key_anthropic),
+            "configured": meta["configured"],
+            "masked_value": mask_secret(meta["value"]),
+            "source": meta["source"],
         }
 
 

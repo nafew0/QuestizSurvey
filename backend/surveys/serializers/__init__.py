@@ -26,6 +26,7 @@ from .question_serializers import (
 from .report_serializers import SavedReportSerializer
 from .response_serializers import (
     BulkDeleteResponsesSerializer,
+    PublicSurveyLoadSerializer,
     SubmitAnswerSerializer,
     SurveyResponseDetailSerializer,
     SurveyResponseSerializer,
@@ -53,6 +54,7 @@ __all__ = [
     "BulkDeleteResponsesSerializer",
     "EmailInvitationSerializer",
     "PageSerializer",
+    "PublicSurveyLoadSerializer",
     "PublicSurveySerializer",
     "SurveyLotteryDrawSerializer",
     "SurveyLotterySettingsSerializer",

@@ -1,76 +1,27 @@
-import { useState } from 'react'
-
 import { cn } from '@/lib/utils'
 
 const BRAND_LOGO_PATH = '/branding/logo.svg'
 
 export default function BrandLogo({
   className,
-  iconClassName,
   imageClassName,
-  titleClassName,
-  subtitleClassName,
-  showSubtitle = true,
-  title = 'MindSpear',
-  subtitle = 'Survey intelligence platform',
   compact = false,
 }) {
-  const [logoFailed, setLogoFailed] = useState(false)
-
   return (
-    <div className={cn('flex items-center gap-3', className)}>
-      <div
+    <div className={cn('flex items-center', className)}>
+      <img
+        src={BRAND_LOGO_PATH}
+        alt="Questiz logo"
+        loading="eager"
+        decoding="async"
         className={cn(
-          'relative flex shrink-0 items-center justify-center overflow-hidden rounded-[1.25rem] border border-[rgb(var(--theme-border-rgb)/0.9)] bg-white shadow-[0_14px_28px_rgb(var(--theme-shadow-rgb)/0.08)]',
-          compact ? 'h-10 w-10' : 'h-12 w-12',
-          iconClassName
+          'block shrink-0 object-contain [filter:drop-shadow(0_1px_1px_rgba(255,255,255,0.8))_drop-shadow(0_2px_8px_rgba(91,45,98,0.08))]',
+          compact
+            ? 'h-[1.45rem] w-[7.8rem] sm:h-[1.6rem] sm:w-[8.6rem]'
+            : 'h-[2.1rem] w-[11.4rem] sm:h-[2.35rem] sm:w-[12.8rem] lg:h-[2.55rem] lg:w-[13.9rem]',
+          imageClassName
         )}
-      >
-        {logoFailed ? (
-          <span
-            className={cn(
-              'font-black tracking-tight text-[rgb(var(--theme-primary-ink-rgb))]',
-              compact ? 'text-lg' : 'text-xl'
-            )}
-          >
-            Q
-          </span>
-        ) : (
-          <img
-            src={BRAND_LOGO_PATH}
-            alt="MindSpear logo"
-            className={cn(
-              'object-contain',
-              compact ? 'h-6 w-6' : 'h-8 w-8',
-              imageClassName
-            )}
-            onError={() => setLogoFailed(true)}
-          />
-        )}
-        <span className="absolute inset-x-2 bottom-1 h-px bg-gradient-to-r from-transparent via-[rgb(var(--theme-primary-rgb)/0.55)] to-transparent" />
-      </div>
-
-      <div className="min-w-0">
-        <p
-          className={cn(
-            'truncate font-semibold tracking-tight text-[rgb(var(--theme-primary-ink-rgb))]',
-            compact ? 'text-lg' : 'text-xl',
-            titleClassName
-          )}
-        >
-          {title}
-        </p>
-        {showSubtitle ? (
-          <p
-            className={cn(
-              'truncate text-[10px] uppercase tracking-[0.26em] text-muted-foreground',
-              subtitleClassName
-            )}
-          >
-            {subtitle}
-          </p>
-        ) : null}
-      </div>
+      />
     </div>
   )
 }

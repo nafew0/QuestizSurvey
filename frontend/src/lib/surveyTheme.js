@@ -28,12 +28,12 @@ export const SURVEY_SPACING_OPTIONS = [
 ]
 
 export const DEFAULT_SURVEY_THEME = {
-  primary_color: '#111827',
+  primary_color: '#f79945',
   background_color: '#ffffff',
-  text_color: '#111827',
+  text_color: '#5b2d62',
   font_family: 'Inter',
   button_style: 'rounded',
-  progress_bar_color: '#111827',
+  progress_bar_color: '#f79945',
   logo_url: '',
   logo_position: 'left',
   background_image_url: '',
@@ -45,7 +45,7 @@ export const SURVEY_THEME_PRESETS = [
   {
     id: 'default',
     name: 'Default',
-    description: 'Black-and-white with crisp contrast.',
+    description: 'Questiz brand colors on a clean white canvas.',
     theme: DEFAULT_SURVEY_THEME,
   },
   {
@@ -328,7 +328,6 @@ export function buildSurveyThemeCss(themeInput, selector = '.survey-theme-root')
   const muted = mixRgb(text, background, 0.96)
   const mutedForeground = mixRgb(text, background, 0.4)
   const primarySoft = mixRgb(primary, background, 0.82)
-  const heroStart = mixRgb(primary, background, 0.9)
   const heroEnd = mixRgb(text, background, 0.94)
   const shadow = mixRgb(text, background, 0.38)
   const primaryForeground = getReadableForeground(primary)
@@ -357,8 +356,9 @@ ${selector} {
     : `
 ${selector} {
   background-image:
-    radial-gradient(circle at top left, rgb(${rgbToCssValue(heroStart)} / 0.95), transparent 30%),
-    linear-gradient(180deg, rgb(${rgbToCssValue(background)}) 0%, rgb(${rgbToCssValue(heroEnd)} / 0.5) 100%);
+    radial-gradient(circle at 14% 118%, rgb(${rgbToCssValue(primarySoft)} / 0.66), transparent 28%),
+    radial-gradient(circle at 84% 122%, rgb(${rgbToCssValue(panel)} / 0.76), transparent 34%),
+    linear-gradient(180deg, rgb(${rgbToCssValue(background)}) 0%, rgb(${rgbToCssValue(background)}) 58%, rgb(${rgbToCssValue(heroEnd)} / 0.62) 100%);
 }`
 
   return `

@@ -1,5 +1,15 @@
 import axios from 'axios'
 
+let inMemoryAccessToken = ''
+const AUTH_REFRESH_EXCLUDED_PATHS = [
+  '/auth/login/',
+  '/auth/register/',
+  '/auth/token/refresh/',
+  '/auth/password-reset/',
+  '/auth/resend-verification-email/',
+  '/auth/verify-email/',
+]
+
 function resolveApiUrl() {
   const configuredUrl = import.meta.env.VITE_API_URL?.trim()
   if (!configuredUrl) {
@@ -9,6 +19,35 @@ function resolveApiUrl() {
 }
 
 export const API_URL = resolveApiUrl()
+
+export function getAccessToken() {
+  return inMemoryAccessToken
+}
+
+export function setAccessToken(token) {
+  inMemoryAccessToken = token?.trim() || ''
+}
+
+export function clearAccessToken() {
+  inMemoryAccessToken = ''
+}
+
+export async function refreshAccessToken() {
+  const response = await axios.post(
+    `${API_URL}/auth/token/refresh/`,
+    {},
+    {
+      withCredentials: true,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  )
+
+  const nextAccessToken = response.data?.access || ''
+  setAccessToken(nextAccessToken)
+  return nextAccessToken
+}
 
 export function resolveApiAssetUrl(value) {
   if (!value) {
@@ -48,8 +87,9 @@ const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
-    const accessToken = localStorage.getItem('accessToken')
+    const accessToken = getAccessToken()
     if (accessToken) {
+      config.headers = config.headers || {}
       config.headers.Authorization = `Bearer ${accessToken}`
     }
     return config
@@ -65,38 +105,28 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
     const preserveAuthError = Boolean(originalRequest?.preserveAuthError)
+    const skipAuthRefresh =
+      Boolean(originalRequest?.skipAuthRefresh) ||
+      AUTH_REFRESH_EXCLUDED_PATHS.some((path) => originalRequest?.url?.includes(path))
 
     // If error is 401 and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest._retry && !skipAuthRefresh) {
       originalRequest._retry = true
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken')
-
-        if (!refreshToken) {
+        const accessToken = await refreshAccessToken()
+        if (!accessToken) {
           return Promise.reject(error)
         }
 
-        // Try to refresh the token
-        const response = await axios.post(
-          `${API_URL}/auth/token/refresh/`,
-          { refresh: refreshToken }
-        )
-
-        const { access } = response.data
-
-        // Update stored token
-        localStorage.setItem('accessToken', access)
-
         // Update the failed request with new token
-        originalRequest.headers.Authorization = `Bearer ${access}`
+        originalRequest.headers = originalRequest.headers || {}
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
 
         // Retry the original request
         return api(originalRequest)
       } catch (refreshError) {
-        // Refresh failed, clear tokens and redirect to login
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
+        clearAccessToken()
         if (!preserveAuthError) {
           window.location.href = '/login'
           return Promise.reject(refreshError)

@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from surveys.models import Collector, EmailInvitation
+from surveys.security import normalize_access_settings, sanitize_access_settings
 
 
 def parse_email_lines(values):
@@ -21,6 +22,30 @@ def parse_email_lines(values):
 
 
 class CollectorSerializer(serializers.ModelSerializer):
+    def validate_settings(self, value):
+        collector_type = (
+            self.instance.type
+            if self.instance is not None
+            else self.initial_data.get("type")
+            or self.context.get("collector_type")
+        )
+        if collector_type != Collector.CollectorType.WEB_LINK:
+            return value
+
+        try:
+            return normalize_access_settings(
+                value,
+                existing_settings=self.instance.settings if self.instance is not None else None,
+            )
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.type == Collector.CollectorType.WEB_LINK:
+            data["settings"] = sanitize_access_settings(instance.settings)
+        return data
+
     class Meta:
         model = Collector
         fields = ["id", "survey", "type", "name", "status", "settings", "created_at"]

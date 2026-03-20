@@ -461,3 +461,9 @@ class SubmitAnswerSerializer(serializers.Serializer):
             )
 
         return response
+
+
+class PublicSurveyLoadSerializer(serializers.Serializer):
+    invitation_token = serializers.CharField(required=False, allow_blank=True)
+    access_key = serializers.CharField(required=False, allow_blank=True)
+    resume_token = serializers.CharField(required=False, allow_blank=True)

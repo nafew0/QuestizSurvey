@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
   ArrowLeft,
@@ -32,6 +32,42 @@ import {
   setRespondedCookie,
   validateSurveyPage,
 } from '@/utils/publicSurvey'
+
+const PUBLIC_SURVEY_STORAGE_PREFIX = 'questiz-public-survey'
+
+function getSurveyStorageKey(slug, key) {
+  return `${PUBLIC_SURVEY_STORAGE_PREFIX}:${slug}:${key}`
+}
+
+function readSurveyStorageValue(slug, key) {
+  if (typeof window === 'undefined') {
+    return ''
+  }
+  return window.sessionStorage.getItem(getSurveyStorageKey(slug, key)) || ''
+}
+
+function writeSurveyStorageValue(slug, key, value) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const storageKey = getSurveyStorageKey(slug, key)
+  if (value) {
+    window.sessionStorage.setItem(storageKey, value)
+    return
+  }
+  window.sessionStorage.removeItem(storageKey)
+}
+
+function readPublicLinkHash(hashValue) {
+  const rawHash = (hashValue || '').replace(/^#/, '')
+  const params = new URLSearchParams(rawHash)
+
+  return {
+    resume: params.get('resume')?.trim() || '',
+    invite: params.get('invite')?.trim() || '',
+  }
+}
 
 const BLOCKED_STATE_MAP = {
   already_completed: {
@@ -247,7 +283,9 @@ function LoginRequiredGate({ surveyTitle, redirectTarget }) {
 
 export default function PublicSurveyPage() {
   const { slug = '' } = useParams()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { activeColors } = useSiteTheme()
   const { toast } = useToast()
 
@@ -259,23 +297,24 @@ export default function PublicSurveyPage() {
   const [stage, setStage] = useState('loading')
   const [pageHistory, setPageHistory] = useState([])
   const [resumeToken, setResumeToken] = useState('')
+  const hashTokens = useMemo(() => readPublicLinkHash(location.hash), [location.hash])
+  const queryResumeParam = searchParams.get('resume')?.trim() || ''
+  const queryInviteParam = searchParams.get('invite')?.trim() || ''
+  const [resumeLookupToken, setResumeLookupToken] = useState(
+    () => hashTokens.resume || queryResumeParam || readSurveyStorageValue(slug, 'resume')
+  )
+  const [invitationToken, setInvitationToken] = useState(
+    () => hashTokens.invite || queryInviteParam || readSurveyStorageValue(slug, 'invite')
+  )
   const [blockedState, setBlockedState] = useState(null)
   const [loginRequiredState, setLoginRequiredState] = useState(null)
   const [disqualifyMessage, setDisqualifyMessage] = useState('')
   const [accessKey, setAccessKey] = useState('')
   const [passwordDraft, setPasswordDraft] = useState('')
   const [passwordError, setPasswordError] = useState('')
-  const skipSearchReloadRef = useRef(false)
-
-  const resumeParam = searchParams.get('resume')?.trim() || ''
-  const inviteParam = searchParams.get('invite')?.trim() || ''
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
-  const redirectTarget = useMemo(() => {
-    const params = new URLSearchParams(searchParams)
-    const query = params.toString()
-    return query ? `/s/${slug}?${query}` : `/s/${slug}`
-  }, [searchParams, slug])
+  const redirectTarget = useMemo(() => `/s/${slug}`, [slug])
 
   const surveyTheme = useMemo(
     () =>
@@ -303,28 +342,55 @@ export default function PublicSurveyPage() {
     [survey?.pages]
   )
 
-  const syncResumeParam = useCallback(
-    (nextToken) => {
-      skipSearchReloadRef.current = true
-      const params = new URLSearchParams(window.location.search)
-
-      if (nextToken) {
-        params.set('resume', nextToken)
-      } else {
-        params.delete('resume')
-      }
-
-      setSearchParams(params, { replace: true })
-    },
-    [setSearchParams]
-  )
+  useEffect(() => {
+    setInvitationToken(
+      hashTokens.invite || queryInviteParam || readSurveyStorageValue(slug, 'invite')
+    )
+    setResumeLookupToken(
+      hashTokens.resume || queryResumeParam || readSurveyStorageValue(slug, 'resume')
+    )
+  }, [hashTokens.invite, hashTokens.resume, queryInviteParam, queryResumeParam, slug])
 
   useEffect(() => {
-    if (skipSearchReloadRef.current) {
-      skipSearchReloadRef.current = false
+    writeSurveyStorageValue(slug, 'invite', invitationToken)
+  }, [invitationToken, slug])
+
+  useEffect(() => {
+    writeSurveyStorageValue(slug, 'resume', resumeLookupToken)
+  }, [resumeLookupToken, slug])
+
+  useEffect(() => {
+    if (
+      !hashTokens.invite &&
+      !hashTokens.resume &&
+      !queryInviteParam &&
+      !queryResumeParam
+    ) {
       return
     }
 
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('invite')
+    nextParams.delete('resume')
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextParams.toString() ? `?${nextParams.toString()}` : '',
+        hash: '',
+      },
+      { replace: true }
+    )
+  }, [
+    hashTokens.invite,
+    hashTokens.resume,
+    location.pathname,
+    navigate,
+    queryInviteParam,
+    queryResumeParam,
+    searchParams,
+  ])
+
+  useEffect(() => {
     let cancelled = false
 
     const loadSurvey = async () => {
@@ -335,8 +401,8 @@ export default function PublicSurveyPage() {
 
       try {
         const responseData = await fetchPublicSurvey(slug, {
-          resumeToken: resumeParam,
-          invitationToken: inviteParam,
+          resumeToken: resumeLookupToken,
+          invitationToken,
           accessKey,
         })
         if (cancelled) {
@@ -349,7 +415,7 @@ export default function PublicSurveyPage() {
           : buildInitialPublicAnswers(nextSurvey)
 
         const nextResumeToken =
-          responseData.response?.resume_token || resumeParam || ''
+          responseData.response?.resume_token || resumeLookupToken || ''
         const nextHistory = responseData.response
           ? buildResumePageHistory(
               nextSurvey,
@@ -365,15 +431,17 @@ export default function PublicSurveyPage() {
         setErrors({})
         setDisqualifyMessage('')
         setResumeToken(nextResumeToken)
+        setResumeLookupToken(nextResumeToken)
         setPageHistory(nextHistory)
         setPasswordError('')
+        setPasswordDraft('')
+        setAccessKey('')
 
         if (responseData.response?.status === 'completed') {
           setRespondedCookie(nextSurvey.slug)
           setStage('thankyou')
-          if (resumeParam) {
-            syncResumeParam('')
-          }
+          setResumeToken('')
+          setResumeLookupToken('')
         } else if (!nextSurvey.pages.length) {
           setStage('thankyou')
         } else if (responseData.response || !nextSurvey.welcome_page?.enabled) {
@@ -408,7 +476,7 @@ export default function PublicSurveyPage() {
 
         setSurvey(null)
         setStage('blocked')
-        setBlockedState(getBlockedState(error, resumeParam))
+        setBlockedState(getBlockedState(error, resumeLookupToken))
       } finally {
         if (!cancelled) {
           setLoading(false)
@@ -421,7 +489,7 @@ export default function PublicSurveyPage() {
     return () => {
       cancelled = true
     }
-  }, [accessKey, inviteParam, resumeParam, slug, syncResumeParam])
+  }, [accessKey, invitationToken, resumeLookupToken, slug])
 
   useEffect(() => {
     if (stage === 'loading') {
@@ -465,7 +533,7 @@ export default function PublicSurveyPage() {
         status: nextStatus,
         current_page: currentPageId || null,
         answers: serializePublicAnswers(survey, answers),
-        invitation_token: inviteParam || undefined,
+        invitation_token: invitationToken || undefined,
         access_key: accessKey || undefined,
       }
 
@@ -484,13 +552,13 @@ export default function PublicSurveyPage() {
 
       if (nextToken) {
         setResumeToken(nextToken)
+        setResumeLookupToken(nextToken)
       }
 
       if (nextStatus === 'completed') {
         setRespondedCookie(survey.slug)
-        syncResumeParam('')
-      } else if (nextToken && resumeParam !== nextToken) {
-        syncResumeParam(nextToken)
+        setResumeToken('')
+        setResumeLookupToken('')
       }
 
       if (showSavedToast) {
@@ -503,10 +571,12 @@ export default function PublicSurveyPage() {
 
       if (copyResumeLink && nextToken) {
         const resumeUrl = new URL(`${window.location.origin}/s/${survey.slug}`)
-        resumeUrl.searchParams.set('resume', nextToken)
-        if (inviteParam) {
-          resumeUrl.searchParams.set('invite', inviteParam)
+        const hashParams = new URLSearchParams()
+        hashParams.set('resume', nextToken)
+        if (invitationToken) {
+          hashParams.set('invite', invitationToken)
         }
+        resumeUrl.hash = hashParams.toString()
 
         try {
           await navigator.clipboard.writeText(resumeUrl.toString())
@@ -518,7 +588,7 @@ export default function PublicSurveyPage() {
         } catch (error) {
           toast({
             title: 'Progress saved',
-            description: 'Copy the resume link directly from your browser address bar.',
+            description: 'Clipboard access was blocked. Please try copying the resume link again.',
             variant: 'info',
           })
         }
@@ -533,7 +603,7 @@ export default function PublicSurveyPage() {
         })
       } else if ([403, 404, 410].includes(error?.response?.status)) {
         setStage('blocked')
-        setBlockedState(getBlockedState(error, resumeToken || resumeParam))
+        setBlockedState(getBlockedState(error, resumeToken || resumeLookupToken))
       } else {
         toast({
           title: 'Save failed',

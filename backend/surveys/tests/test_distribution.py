@@ -163,8 +163,29 @@ class DistributionTests(TestCase):
         self.assertEqual(blocked.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(blocked.data["code"], "password_required")
 
-        allowed = self.public_client.get(
-            f"/api/public/surveys/{self.survey.slug}/",
+        allowed = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/load/",
             {"access_key": "secret123"},
+            format="json",
         )
         self.assertEqual(allowed.status_code, status.HTTP_200_OK)
+
+    def test_owner_web_link_update_hashes_password_and_hides_raw_value(self):
+        response = self.authenticated_client.patch(
+            f"/api/surveys/{self.survey.id}/collectors/{self.web_collector.id}/",
+            {
+                "settings": {
+                    "password_enabled": True,
+                    "password": "Secret456!",
+                }
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["settings"]["password"], "")
+        self.assertTrue(response.data["settings"]["password_configured"])
+
+        self.web_collector.refresh_from_db()
+        self.assertNotIn("password", self.web_collector.settings)
+        self.assertIn("password_hash", self.web_collector.settings)

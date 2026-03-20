@@ -76,8 +76,10 @@ class SaveAndContinueTests(TestCase):
         resume_token = start_response.data["resume_token"]
         survey_response_id = start_response.data["id"]
 
-        resume_response = self.public_client.get(
-            f"/api/public/surveys/{self.survey.slug}/?resume_token={resume_token}"
+        resume_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/load/",
+            {"resume_token": resume_token},
+            format="json",
         )
         self.assertEqual(resume_response.status_code, status.HTTP_200_OK)
         self.assertEqual(
@@ -159,8 +161,10 @@ class SaveAndContinueTests(TestCase):
 
         resume_token = start_response.data["resume_token"]
 
-        resume_response = self.public_client.get(
-            f"/api/public/surveys/{self.survey.slug}/?resume_token={resume_token}"
+        resume_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/load/",
+            {"resume_token": resume_token},
+            format="json",
         )
         self.assertEqual(resume_response.status_code, status.HTTP_200_OK)
         answer_lookup = {

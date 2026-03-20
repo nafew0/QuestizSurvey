@@ -1,5 +1,10 @@
 const WHITE_RGB = { r: 255, g: 255, b: 255 }
 const FOREGROUND_RGB = { r: 15, g: 23, b: 42 }
+const DEFAULT_SITE_COLORS = {
+  primary: '#f79945',
+  secondary: '#bc5eb3',
+  accent: '#5b2d62',
+}
 
 export const SITE_THEME_STORAGE_KEY = 'questiz-site-theme'
 
@@ -8,13 +13,9 @@ export const DEFAULT_SITE_THEME_ID = 'quest-default'
 export const SITE_THEME_PRESETS = [
   {
     id: 'quest-default',
-    name: 'Quest Default',
-    description: 'Blue, teal, and orange.',
-    colors: {
-      primary: '#2563eb',
-      secondary: '#0f766e',
-      accent: '#f97316',
-    },
+    name: 'Questiz Core',
+    description: 'Apricot and orchid with a deep plum accent.',
+    colors: DEFAULT_SITE_COLORS,
   },
   {
     id: 'citrus-studio',
@@ -66,7 +67,7 @@ function round(value, digits = 1) {
   return Number(value.toFixed(digits))
 }
 
-export function normalizeHex(value, fallback = '#2563eb') {
+export function normalizeHex(value, fallback = DEFAULT_SITE_COLORS.primary) {
   if (!value) {
     return fallback
   }

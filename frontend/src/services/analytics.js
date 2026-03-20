@@ -112,8 +112,6 @@ export async function fetchExportJob(surveyId, jobId) {
 }
 
 export async function fetchPublicReportData(reportId, password = '') {
-  const response = await api.get(`/reports/${reportId}/data/`, {
-    params: password ? { password } : undefined,
-  })
+  const response = await api.post(`/reports/${reportId}/data/`, password ? { password } : {})
   return response.data
 }

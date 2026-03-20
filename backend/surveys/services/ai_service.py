@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from urllib import error, request
 
+from accounts.ai_secrets import get_ai_api_key
 from accounts.models import SiteSettings
 
 
@@ -56,10 +57,7 @@ class AIService:
 
     def get_provider_config(self):
         if self.provider == SiteSettings.AIProvider.OPENAI:
-            api_key = (
-                os.environ.get("OPENAI_API_KEY", "").strip()
-                or self.settings.ai_api_key_openai.strip()
-            )
+            api_key = get_ai_api_key(self.settings, SiteSettings.AIProvider.OPENAI)
             model = (
                 self.settings.ai_model_openai.strip()
                 or os.environ.get("OPENAI_RESPONSES_MODEL", "").strip()
@@ -71,10 +69,7 @@ class AIService:
             return AIProviderConfig("openai", model, api_key)
 
         if self.provider == SiteSettings.AIProvider.ANTHROPIC:
-            api_key = (
-                os.environ.get("ANTHROPIC_API_KEY", "").strip()
-                or self.settings.ai_api_key_anthropic.strip()
-            )
+            api_key = get_ai_api_key(self.settings, SiteSettings.AIProvider.ANTHROPIC)
             model = (
                 self.settings.ai_model_anthropic.strip()
                 or os.environ.get("ANTHROPIC_MODEL", "").strip()

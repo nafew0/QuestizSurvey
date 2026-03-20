@@ -12,9 +12,11 @@ from django.db.models import Prefetch
 
 from subscriptions.services import LicenseService
 from surveys.models import Answer, Collector, EmailInvitation, Survey, SurveyResponse
+from surveys.security import check_public_link_password, has_public_link_password
 from surveys.services import ResponseFilterService
 from surveys.serializers import (
     BulkDeleteResponsesSerializer,
+    PublicSurveyLoadSerializer,
     PublicSurveySerializer,
     SubmitAnswerSerializer,
     SurveyResponseDetailSerializer,
@@ -166,11 +168,21 @@ class PublicSurveyView(APIView):
         return invitation
 
     def get_access_key(self, request):
-        return (
-            request.query_params.get("access_key")
-            or request.data.get("access_key")
-            or ""
-        ).strip()
+        return (request.data.get("access_key") or "").strip()
+
+    def get_password_session_key(self, survey, collector):
+        collector_key = str(collector.id) if collector else "survey"
+        return f"public_survey_access:{survey.id}:{collector_key}"
+
+    def is_password_session_authorized(self, request, survey, collector):
+        if not request:
+            return False
+        return bool(request.session.get(self.get_password_session_key(survey, collector)))
+
+    def authorize_password_session(self, request, survey, collector):
+        if not request or not collector:
+            return
+        request.session[self.get_password_session_key(survey, collector)] = True
 
     def get_public_block(
         self,
@@ -181,6 +193,7 @@ class PublicSurveyView(APIView):
         survey_response=None,
         request=None,
         access_key="",
+        session_authorized=False,
     ):
         if survey.status != Survey.Status.ACTIVE:
             return self.build_block_response(
@@ -207,16 +220,15 @@ class PublicSurveyView(APIView):
                     "invalid_resume",
                 )
 
-        password = (settings.get("password") or "").strip()
-        if settings.get("password_enabled") and password:
-            if not access_key:
+        if settings.get("password_enabled") and has_public_link_password(settings):
+            if not access_key and not session_authorized:
                 return self.build_block_response(
                     "This survey link is password protected.",
                     status.HTTP_403_FORBIDDEN,
                     "password_required",
                 )
 
-            if access_key != password:
+            if access_key and not check_public_link_password(settings, access_key):
                 return self.build_block_response(
                     "The password for this survey link is incorrect.",
                     status.HTTP_403_FORBIDDEN,
@@ -293,17 +305,23 @@ class PublicSurveyView(APIView):
         )
         return response
 
-    def get(self, request, slug):
+    def load_public_survey(
+        self,
+        request,
+        slug,
+        *,
+        invitation_token="",
+        resume_token="",
+        access_key="",
+    ):
         survey = self.get_survey(slug)
-        invite_token = request.query_params.get("invite")
-        invitation = self.get_requested_invitation(survey, invite_token)
-        if invite_token and not invitation:
+        invitation = self.get_requested_invitation(survey, invitation_token)
+        if invitation_token and not invitation:
             return self.build_block_response(
                 "This invitation link is invalid.",
                 status.HTTP_404_NOT_FOUND,
                 "invalid_invitation",
             )
-        resume_token = request.query_params.get("resume_token")
         survey_response = None
 
         if resume_token:
@@ -329,10 +347,18 @@ class PublicSurveyView(APIView):
             resume_token=resume_token,
             survey_response=survey_response,
             request=request,
-            access_key=self.get_access_key(request),
+            access_key=access_key,
+            session_authorized=self.is_password_session_authorized(
+                request,
+                survey,
+                collector,
+            ),
         )
         if block_response:
             return block_response
+
+        if access_key and collector:
+            self.authorize_password_session(request, survey, collector)
 
         serializer = PublicSurveySerializer(survey)
         response_data = serializer.data
@@ -343,6 +369,9 @@ class PublicSurveyView(APIView):
             ).data
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+    def get(self, request, slug):
+        return self.load_public_survey(request, slug)
 
     def post(self, request, slug):
         survey = self.get_survey(slug)
@@ -355,9 +384,17 @@ class PublicSurveyView(APIView):
             collector,
             request=request,
             access_key=self.get_access_key(request),
+            session_authorized=self.is_password_session_authorized(
+                request,
+                survey,
+                collector,
+            ),
         )
         if block_response:
             return block_response
+
+        if self.get_access_key(request) and collector:
+            self.authorize_password_session(request, survey, collector)
 
         serializer = SubmitAnswerSerializer(
             data=request.data,
@@ -425,9 +462,17 @@ class PublicSurveyView(APIView):
             survey_response=survey_response,
             request=request,
             access_key=self.get_access_key(request),
+            session_authorized=self.is_password_session_authorized(
+                request,
+                survey,
+                collector,
+            ),
         )
         if block_response:
             return block_response
+
+        if self.get_access_key(request) and collector:
+            self.authorize_password_session(request, survey, collector)
 
         serializer = SubmitAnswerSerializer(
             data=request.data,
@@ -470,3 +515,18 @@ class PublicSurveyView(APIView):
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
         return request.META.get("REMOTE_ADDR")
+
+
+class PublicSurveyLoadView(PublicSurveyView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, slug):
+        serializer = PublicSurveyLoadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return self.load_public_survey(
+            request,
+            slug,
+            invitation_token=serializer.validated_data.get("invitation_token", ""),
+            resume_token=serializer.validated_data.get("resume_token", ""),
+            access_key=serializer.validated_data.get("access_key", ""),
+        )

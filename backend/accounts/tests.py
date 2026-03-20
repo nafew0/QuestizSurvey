@@ -3,6 +3,7 @@ from decimal import Decimal
 import re
 from unittest.mock import patch
 
+from django.conf import settings
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.admin.sites import AdminSite
@@ -89,6 +90,7 @@ class AccountsAuthFlowTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertNotIn("tokens", response.data)
+        self.assertNotIn("access_token", response.data)
         self.assertTrue(response.data["email_verification_required"])
         self.assertEqual(response.data["user"]["email_verified"], False)
 
@@ -112,7 +114,8 @@ class AccountsAuthFlowTestCase(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertFalse(response.data["email_verification_required"])
-        self.assertIn("tokens", response.data)
+        self.assertIn("access_token", response.data)
+        self.assertIn(settings.AUTH_REFRESH_COOKIE_NAME, response.cookies)
         self.assertTrue(User.objects.get(username="openuser").email_verified)
         self.assertEqual(len(mail.outbox), 0)
 
@@ -137,7 +140,8 @@ class AccountsAuthFlowTestCase(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIn("tokens", response.data)
+        self.assertIn("access_token", response.data)
+        self.assertIn(settings.AUTH_REFRESH_COOKIE_NAME, response.cookies)
         self.assertIn("user", response.data)
 
     def test_user_login_success_with_email(self):
@@ -648,6 +652,19 @@ class AdminApiTests(TestCase):
         self.assertEqual(settings_obj.ai_provider, "anthropic")
         self.assertEqual(settings_obj.ai_api_key_anthropic, "sk-ant-updated-9999")
 
+    @override_settings(AI_SECRETS_ALLOW_DATABASE=False)
+    def test_admin_settings_rejects_ai_key_writes_when_environment_only(self):
+        self.authenticate_admin()
+
+        response = self.client.patch(
+            "/api/admin/settings/",
+            {"ai_api_key_openai": "sk-live-should-not-store"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("environment variables", response.data["detail"])
+
     @patch.object(AITestService, "test_connection")
     def test_admin_test_ai_does_not_persist_unsaved_values(self, test_connection_mock):
         SiteSettings.objects.update_or_create(
@@ -764,6 +781,7 @@ class AdminApiTests(TestCase):
         )
 
         self.assertEqual(validate_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(validate_response.data, {"valid": True})
         self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("UpdatedPass123!"))

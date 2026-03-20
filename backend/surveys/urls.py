@@ -6,6 +6,7 @@ from surveys.views import (
     EmailOpenTrackingView,
     ExportJobViewSet,
     PageViewSet,
+    PublicSurveyLoadView,
     PublicSurveyView,
     PublicSavedReportDataView,
     QuestionViewSet,
@@ -202,6 +203,11 @@ urlpatterns = [
         "reports/<uuid:report_pk>/data/",
         PublicSavedReportDataView.as_view(),
         name="public-report-data",
+    ),
+    path(
+        "public/surveys/<slug:slug>/load/",
+        PublicSurveyLoadView.as_view(),
+        name="public-survey-load",
     ),
     path(
         "public/surveys/<slug:slug>/", PublicSurveyView.as_view(), name="public-survey"

@@ -54,7 +54,15 @@ export default function AdminSettings() {
   const handleSave = async () => {
     setSaving(true)
     try {
-      await updateAdminSettings(formState)
+      const payload = { ...formState }
+      if (!payload.ai_api_key_openai.trim()) {
+        delete payload.ai_api_key_openai
+      }
+      if (!payload.ai_api_key_anthropic.trim()) {
+        delete payload.ai_api_key_anthropic
+      }
+
+      await updateAdminSettings(payload)
       await queryClient.invalidateQueries({ queryKey: ['admin-settings'] })
       toast({
         title: 'Settings saved',
@@ -113,6 +121,8 @@ export default function AdminSettings() {
     return <div className="theme-panel rounded-[1.8rem] p-6 text-sm text-rose-600">Questiz could not load settings right now.</div>
   }
 
+  const environmentOnlySecrets = data.ai_secret_storage_mode === 'environment_only'
+
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
       <Card className="theme-panel rounded-[1.8rem] border-0">
@@ -148,7 +158,10 @@ export default function AdminSettings() {
       <Card className="theme-panel rounded-[1.8rem] border-0">
         <CardHeader>
           <CardTitle>AI provider configuration</CardTitle>
-          <CardDescription>Provider selection, default model, and masked secret handling.</CardDescription>
+          <CardDescription>
+            Provider selection, default model, and masked secret handling.
+            {environmentOnlySecrets ? ' This environment only accepts AI keys from server environment variables.' : ''}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-3 md:grid-cols-2">
@@ -187,14 +200,16 @@ export default function AdminSettings() {
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Stored key: {data.ai_api_key_openai_meta.masked_value || 'Not configured'}
+                {data.ai_api_key_openai_meta.source === 'environment' ? 'Environment key' : 'Stored key'}:{' '}
+                {data.ai_api_key_openai_meta.masked_value || 'Not configured'}
               </p>
               <Input
                 className="mt-3"
                 type="password"
                 value={formState.ai_api_key_openai}
                 onChange={(event) => handleChange('ai_api_key_openai', event.target.value)}
-                placeholder="Replace OpenAI API key"
+                placeholder={environmentOnlySecrets ? 'Set OPENAI_API_KEY on the server' : 'Replace OpenAI API key'}
+                disabled={environmentOnlySecrets}
               />
             </div>
 
@@ -206,14 +221,16 @@ export default function AdminSettings() {
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Stored key: {data.ai_api_key_anthropic_meta.masked_value || 'Not configured'}
+                {data.ai_api_key_anthropic_meta.source === 'environment' ? 'Environment key' : 'Stored key'}:{' '}
+                {data.ai_api_key_anthropic_meta.masked_value || 'Not configured'}
               </p>
               <Input
                 className="mt-3"
                 type="password"
                 value={formState.ai_api_key_anthropic}
                 onChange={(event) => handleChange('ai_api_key_anthropic', event.target.value)}
-                placeholder="Replace Anthropic API key"
+                placeholder={environmentOnlySecrets ? 'Set ANTHROPIC_API_KEY on the server' : 'Replace Anthropic API key'}
+                disabled={environmentOnlySecrets}
               />
             </div>
           </div>

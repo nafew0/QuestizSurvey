@@ -106,9 +106,10 @@ class SharedReportsApiTests(TestCase):
         self.assertEqual(locked_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(locked_response.data["code"], "password_required")
 
-        unlocked_response = public_client.get(
+        unlocked_response = public_client.post(
             f"/api/reports/{report.id}/data/",
             {"password": "Opensesame"},
+            format="json",
         )
         self.assertEqual(unlocked_response.status_code, status.HTTP_200_OK)
         self.assertEqual(unlocked_response.data["report"]["name"], "Board pack")

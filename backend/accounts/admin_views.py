@@ -17,6 +17,7 @@ from subscriptions.admin_services import AdminPaymentsService
 from subscriptions.models import Plan, SubscriptionEvent
 from subscriptions.services import LicenseService
 
+from .ai_secrets import get_ai_api_key, is_database_ai_secret_storage_enabled
 from .admin_serializers import (
     AITestRequestSerializer,
     AdminSubscriptionSummarySerializer,
@@ -364,6 +365,20 @@ class AdminSettingsView(APIView):
         serializer = SiteSettingsUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
+        if (
+            not is_database_ai_secret_storage_enabled()
+            and any(
+                field.startswith("ai_api_key_") and (value or "").strip()
+                for field, value in serializer.validated_data.items()
+            )
+        ):
+            return Response(
+                {
+                    "detail": "AI API keys must be configured with environment variables in production."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         settings_obj = get_site_settings()
         for field, value in serializer.validated_data.items():
             if field.startswith("ai_api_key_"):
@@ -390,11 +405,9 @@ class AdminSettingsTestAIView(APIView):
                 else settings_obj.ai_model_anthropic
             ),
             "api_key": request.data.get("api_key")
-            or (
-                settings_obj.ai_api_key_openai
-                if (request.data.get("provider") or settings_obj.ai_provider)
-                == SiteSettings.AIProvider.OPENAI
-                else settings_obj.ai_api_key_anthropic
+            or get_ai_api_key(
+                settings_obj,
+                request.data.get("provider") or settings_obj.ai_provider,
             ),
         }
         serializer = AITestRequestSerializer(data=payload)
