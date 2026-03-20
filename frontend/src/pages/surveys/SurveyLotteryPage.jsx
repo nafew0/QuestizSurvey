@@ -591,10 +591,7 @@ export default function SurveyLotteryPage() {
 
                 {celebrationDraw ? (
                   <div className="pointer-events-none absolute inset-3 z-30 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-[2.5rem] bg-[radial-gradient(circle,rgba(250,204,21,0.3),rgba(255,255,255,0.06)_44%,rgba(15,23,42,0.56))] backdrop-blur-[4px]" />
-                    <div className="absolute left-8 top-8 h-28 w-28 rounded-full bg-amber-300/30 blur-3xl animate-ping" />
-                    <div className="absolute bottom-10 right-10 h-24 w-24 rounded-full bg-rose-300/26 blur-3xl animate-ping" />
-                    <div className="absolute right-20 top-16 h-16 w-16 rounded-full bg-sky-300/22 blur-2xl animate-ping" />
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-[rgba(15,23,42,0.58)]" />
                     <div className="relative w-full max-w-2xl rounded-[2.35rem] border border-white/20 bg-white/94 px-8 py-10 text-center shadow-[0_32px_100px_rgba(15,23,42,0.34)] sm:px-10 sm:py-12">
                       <Badge variant="success">Winner locked</Badge>
                       <div className="mx-auto mt-5 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-[rgb(var(--theme-primary-soft-rgb)/0.72)] shadow-[0_18px_40px_rgba(251,191,36,0.26)]">
@@ -684,7 +681,7 @@ export default function SurveyLotteryPage() {
                         key={slot}
                         className={`rounded-[1.45rem] border px-4 py-4 ${
                           winner
-                            ? 'border-amber-200 bg-[linear-gradient(160deg,rgba(251,191,36,0.14),rgba(255,255,255,0.96))]'
+                            ? 'border-amber-200 bg-amber-50'
                             : 'border-[rgb(var(--theme-border-rgb)/0.72)] bg-white'
                         }`}
                       >

@@ -62,7 +62,7 @@ export default function LotteryWheel({
 
   if (!entries.length) {
     return (
-      <div className="relative aspect-square min-h-[490px] w-full overflow-hidden rounded-[2.75rem] border border-[rgb(var(--theme-border-rgb)/0.75)] bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.24),_transparent_42%),linear-gradient(160deg,_rgba(15,23,42,0.98),_rgba(30,41,59,0.94))] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
+      <div className="relative aspect-square min-h-[490px] w-full overflow-hidden rounded-[2.75rem] border border-[rgb(var(--theme-border-rgb)/0.75)] bg-[rgb(15_23_42)] p-6 text-white shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
         <div className="absolute inset-6 rounded-[2.2rem] border border-white/10" />
         <div className="relative flex h-full flex-col items-center justify-center text-center">
           <div className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-white/70">
@@ -85,7 +85,7 @@ export default function LotteryWheel({
   const maxLabelChars = Math.max(7, Math.floor(22 - entries.length * 0.28))
 
   return (
-    <div className="relative aspect-square min-h-[490px] w-full overflow-hidden rounded-[2.75rem] border border-[rgb(var(--theme-border-rgb)/0.75)] bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.22),_transparent_42%),linear-gradient(160deg,_rgba(15,23,42,0.98),_rgba(30,41,59,0.94))] p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
+    <div className="relative aspect-square min-h-[490px] w-full overflow-hidden rounded-[2.75rem] border border-[rgb(var(--theme-border-rgb)/0.75)] bg-[rgb(15_23_42)] p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
       <div className="absolute inset-4 rounded-[2.35rem] border border-white/10" />
       <div className="absolute inset-x-0 top-4 flex justify-center">
         <div className="rounded-full border border-white/12 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-white/72 backdrop-blur">
@@ -96,7 +96,6 @@ export default function LotteryWheel({
       <div className="absolute left-1/2 top-[4.8rem] z-20 h-0 w-0 -translate-x-1/2 border-l-[18px] border-r-[18px] border-t-[30px] border-l-transparent border-r-transparent border-t-amber-300 drop-shadow-[0_12px_28px_rgba(245,158,11,0.45)]" />
 
       <div className="relative flex h-full items-center justify-center">
-        <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,_rgba(251,191,36,0.14),_transparent_56%)] blur-2xl" />
         <svg
           viewBox="0 0 100 100"
           className="relative h-full w-full max-h-[705px] max-w-[705px] drop-shadow-[0_24px_60px_rgba(15,23,42,0.35)]"

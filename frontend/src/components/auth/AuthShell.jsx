@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 function MediaFallback() {
   return (
     <div className="relative overflow-hidden rounded-[1.55rem_2.25rem_1.55rem_1.55rem] border border-white/50 bg-white/70 p-5 shadow-[0_24px_60px_rgb(var(--theme-shadow-rgb)/0.14)] backdrop-blur">
-      <div className="absolute inset-x-8 top-0 h-24 rounded-b-[2rem] bg-[linear-gradient(180deg,rgb(var(--theme-primary-rgb)/0.15),transparent)]" />
+      <div className="absolute inset-x-8 top-0 h-20 rounded-b-[2rem] bg-[rgb(var(--theme-primary-rgb)/0.12)]" />
 
       <div className="relative space-y-4">
         <div className="flex items-center justify-between rounded-[1.4rem] border border-[rgb(var(--theme-border-rgb)/0.78)] bg-white px-4 py-3">
@@ -53,7 +53,9 @@ function MediaFallback() {
                 {[36, 58, 44, 72, 64].map((height, index) => (
                   <span
                     key={index}
-                    className="flex-1 rounded-t-full bg-[linear-gradient(180deg,rgb(var(--theme-primary-rgb)/0.85),rgb(var(--theme-secondary-rgb)/0.85))]"
+                    className={index % 2 === 0
+                      ? 'flex-1 rounded-t-full bg-[rgb(var(--theme-primary-rgb)/0.85)]'
+                      : 'flex-1 rounded-t-full bg-[rgb(var(--theme-secondary-rgb)/0.82)]'}
                     style={{ height: `${height}px` }}
                   />
                 ))}
@@ -94,10 +96,7 @@ export default function AuthShell({
   return (
     <div className="theme-app-gradient min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6 sm:py-10">
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="relative overflow-hidden rounded-[2rem_2rem_3rem_1.65rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[linear-gradient(155deg,rgb(var(--theme-primary-soft-rgb)/0.8),rgb(255_255_255/0.9),rgb(var(--theme-accent-soft-rgb)/0.72))] p-6 shadow-[0_28px_80px_rgb(var(--theme-shadow-rgb)/0.12)] sm:p-8">
-          <div className="absolute -left-12 top-10 h-44 w-44 rounded-full bg-[rgb(var(--theme-primary-rgb)/0.15)] blur-3xl" />
-          <div className="absolute -right-12 bottom-8 h-52 w-52 rounded-full bg-[rgb(var(--theme-accent-rgb)/0.18)] blur-3xl" />
-
+        <section className="relative overflow-hidden rounded-[2rem_2rem_3rem_1.65rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] p-6 shadow-[0_28px_80px_rgb(var(--theme-shadow-rgb)/0.12)] sm:p-8">
           <div className="relative">
             <BrandLogo />
             <Badge variant="secondary" className="mt-8 rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.22em]">

@@ -120,26 +120,7 @@ const Login = () => {
                   event.currentTarget.style.display = 'none'
                 }}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[rgb(var(--theme-primary-ink-rgb)/0.72)] via-[rgb(var(--theme-primary-ink-rgb)/0.18)] to-transparent" />
-
-              <div className="relative flex h-full w-full flex-col justify-between p-8 text-white">
-                <div className="inline-flex w-fit rounded-2xl bg-white/94 px-4 py-3 shadow-sm">
-                  <BrandLogo imageClassName="max-h-7 max-w-[10.5rem] sm:max-h-8 sm:max-w-[12rem]" />
-                </div>
-
-                <div className="max-w-md space-y-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/72">
-                    Secure Survey Workspace
-                  </p>
-                  <h2 className="text-3xl font-semibold tracking-tight">
-                    Sign in and continue where your team left off.
-                  </h2>
-                  <p className="text-sm leading-7 text-white/82">
-                    Keep survey design, distribution, analytics, and reporting inside one
-                    workspace.
-                  </p>
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-[rgb(var(--theme-primary-ink-rgb)/0.38)]" />
             </section>
 
             <section className="bg-white px-6 py-7 sm:px-8 sm:py-8 lg:px-10">

@@ -11,7 +11,7 @@ export default function BrandLogo({
     <div className={cn('flex items-center', className)}>
       <img
         src={BRAND_LOGO_PATH}
-        alt="Questiz logo"
+        alt="MindSpear logo"
         loading="eager"
         decoding="async"
         className={cn(

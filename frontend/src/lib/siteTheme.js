@@ -13,7 +13,7 @@ export const DEFAULT_SITE_THEME_ID = 'quest-default'
 export const SITE_THEME_PRESETS = [
   {
     id: 'quest-default',
-    name: 'Questiz Core',
+    name: 'MindSpear Core',
     description: 'Apricot and orchid with a deep plum accent.',
     colors: DEFAULT_SITE_COLORS,
   },
