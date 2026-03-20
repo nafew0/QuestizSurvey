@@ -1,4 +1,5 @@
 import json
+import os
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -38,6 +39,15 @@ class AnalyticsApiTests(TestCase):
         )
         self.client = APIClient()
         self.client.force_authenticate(self.user)
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
 
         self.survey = Survey.objects.create(
             user=self.user,
@@ -210,7 +220,6 @@ class AnalyticsApiTests(TestCase):
             defaults={
                 "ai_provider": SiteSettings.AIProvider.OPENAI,
                 "ai_model_openai": "gpt-5-mini",
-                "ai_api_key_openai": "test-key",
             },
         )
 

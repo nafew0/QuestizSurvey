@@ -6,7 +6,7 @@ from subscriptions.models import SubscriptionEvent, UserSubscription
 from subscriptions.serializers import PlanSummarySerializer
 from subscriptions.services import LicenseService
 
-from .ai_secrets import get_ai_api_key_meta, is_database_ai_secret_storage_enabled
+from .ai_secrets import get_ai_api_key_meta
 from .models import SiteSettings
 
 User = get_user_model()
@@ -140,7 +140,7 @@ class SiteSettingsAdminSerializer(serializers.ModelSerializer):
         ]
 
     def get_ai_secret_storage_mode(self, obj):
-        return "database_or_environment" if is_database_ai_secret_storage_enabled() else "environment_only"
+        return "environment_only"
 
     def get_ai_api_key_openai_meta(self, obj):
         meta = get_ai_api_key_meta(obj, SiteSettings.AIProvider.OPENAI)
@@ -168,14 +168,33 @@ class SiteSettingsUpdateSerializer(serializers.Serializer):
     )
     ai_model_openai = serializers.CharField(required=False, allow_blank=True, max_length=100)
     ai_model_anthropic = serializers.CharField(required=False, allow_blank=True, max_length=100)
-    ai_api_key_openai = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
-    ai_api_key_anthropic = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+
+    def validate(self, attrs):
+        rejected_fields = [
+            field_name
+            for field_name in ("ai_api_key_openai", "ai_api_key_anthropic")
+            if field_name in self.initial_data
+        ]
+        if rejected_fields:
+            raise serializers.ValidationError(
+                {
+                    field_name: "Configure AI API keys with environment variables."
+                    for field_name in rejected_fields
+                }
+            )
+        return attrs
 
 
 class AITestRequestSerializer(serializers.Serializer):
     provider = serializers.ChoiceField(choices=SiteSettings.AIProvider.choices)
     model = serializers.CharField(max_length=100)
-    api_key = serializers.CharField(allow_blank=False, trim_whitespace=True)
+
+    def validate(self, attrs):
+        if "api_key" in self.initial_data:
+            raise serializers.ValidationError(
+                {"api_key": "AI API keys must be configured on the server."}
+            )
+        return attrs
 
 
 class PasswordResetValidateSerializer(serializers.Serializer):

@@ -96,8 +96,6 @@ class SiteSettingsAdmin(admin.ModelAdmin):
                     "ai_provider",
                     "ai_model_openai",
                     "ai_model_anthropic",
-                    "ai_api_key_openai",
-                    "ai_api_key_anthropic",
                 )
             },
         ),

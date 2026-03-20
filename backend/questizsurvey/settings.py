@@ -137,6 +137,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "questizsurvey.middleware.ContentSecurityPolicyMiddleware",
 ]
 
 ROOT_URLCONF = "questizsurvey.urls"
@@ -326,7 +327,20 @@ AUTH_REFRESH_COOKIE_PATH = os.environ.get("AUTH_REFRESH_COOKIE_PATH", "/api/auth
 AUTH_REFRESH_COOKIE_SECURE = env_bool("AUTH_REFRESH_COOKIE_SECURE", IS_PRODUCTION)
 AUTH_REFRESH_COOKIE_SAMESITE = os.environ.get("AUTH_REFRESH_COOKIE_SAMESITE", "Lax")
 AUTH_REFRESH_COOKIE_DOMAIN = os.environ.get("AUTH_REFRESH_COOKIE_DOMAIN", "").strip()
-AI_SECRETS_ALLOW_DATABASE = env_bool("AI_SECRETS_ALLOW_DATABASE", not IS_PRODUCTION)
+TRUSTED_PROXY_IPS = env_list("TRUSTED_PROXY_IPS", [])
+CONTENT_SECURITY_POLICY = "; ".join(
+    [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data: https:",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+    ]
+)
 
 if IS_PRODUCTION:
     if SECRET_KEY == "django-insecure-CHANGE-THIS-IN-PRODUCTION":

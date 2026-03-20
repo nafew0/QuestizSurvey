@@ -68,8 +68,6 @@ class SiteSettings(models.Model):
     )
     ai_model_openai = models.CharField(max_length=100, blank=True, default="")
     ai_model_anthropic = models.CharField(max_length=100, blank=True, default="")
-    ai_api_key_openai = models.CharField(max_length=255, blank=True, default="")
-    ai_api_key_anthropic = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

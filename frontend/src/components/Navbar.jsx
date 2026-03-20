@@ -100,7 +100,7 @@ const Navbar = () => {
                       <CreditCard className="mr-2 h-4 w-4" />
                       <span>Upgrade</span>
                     </DropdownMenuItem>
-                    {user?.is_superuser ? (
+                    {user?.can_access_admin ? (
                       <DropdownMenuItem onClick={() => navigate('/admin')}>
                         <ShieldCheck className="mr-2 h-4 w-4" />
                         <span>Admin Panel</span>

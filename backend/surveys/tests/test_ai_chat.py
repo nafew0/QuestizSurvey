@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -40,6 +41,15 @@ User = get_user_model()
 class AIChatApiTests(TestCase):
     def setUp(self):
         cache.clear()
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "test-key",
+            },
+            clear=False,
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
         self.user = User.objects.create_user(
             username="chat-owner",
             email="chat-owner@example.com",
@@ -132,7 +142,6 @@ class AIChatApiTests(TestCase):
             defaults={
                 "ai_provider": SiteSettings.AIProvider.OPENAI,
                 "ai_model_openai": "gpt-5-mini",
-                "ai_api_key_openai": "test-key",
             },
         )
 

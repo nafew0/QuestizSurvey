@@ -1,3 +1,4 @@
+import os
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -25,6 +26,16 @@ TEST_CACHES = {
 @override_settings(CACHES=TEST_CACHES)
 class AIQuestionImproverServiceTests(TestCase):
     def setUp(self):
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "openai-test-key",
+                "ANTHROPIC_API_KEY": "anthropic-test-key",
+            },
+            clear=False,
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
         SiteSettings.objects.update_or_create(
             pk=1,
             defaults={
@@ -33,8 +44,6 @@ class AIQuestionImproverServiceTests(TestCase):
                 "ai_provider": SiteSettings.AIProvider.OPENAI,
                 "ai_model_openai": "gpt-5-mini",
                 "ai_model_anthropic": "claude-3-7-sonnet-latest",
-                "ai_api_key_openai": "openai-test-key",
-                "ai_api_key_anthropic": "anthropic-test-key",
             },
         )
 
@@ -207,6 +216,15 @@ class AIQuestionImproverServiceTests(TestCase):
 @override_settings(CACHES=TEST_CACHES)
 class AIQuestionImproverEndpointTests(TestCase):
     def setUp(self):
+        self.env_patcher = patch.dict(
+            os.environ,
+            {
+                "OPENAI_API_KEY": "openai-test-key",
+            },
+            clear=False,
+        )
+        self.env_patcher.start()
+        self.addCleanup(self.env_patcher.stop)
         SiteSettings.objects.update_or_create(
             pk=1,
             defaults={
@@ -215,8 +233,6 @@ class AIQuestionImproverEndpointTests(TestCase):
                 "ai_provider": SiteSettings.AIProvider.OPENAI,
                 "ai_model_openai": "gpt-5-mini",
                 "ai_model_anthropic": "",
-                "ai_api_key_openai": "openai-test-key",
-                "ai_api_key_anthropic": "",
             },
         )
 

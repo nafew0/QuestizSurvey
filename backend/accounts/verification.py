@@ -8,6 +8,8 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.html import strip_tags
 
+from questizsurvey.client_ip import get_client_ip
+
 from .models import EmailVerificationToken, SiteSettings
 
 logger = logging.getLogger(__name__)
@@ -132,7 +134,4 @@ def should_throttle_public_resend(ip_address):
 
 
 def get_request_ip_address(request):
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    if forwarded_for:
-        return forwarded_for.split(",")[0].strip()
-    return (request.META.get("REMOTE_ADDR") or "").strip()
+    return get_client_ip(request)

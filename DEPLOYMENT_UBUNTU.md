@@ -188,6 +188,7 @@ CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/2
 CELERY_TASK_ALWAYS_EAGER=False
 CELERY_TASK_EAGER_PROPAGATES=True
 USE_X_FORWARDED_HOST=True
+TRUSTED_PROXY_IPS=127.0.0.1,::1
 CSRF_COOKIE_SECURE=True
 SESSION_COOKIE_SECURE=True
 GUNICORN_BIND=127.0.0.1:8010
@@ -196,9 +197,13 @@ GUNICORN_TIMEOUT=120
 
 OPENAI_API_KEY=
 OPENAI_RESPONSES_MODEL=
+ANTHROPIC_API_KEY=
+ANTHROPIC_MODEL=
 ```
 
 Questiz now loads `backend/.env` automatically through Django settings, so `manage.py`, Gunicorn, and Celery all read the same env file.
+
+AI provider secrets are environment-only. Do not enter API keys in Django admin or application settings; set `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` in `backend/.env` instead.
 
 Lock down the env file:
 

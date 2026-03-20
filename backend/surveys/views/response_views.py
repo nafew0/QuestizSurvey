@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from django.db.models import Prefetch
 
+from questizsurvey.client_ip import get_client_ip
 from subscriptions.services import LicenseService
 from surveys.models import Answer, Collector, EmailInvitation, Survey, SurveyResponse
 from surveys.security import check_public_link_password, has_public_link_password
@@ -22,6 +23,7 @@ from surveys.serializers import (
     SurveyResponseDetailSerializer,
     SurveyResponseSerializer,
 )
+from surveys.throttles import PublicSurveyWriteThrottle
 
 from .common import get_owned_survey
 
@@ -86,7 +88,14 @@ class SurveyResponseViewSet(
 
 class PublicSurveyView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [PublicSurveyWriteThrottle]
     completion_cookie_days = 30
+    write_throttle_methods = {"POST", "PUT"}
+
+    def get_throttles(self):
+        if self.request.method not in self.write_throttle_methods:
+            return []
+        return super().get_throttles()
 
     def get_response_queryset(self):
         return SurveyResponse.objects.select_related(
@@ -283,7 +292,7 @@ class PublicSurveyView(APIView):
                         "already_completed",
                     )
             else:
-                client_ip = self._get_client_ip(request)
+                client_ip = get_client_ip(request)
                 if client_ip and survey.responses.filter(
                     ip_address=client_ip,
                     status=SurveyResponse.Status.COMPLETED,
@@ -407,7 +416,7 @@ class PublicSurveyView(APIView):
                     and request.user.is_authenticated
                     else None
                 ),
-                "ip_address": self._get_client_ip(request),
+                "ip_address": get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },
         )
@@ -485,7 +494,7 @@ class PublicSurveyView(APIView):
                     and request.user.is_authenticated
                     else None
                 ),
-                "ip_address": self._get_client_ip(request),
+                "ip_address": get_client_ip(request),
                 "user_agent": request.META.get("HTTP_USER_AGENT", ""),
             },
         )
@@ -510,15 +519,9 @@ class PublicSurveyView(APIView):
             self.apply_completion_cookie(response, survey.slug)
         return response
 
-    def _get_client_ip(self, request):
-        forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-        return request.META.get("REMOTE_ADDR")
-
-
 class PublicSurveyLoadView(PublicSurveyView):
     permission_classes = [AllowAny]
+    write_throttle_methods = set()
 
     def post(self, request, slug):
         serializer = PublicSurveyLoadSerializer(data=request.data)

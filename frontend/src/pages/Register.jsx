@@ -6,6 +6,7 @@ import BrandLogo from '@/components/branding/BrandLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/useToast'
+import { getSafeRedirect } from '@/utils/redirects'
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -22,7 +23,7 @@ const Register = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const redirectTo = getSafeRedirect(searchParams.get('redirect'))
 
   useEffect(() => {
     if (resendCooldown <= 0) {

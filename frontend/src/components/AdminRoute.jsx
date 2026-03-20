@@ -25,7 +25,7 @@ export default function AdminRoute({ children }) {
     )
   }
 
-  if (!user.is_superuser) {
+  if (!user.can_access_admin) {
     return <Navigate to="/dashboard" replace />
   }
 

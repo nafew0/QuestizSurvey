@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from decimal import Decimal
 import re
@@ -17,6 +18,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from questizsurvey.client_ip import get_client_ip
 from .admin import EmailVerificationTokenAdmin
 from .ai_testing import AITestService
 from .models import EmailVerificationToken, SiteSettings
@@ -61,8 +63,6 @@ class AccountsAuthFlowTestCase(TestCase):
                 "require_email_verification": enabled,
                 "logged_in_users_only_default": False,
                 "ai_provider": "openai",
-                "ai_api_key_openai": "",
-                "ai_api_key_anthropic": "",
             },
         )
 
@@ -143,6 +143,9 @@ class AccountsAuthFlowTestCase(TestCase):
         self.assertIn("access_token", response.data)
         self.assertIn(settings.AUTH_REFRESH_COOKIE_NAME, response.cookies)
         self.assertIn("user", response.data)
+        self.assertFalse(response.data["user"]["can_access_admin"])
+        self.assertNotIn("is_staff", response.data["user"])
+        self.assertNotIn("is_superuser", response.data["user"])
 
     def test_user_login_success_with_email(self):
         self.create_user()
@@ -169,7 +172,9 @@ class AccountsAuthFlowTestCase(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertTrue(response.data["user"]["is_staff"])
+        self.assertTrue(response.data["user"]["can_access_admin"])
+        self.assertNotIn("is_staff", response.data["user"])
+        self.assertNotIn("is_superuser", response.data["user"])
 
     def test_user_login_invalid_credentials(self):
         self.create_user()
@@ -325,7 +330,12 @@ class AccountsAuthFlowTestCase(TestCase):
         self.assertIn("phone", response.data)
         self.assertIn("email_verified", response.data)
         self.assertIn("current_plan", response.data)
+        self.assertIn("can_access_admin", response.data)
+        self.assertNotIn("is_staff", response.data)
+        self.assertNotIn("is_superuser", response.data)
         self.assertEqual(response.data["current_plan"]["slug"], "free")
+        self.assertIn("Content-Security-Policy", response)
+        self.assertIn("script-src 'self'", response["Content-Security-Policy"])
 
     def test_profile_update_accepts_extended_fields(self):
         user = self.create_user(username="profileupdate", email="profileupdate@example.com")
@@ -426,6 +436,30 @@ class EmailVerificationTokenAdminTestCase(TestCase):
         )
 
         self.assertTrue(self.admin.has_delete_permission(request))
+
+
+class ClientIpResolutionTests(TestCase):
+    def setUp(self):
+        self.request_factory = RequestFactory()
+
+    def test_get_client_ip_ignores_forwarded_for_from_untrusted_proxy(self):
+        request = self.request_factory.get(
+            "/api/auth/login/",
+            HTTP_X_FORWARDED_FOR="198.51.100.24",
+            REMOTE_ADDR="203.0.113.10",
+        )
+
+        self.assertEqual(get_client_ip(request), "203.0.113.10")
+
+    @override_settings(TRUSTED_PROXY_IPS=["127.0.0.1", "::1"])
+    def test_get_client_ip_uses_forwarded_for_from_trusted_proxy(self):
+        request = self.request_factory.get(
+            "/api/auth/login/",
+            HTTP_X_FORWARDED_FOR="198.51.100.24, 127.0.0.1",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(get_client_ip(request), "198.51.100.24")
 
 
 @override_settings(
@@ -618,7 +652,15 @@ class AdminApiTests(TestCase):
         self.assertIn("INV-BKASH-1", export_text)
         self.assertIn("in_test", export_text)
 
-    def test_admin_settings_masks_keys_and_updates_write_only_fields(self):
+    @patch.dict(
+        os.environ,
+        {
+            "OPENAI_API_KEY": "sk-test-openai-1234",
+            "ANTHROPIC_API_KEY": "sk-ant-test-5678",
+        },
+        clear=False,
+    )
+    def test_admin_settings_reports_environment_keys_and_updates_models(self):
         SiteSettings.objects.update_or_create(
             pk=1,
             defaults={
@@ -627,8 +669,6 @@ class AdminApiTests(TestCase):
                 "ai_provider": "openai",
                 "ai_model_openai": "gpt-5-mini",
                 "ai_model_anthropic": "claude-3-5-haiku-latest",
-                "ai_api_key_openai": "sk-test-openai-1234",
-                "ai_api_key_anthropic": "sk-ant-test-5678",
             },
         )
         self.authenticate_admin()
@@ -639,7 +679,6 @@ class AdminApiTests(TestCase):
             {
                 "ai_provider": "anthropic",
                 "ai_model_anthropic": "claude-3-7-sonnet-latest",
-                "ai_api_key_anthropic": "sk-ant-updated-9999",
             },
             format="json",
         )
@@ -647,13 +686,15 @@ class AdminApiTests(TestCase):
         self.assertEqual(get_response.status_code, status.HTTP_200_OK)
         self.assertTrue(get_response.data["ai_api_key_openai_meta"]["configured"])
         self.assertNotIn("sk-test-openai-1234", str(get_response.data))
+        self.assertEqual(
+            get_response.data["ai_api_key_openai_meta"]["source"],
+            "environment",
+        )
         self.assertEqual(patch_response.status_code, status.HTTP_200_OK)
         settings_obj = SiteSettings.objects.get(pk=1)
         self.assertEqual(settings_obj.ai_provider, "anthropic")
-        self.assertEqual(settings_obj.ai_api_key_anthropic, "sk-ant-updated-9999")
 
-    @override_settings(AI_SECRETS_ALLOW_DATABASE=False)
-    def test_admin_settings_rejects_ai_key_writes_when_environment_only(self):
+    def test_admin_settings_rejects_ai_key_writes(self):
         self.authenticate_admin()
 
         response = self.client.patch(
@@ -663,10 +704,17 @@ class AdminApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("environment variables", response.data["detail"])
+        self.assertIn("ai_api_key_openai", response.data)
 
+    @patch.dict(
+        os.environ,
+        {
+            "OPENAI_API_KEY": "sk-existing-openai",
+        },
+        clear=False,
+    )
     @patch.object(AITestService, "test_connection")
-    def test_admin_test_ai_does_not_persist_unsaved_values(self, test_connection_mock):
+    def test_admin_test_ai_uses_server_environment_key(self, test_connection_mock):
         SiteSettings.objects.update_or_create(
             pk=1,
             defaults={
@@ -675,8 +723,6 @@ class AdminApiTests(TestCase):
                 "ai_provider": "openai",
                 "ai_model_openai": "gpt-5-mini",
                 "ai_model_anthropic": "",
-                "ai_api_key_openai": "sk-existing-openai",
-                "ai_api_key_anthropic": "",
             },
         )
         test_connection_mock.return_value = {
@@ -691,16 +737,50 @@ class AdminApiTests(TestCase):
             {
                 "provider": "openai",
                 "model": "gpt-5",
-                "api_key": "sk-unsaved-openai",
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            SiteSettings.objects.get(pk=1).ai_api_key_openai,
+            test_connection_mock.call_args.kwargs["api_key"],
             "sk-existing-openai",
         )
+        self.assertEqual(test_connection_mock.call_args.kwargs["provider"], "openai")
+        self.assertEqual(test_connection_mock.call_args.kwargs["model"], "gpt-5")
+
+    @patch.dict(
+        os.environ,
+        {
+            "OPENAI_API_KEY": "",
+            "ANTHROPIC_API_KEY": "",
+        },
+        clear=False,
+    )
+    def test_admin_test_ai_requires_server_environment_key(self):
+        SiteSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "require_email_verification": True,
+                "logged_in_users_only_default": False,
+                "ai_provider": "openai",
+                "ai_model_openai": "gpt-5-mini",
+                "ai_model_anthropic": "",
+            },
+        )
+        self.authenticate_admin()
+
+        response = self.client.post(
+            "/api/admin/settings/test-ai/",
+            {
+                "provider": "openai",
+                "model": "gpt-5-mini",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("OPENAI_API_KEY", response.data["detail"])
 
     @patch.object(AITestService, "_request")
     def test_openai_ai_test_accepts_incomplete_status_when_text_exists(

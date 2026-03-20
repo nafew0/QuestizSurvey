@@ -17,7 +17,7 @@ from subscriptions.admin_services import AdminPaymentsService
 from subscriptions.models import Plan, SubscriptionEvent
 from subscriptions.services import LicenseService
 
-from .ai_secrets import get_ai_api_key, is_database_ai_secret_storage_enabled
+from .ai_secrets import get_ai_api_key, get_ai_api_key_env_var
 from .admin_serializers import (
     AITestRequestSerializer,
     AdminSubscriptionSummarySerializer,
@@ -365,26 +365,8 @@ class AdminSettingsView(APIView):
         serializer = SiteSettingsUpdateSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
 
-        if (
-            not is_database_ai_secret_storage_enabled()
-            and any(
-                field.startswith("ai_api_key_") and (value or "").strip()
-                for field, value in serializer.validated_data.items()
-            )
-        ):
-            return Response(
-                {
-                    "detail": "AI API keys must be configured with environment variables in production."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         settings_obj = get_site_settings()
         for field, value in serializer.validated_data.items():
-            if field.startswith("ai_api_key_"):
-                if value:
-                    setattr(settings_obj, field, value)
-                continue
             setattr(settings_obj, field, value)
         settings_obj.save()
         return Response(SiteSettingsAdminSerializer(settings_obj).data)
@@ -395,26 +377,33 @@ class AdminSettingsTestAIView(APIView):
 
     def post(self, request):
         settings_obj = get_site_settings()
+        provider = request.data.get("provider") or settings_obj.ai_provider
+        model = request.data.get("model") or (
+            settings_obj.ai_model_openai
+            if provider == SiteSettings.AIProvider.OPENAI
+            else settings_obj.ai_model_anthropic
+        )
         payload = {
-            "provider": request.data.get("provider") or settings_obj.ai_provider,
-            "model": request.data.get("model")
-            or (
-                settings_obj.ai_model_openai
-                if (request.data.get("provider") or settings_obj.ai_provider)
-                == SiteSettings.AIProvider.OPENAI
-                else settings_obj.ai_model_anthropic
-            ),
-            "api_key": request.data.get("api_key")
-            or get_ai_api_key(
-                settings_obj,
-                request.data.get("provider") or settings_obj.ai_provider,
-            ),
+            "provider": provider,
+            "model": model,
         }
         serializer = AITestRequestSerializer(data=payload)
         serializer.is_valid(raise_exception=True)
+        api_key = get_ai_api_key(settings_obj, serializer.validated_data["provider"])
+        if not api_key:
+            env_var_name = get_ai_api_key_env_var(serializer.validated_data["provider"])
+            return Response(
+                {
+                    "detail": f"Set {env_var_name} on the server before testing this provider."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
-            result = AITestService.test_connection(**serializer.validated_data)
+            result = AITestService.test_connection(
+                api_key=api_key,
+                **serializer.validated_data,
+            )
         except AITestConnectionError as exc:
             return Response(
                 {"detail": str(exc)},

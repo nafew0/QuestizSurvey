@@ -14,6 +14,7 @@ class UserSerializer(serializers.ModelSerializer):
     """Serializer for User model."""
 
     current_plan = serializers.SerializerMethodField()
+    can_access_admin = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -21,8 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             "id",
             "username",
             "email",
-            "is_staff",
-            "is_superuser",
+            "can_access_admin",
             "first_name",
             "last_name",
             "bio",
@@ -40,6 +40,9 @@ class UserSerializer(serializers.ModelSerializer):
     def get_current_plan(self, obj):
         plan = LicenseService.get_user_plan(obj)
         return PlanSummarySerializer(plan).data
+
+    def get_can_access_admin(self, obj):
+        return bool(obj.is_superuser)
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):

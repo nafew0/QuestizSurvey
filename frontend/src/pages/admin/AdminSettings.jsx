@@ -23,8 +23,6 @@ function buildInitialState(settings) {
     ai_provider: settings?.ai_provider || 'openai',
     ai_model_openai: settings?.ai_model_openai || '',
     ai_model_anthropic: settings?.ai_model_anthropic || '',
-    ai_api_key_openai: '',
-    ai_api_key_anthropic: '',
   }
 }
 
@@ -55,13 +53,6 @@ export default function AdminSettings() {
     setSaving(true)
     try {
       const payload = { ...formState }
-      if (!payload.ai_api_key_openai.trim()) {
-        delete payload.ai_api_key_openai
-      }
-      if (!payload.ai_api_key_anthropic.trim()) {
-        delete payload.ai_api_key_anthropic
-      }
-
       await updateAdminSettings(payload)
       await queryClient.invalidateQueries({ queryKey: ['admin-settings'] })
       toast({
@@ -69,11 +60,6 @@ export default function AdminSettings() {
         description: 'Questiz updated the platform settings successfully.',
         variant: 'success',
       })
-      setFormState((current) => ({
-        ...current,
-        ai_api_key_openai: '',
-        ai_api_key_anthropic: '',
-      }))
     } catch (requestError) {
       toast({
         title: 'Save failed',
@@ -88,14 +74,12 @@ export default function AdminSettings() {
   const handleTest = async () => {
     const provider = formState.ai_provider
     const model = provider === 'openai' ? formState.ai_model_openai : formState.ai_model_anthropic
-    const apiKey = provider === 'openai' ? formState.ai_api_key_openai : formState.ai_api_key_anthropic
 
     setTesting(true)
     try {
       const response = await testAdminAI({
         provider,
         model,
-        api_key: apiKey,
       })
       toast({
         title: 'Connection successful',
@@ -120,8 +104,6 @@ export default function AdminSettings() {
   if (error) {
     return <div className="theme-panel rounded-[1.8rem] p-6 text-sm text-rose-600">Questiz could not load settings right now.</div>
   }
-
-  const environmentOnlySecrets = data.ai_secret_storage_mode === 'environment_only'
 
   return (
     <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
@@ -159,8 +141,7 @@ export default function AdminSettings() {
         <CardHeader>
           <CardTitle>AI provider configuration</CardTitle>
           <CardDescription>
-            Provider selection, default model, and masked secret handling.
-            {environmentOnlySecrets ? ' This environment only accepts AI keys from server environment variables.' : ''}
+            Provider selection and environment-managed AI secret status.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -200,17 +181,11 @@ export default function AdminSettings() {
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                {data.ai_api_key_openai_meta.source === 'environment' ? 'Environment key' : 'Stored key'}:{' '}
-                {data.ai_api_key_openai_meta.masked_value || 'Not configured'}
+                Environment key: {data.ai_api_key_openai_meta.masked_value || 'Not configured'}
               </p>
-              <Input
-                className="mt-3"
-                type="password"
-                value={formState.ai_api_key_openai}
-                onChange={(event) => handleChange('ai_api_key_openai', event.target.value)}
-                placeholder={environmentOnlySecrets ? 'Set OPENAI_API_KEY on the server' : 'Replace OpenAI API key'}
-                disabled={environmentOnlySecrets}
-              />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Configure `OPENAI_API_KEY` on the server to enable OpenAI requests and connection testing.
+              </p>
             </div>
 
             <div className="rounded-[1.2rem] border border-[rgb(var(--theme-border-rgb)/0.76)] bg-white/80 p-4">
@@ -221,17 +196,11 @@ export default function AdminSettings() {
                 </Badge>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                {data.ai_api_key_anthropic_meta.source === 'environment' ? 'Environment key' : 'Stored key'}:{' '}
-                {data.ai_api_key_anthropic_meta.masked_value || 'Not configured'}
+                Environment key: {data.ai_api_key_anthropic_meta.masked_value || 'Not configured'}
               </p>
-              <Input
-                className="mt-3"
-                type="password"
-                value={formState.ai_api_key_anthropic}
-                onChange={(event) => handleChange('ai_api_key_anthropic', event.target.value)}
-                placeholder={environmentOnlySecrets ? 'Set ANTHROPIC_API_KEY on the server' : 'Replace Anthropic API key'}
-                disabled={environmentOnlySecrets}
-              />
+              <p className="mt-3 text-sm text-muted-foreground">
+                Configure `ANTHROPIC_API_KEY` on the server to enable Anthropic requests and connection testing.
+              </p>
             </div>
           </div>
 
