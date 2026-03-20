@@ -1,3 +1,10 @@
+from .ai_serializers import (
+    AIChatMessageCreateSerializer,
+    AIChatMessageSerializer,
+    AIChatSessionDetailSerializer,
+    AIChatSessionSerializer,
+    AISummaryRequestSerializer,
+)
 from .choice_serializers import ChoiceSerializer
 from .collector_serializers import (
     CollectorSendEmailsSerializer,
@@ -32,6 +39,11 @@ from .survey_serializers import (
 )
 
 __all__ = [
+    "AIChatMessageCreateSerializer",
+    "AIChatMessageSerializer",
+    "AIChatSessionDetailSerializer",
+    "AIChatSessionSerializer",
+    "AISummaryRequestSerializer",
     "ChoiceSerializer",
     "CollectorSendEmailsSerializer",
     "CollectorSendRemindersSerializer",

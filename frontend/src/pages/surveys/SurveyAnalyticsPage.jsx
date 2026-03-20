@@ -14,9 +14,12 @@ import {
   Rows3,
   Save,
   Share2,
+  WandSparkles,
+  X,
 } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
+import AIChatPanel from '@/components/analytics/AIChatPanel'
 import AnalyticsSummaryBar from '@/components/analytics/AnalyticsSummaryBar'
 import CrossTabPanel from '@/components/analytics/CrossTabPanel'
 import FilterBuilderDialog from '@/components/analytics/FilterBuilderDialog'
@@ -61,6 +64,7 @@ import {
   listSavedReports,
   updateSavedReport,
 } from '@/services/analytics'
+import { getSurveyAIInsights } from '@/services/aiChat'
 import { listCollectors } from '@/services/collectors'
 import { fetchSurvey } from '@/services/surveys'
 
@@ -154,6 +158,7 @@ export default function SurveyAnalyticsPage() {
   const location = useLocation()
   const queryClient = useQueryClient()
   const exportPollersRef = useRef(new Map())
+  const aiSummaryErrorHandledAtRef = useRef(0)
   const { toast, update } = useToast()
 
   const isResponsesTab = location.pathname.endsWith('/responses')
@@ -171,6 +176,12 @@ export default function SurveyAnalyticsPage() {
   const [shareEnabled, setShareEnabled] = useState(false)
   const [sharePasswordEnabled, setSharePasswordEnabled] = useState(false)
   const [sharePasswordInput, setSharePasswordInput] = useState('')
+  const [aiSummaryOpen, setAiSummaryOpen] = useState(false)
+  const [chatPanelOpen, setChatPanelOpen] = useState(false)
+  const [chatDraftSeed, setChatDraftSeed] = useState('')
+  const [chatDraftSeedVersion, setChatDraftSeedVersion] = useState(0)
+
+  const chatPanelStorageKey = `questiz:analytics-ai-panel:${surveyId}`
 
   useEffect(() => {
     const pollers = exportPollersRef.current
@@ -181,6 +192,23 @@ export default function SurveyAnalyticsPage() {
       pollers.clear()
     }
   }, [])
+
+  useEffect(() => {
+    if (!surveyId) {
+      return
+    }
+
+    const stored = window.localStorage.getItem(chatPanelStorageKey)
+    setChatPanelOpen(stored === 'true')
+  }, [chatPanelStorageKey, surveyId])
+
+  useEffect(() => {
+    if (!surveyId) {
+      return
+    }
+
+    window.localStorage.setItem(chatPanelStorageKey, chatPanelOpen ? 'true' : 'false')
+  }, [chatPanelOpen, chatPanelStorageKey, surveyId])
 
   const surveyQuery = useQuery({
     queryKey: ['survey', surveyId],
@@ -202,6 +230,14 @@ export default function SurveyAnalyticsPage() {
     queryKey: ['analytics-questions', surveyId, filters],
     queryFn: () => fetchQuestionAnalytics(surveyId, filters, false),
     enabled: Boolean(surveyId),
+  })
+
+  const aiSummaryQuery = useQuery({
+    queryKey: ['survey-ai-summary', surveyId, filters],
+    queryFn: () => getSurveyAIInsights(surveyId, filters),
+    enabled: Boolean(surveyId) && aiSummaryOpen && !isResponsesTab,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
   })
 
   const reportsQuery = useQuery({
@@ -328,6 +364,23 @@ export default function SurveyAnalyticsPage() {
     : ''
 
   useEffect(() => {
+    if (!aiSummaryQuery.error || aiSummaryQuery.errorUpdatedAt === aiSummaryErrorHandledAtRef.current) {
+      return
+    }
+
+    aiSummaryErrorHandledAtRef.current = aiSummaryQuery.errorUpdatedAt
+    setAiSummaryOpen(false)
+    toast({
+      title: 'AI summary unavailable',
+      description:
+        aiSummaryQuery.error?.response?.data?.detail ||
+        aiSummaryQuery.error?.message ||
+        'Questiz could not generate the survey-level AI summary right now.',
+      variant: 'error',
+    })
+  }, [aiSummaryQuery.error, aiSummaryQuery.errorUpdatedAt, toast])
+
+  useEffect(() => {
     if (!shareDialogOpen) {
       return
     }
@@ -433,6 +486,19 @@ export default function SurveyAnalyticsPage() {
       return
     }
     setSaveDialogOpen(true)
+  }
+
+  const handleOpenAIWorkspace = () => {
+    setChatPanelOpen(true)
+    if (!isResponsesTab) {
+      setAiSummaryOpen(true)
+    }
+  }
+
+  const handleSuggestedChatPrompt = (prompt) => {
+    setChatPanelOpen(true)
+    setChatDraftSeed(prompt)
+    setChatDraftSeedVersion((current) => current + 1)
   }
 
   const handleCreateReport = () => {
@@ -775,6 +841,20 @@ export default function SurveyAnalyticsPage() {
                 Lottery
               </Button>
 
+              <Button
+                type="button"
+                variant={chatPanelOpen || aiSummaryOpen ? 'default' : 'outline'}
+                className="rounded-full"
+                onClick={handleOpenAIWorkspace}
+              >
+                {(aiSummaryQuery.isFetching && aiSummaryOpen && !isResponsesTab) || false ? (
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <WandSparkles className="mr-2 h-4 w-4" />
+                )}
+                AI Insights
+              </Button>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button type="button" variant="outline" className="rounded-full">
@@ -863,6 +943,115 @@ export default function SurveyAnalyticsPage() {
           />
         ) : (
           <div className="space-y-4">
+            {aiSummaryOpen ? (
+              <div className="rounded-[2rem] border border-[rgb(var(--theme-primary-rgb)/0.62)] bg-white px-5 py-5 shadow-sm shadow-[rgb(var(--theme-shadow-rgb)/0.08)]">
+                <div className="flex flex-wrap items-start gap-3">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-[1.1rem] border border-[rgb(var(--theme-primary-rgb)/0.26)] bg-[rgb(var(--theme-primary-soft-rgb)/0.18)] text-[rgb(var(--theme-primary-ink-rgb))]">
+                    <WandSparkles className="h-5 w-5" />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">Survey-level AI summary</Badge>
+                      <Badge variant="secondary">
+                        {aiSummaryQuery.data?.response_scope?.label || 'Current Analyze scope'}
+                      </Badge>
+                    </div>
+                    <h2 className="mt-3 text-xl font-semibold tracking-tight text-foreground">
+                      {aiSummaryQuery.data?.headline || 'Generating a sharper read of this survey'}
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                      AI synthesis stays grounded in the current filtered analytics and selected masked verbatims.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => setChatPanelOpen(true)}
+                    >
+                      <WandSparkles className="mr-2 h-4 w-4" />
+                      Open chat
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-2xl"
+                      onClick={() => setAiSummaryOpen(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {aiSummaryQuery.isLoading ? (
+                  <div className="mt-5 space-y-4">
+                    <Skeleton className="h-5 w-2/5 rounded-full" />
+                    <Skeleton className="h-16 w-full rounded-[1.5rem]" />
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      <Skeleton className="h-40 w-full rounded-[1.5rem]" />
+                      <Skeleton className="h-40 w-full rounded-[1.5rem]" />
+                    </div>
+                  </div>
+                ) : aiSummaryQuery.data ? (
+                  <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.7fr)]">
+                    <div className="space-y-4">
+                      <div className="rounded-[1.6rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-white px-5 py-4">
+                        <p className="text-sm leading-7 text-foreground">
+                          {aiSummaryQuery.data.summary}
+                        </p>
+                      </div>
+
+                      <div className="grid gap-4 lg:grid-cols-2">
+                        <div className="rounded-[1.6rem] border border-[rgb(var(--theme-border-rgb)/0.78)] bg-[rgb(var(--theme-neutral-rgb)/0.35)] px-5 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            Key findings
+                          </p>
+                          <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
+                            {(aiSummaryQuery.data.key_findings || []).map((item) => (
+                              <li key={item}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="rounded-[1.6rem] border border-[rgb(var(--theme-border-rgb)/0.78)] bg-[rgb(var(--theme-neutral-rgb)/0.35)] px-5 py-4">
+                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                            Recommended next moves
+                          </p>
+                          <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
+                            {(aiSummaryQuery.data.recommendations || []).map((item) => (
+                              <li key={item}>• {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-[1.6rem] border border-[rgb(var(--theme-primary-rgb)/0.4)] bg-[rgb(var(--theme-primary-soft-rgb)/0.14)] px-5 py-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[rgb(var(--theme-primary-ink-rgb))]">
+                        Ask AI next
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {(aiSummaryQuery.data.suggested_questions || []).map((prompt) => (
+                          <button
+                            key={prompt}
+                            type="button"
+                            className="w-full rounded-[1.2rem] border border-[rgb(var(--theme-primary-rgb)/0.32)] bg-white px-4 py-3 text-left text-sm leading-6 text-foreground transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgb(var(--theme-shadow-rgb)/0.12)]"
+                            onClick={() => handleSuggestedChatPrompt(prompt)}
+                          >
+                            {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             {questionAnalyticsQuery.isLoading ? (
               <>
                 <Skeleton className="h-[360px] w-full rounded-[2rem]" />
@@ -896,6 +1085,16 @@ export default function SurveyAnalyticsPage() {
           </div>
         )}
       </div>
+
+      <AIChatPanel
+        surveyId={surveyId}
+        surveyTitle={survey.title}
+        filters={filters}
+        open={chatPanelOpen}
+        onOpenChange={setChatPanelOpen}
+        draftSeed={chatDraftSeed}
+        draftSeedVersion={chatDraftSeedVersion}
+      />
 
       <FilterBuilderDialog
         open={filterDialogOpen}

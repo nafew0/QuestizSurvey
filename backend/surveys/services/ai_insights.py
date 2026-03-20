@@ -84,7 +84,7 @@ class AnalyticsTextInsightsService:
 class QuestionAnalyticsInsightsService:
     CACHE_TIMEOUT_SECONDS = 15 * 60
     MAX_PROMPT_CONTEXT_CHARS = 18000
-    MAX_OUTPUT_TOKENS = 520
+    MAX_OUTPUT_TOKENS = 1000
 
     EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
     URL_PATTERN = re.compile(r"\b(?:https?://|www\.)\S+\b", re.IGNORECASE)
@@ -137,12 +137,12 @@ class QuestionAnalyticsInsightsService:
             analytics_payload=analytics_payload,
             serialized_answers=serialized_answers,
         )
-        parsed = self.ai_service.call(
+        insight_text = self.ai_service.call(
             self._system_prompt(),
             context_payload,
-            response_schema=self._response_schema(),
             max_output_tokens=self.MAX_OUTPUT_TOKENS,
         )
+        parsed = self._parse_insight_text(insight_text)
 
         result = {
             "available": True,
@@ -464,22 +464,53 @@ class QuestionAnalyticsInsightsService:
             "non-obvious patterns, contrasts, contradictions, polarization, and standout "
             "respondent language when supported. Call out weak samples or uncertainty when "
             "relevant. Avoid generic filler, speculation, invented causes, or merely "
-            "restating chart labels. Return JSON only."
+            "restating chart labels. Return plain text only using exactly this format and no other wrapper text:\n"
+            "TAKEAWAY: <one sentence>\n"
+            "INSIGHT 1: <one sentence>\n"
+            "INSIGHT 2: <one sentence>\n"
+            "INSIGHT 3: <one sentence>\n"
+            "RECOMMENDED ACTION: <one sentence>\n"
+            "Do not use JSON. Do not use markdown fences."
         )
 
-    def _response_schema(self):
+    def _parse_insight_text(self, value):
+        normalized = self._normalize_text_block(value)
+        takeaway = self._extract_labeled_value(normalized, "TAKEAWAY")
+        insight_1 = self._extract_labeled_value(normalized, "INSIGHT 1")
+        insight_2 = self._extract_labeled_value(normalized, "INSIGHT 2")
+        insight_3 = self._extract_labeled_value(normalized, "INSIGHT 3")
+        recommended_action = self._extract_labeled_value(
+            normalized,
+            "RECOMMENDED ACTION",
+        )
+
+        if not takeaway or not insight_1 or not insight_2 or not insight_3:
+            raise AIServiceRequestError("The AI provider returned an invalid insights format.")
+
         return {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "takeaway": {"type": "string"},
-                "insights": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "minItems": 3,
-                    "maxItems": 3,
-                },
-                "recommended_action": {"type": "string"},
-            },
-            "required": ["takeaway", "insights", "recommended_action"],
+            "takeaway": takeaway,
+            "insights": [insight_1, insight_2, insight_3],
+            "recommended_action": recommended_action,
         }
+
+    def _normalize_text_block(self, value):
+        normalized = f"{value or ''}".replace("\r\n", "\n").strip()
+        if normalized.startswith("```") and normalized.endswith("```"):
+            normalized = normalized.strip("`").strip()
+        return normalized
+
+    def _extract_labeled_value(self, value, label):
+        block = self._extract_labeled_block(value, label)
+        if not block:
+            return ""
+        return self._normalize_line(block)
+
+    def _extract_labeled_block(self, value, label):
+        pattern = re.compile(
+            rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)\s*(?=^\s*[A-Z][A-Z0-9 ]+\s*:|\Z)",
+            re.DOTALL,
+        )
+        match = pattern.search(value or "")
+        if not match:
+            return ""
+        return match.group(1).strip()

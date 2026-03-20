@@ -91,6 +91,50 @@ class AIQuestionImproverServiceTests(TestCase):
 
         self.assertEqual(result, "Improved question text")
 
+    def test_openai_call_retries_structured_output_with_json_mode_when_first_response_is_not_parseable(self):
+        service = AIService()
+
+        with patch.object(
+            service,
+            "_request_json",
+            side_effect=[
+                {
+                    "status": "completed",
+                    "output_text": "Here is the JSON you asked for:\nheadline: Signal\nsummary: Wrapped output",
+                },
+                {
+                    "status": "completed",
+                    "output_text": '{"headline":"Signal","summary":"Wrapped output"}',
+                },
+            ],
+        ) as mocked_request:
+            result = service.call(
+                "Return JSON only.",
+                "user",
+                response_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "headline": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                    "required": ["headline", "summary"],
+                },
+            )
+
+        self.assertEqual(
+            result,
+            {"headline": "Signal", "summary": "Wrapped output"},
+        )
+        self.assertEqual(mocked_request.call_count, 2)
+        fallback_payload = mocked_request.call_args_list[1].args[1]
+        self.assertEqual(
+            fallback_payload["text"]["format"]["type"],
+            "json_object",
+        )
+        self.assertIn("JSON", fallback_payload["instructions"])
+        self.assertIn("JSON", fallback_payload["input"])
+
     def test_anthropic_call_returns_joined_text_blocks(self):
         SiteSettings.objects.filter(pk=1).update(
             ai_provider=SiteSettings.AIProvider.ANTHROPIC
@@ -111,6 +155,47 @@ class AIQuestionImproverServiceTests(TestCase):
             result = service.call("system", "user")
 
         self.assertEqual(result, "Improved\nquestion")
+
+    def test_parse_json_text_accepts_markdown_code_fences(self):
+        service = AIService()
+
+        result = service._parse_json_text(
+            '```json\n{"headline":"Signal","items":["One","Two"]}\n```'
+        )
+
+        self.assertEqual(
+            result,
+            {"headline": "Signal", "items": ["One", "Two"]},
+        )
+
+    def test_parse_json_text_extracts_json_from_wrapped_text(self):
+        service = AIService()
+
+        result = service._parse_json_text(
+            'Here is the requested JSON:\n{"headline":"Signal","items":["One","Two"]}\nThanks.'
+        )
+
+        self.assertEqual(
+            result,
+            {"headline": "Signal", "items": ["One", "Two"]},
+        )
+
+    def test_parse_json_text_rejects_array_when_schema_expects_object(self):
+        service = AIService()
+
+        with self.assertRaises(AIServiceRequestError):
+            service._parse_json_text(
+                '["One","Two","Three"]',
+                response_schema={
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "headline": {"type": "string"},
+                        "summary": {"type": "string"},
+                    },
+                    "required": ["headline", "summary"],
+                },
+            )
 
     def test_improve_question_rejects_blank_text(self):
         service = AIService()

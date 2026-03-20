@@ -414,15 +414,13 @@ class AnalyticsApiTests(TestCase):
     )
     @patch(
         "surveys.services.ai_insights.AIService.call",
-        return_value={
-            "takeaway": "Decision-makers see clear delivery strength.",
-            "insights": [
-                "Strong promoters consistently mention speed and support together.",
-                "The smaller dissatisfied group is concentrated in incomplete or lower-value responses.",
-                "The wording of raw comments suggests experience quality matters more than price alone.",
-            ],
-            "recommended_action": "Use the strongest verbatim themes to reinforce the core value story.",
-        },
+        return_value=(
+            "TAKEAWAY: Decision-makers see clear delivery strength.\n"
+            "INSIGHT 1: Strong promoters consistently mention speed and support together.\n"
+            "INSIGHT 2: The smaller dissatisfied group is concentrated in incomplete or lower-value responses.\n"
+            "INSIGHT 3: The wording of raw comments suggests experience quality matters more than price alone.\n"
+            "RECOMMENDED ACTION: Use the strongest verbatim themes to reinforce the core value story."
+        ),
     )
     def test_question_ai_insights_endpoint_returns_lazy_payload(
         self,
@@ -449,11 +447,13 @@ class AnalyticsApiTests(TestCase):
     )
     @patch(
         "surveys.services.ai_insights.AIService.call",
-        return_value={
-            "takeaway": "Filtered results isolate one respondent segment.",
-            "insights": ["One", "Two", "Three"],
-            "recommended_action": "Act.",
-        },
+        return_value=(
+            "TAKEAWAY: Filtered results isolate one respondent segment.\n"
+            "INSIGHT 1: One\n"
+            "INSIGHT 2: Two\n"
+            "INSIGHT 3: Three\n"
+            "RECOMMENDED ACTION: Act."
+        ),
     )
     def test_question_ai_insights_honors_filters_in_raw_response_payload(
         self,
@@ -489,11 +489,13 @@ class AnalyticsApiTests(TestCase):
     )
     @patch(
         "surveys.services.ai_insights.AIService.call",
-        return_value={
-            "takeaway": "Protected input stays masked.",
-            "insights": ["One", "Two", "Three"],
-            "recommended_action": "Act.",
-        },
+        return_value=(
+            "TAKEAWAY: Protected input stays masked.\n"
+            "INSIGHT 1: One\n"
+            "INSIGHT 2: Two\n"
+            "INSIGHT 3: Three\n"
+            "RECOMMENDED ACTION: Act."
+        ),
     )
     def test_question_ai_insights_masks_pii_and_excludes_file_urls(
         self,
@@ -551,11 +553,13 @@ class AnalyticsApiTests(TestCase):
     )
     @patch(
         "surveys.services.ai_insights.AIService.call",
-        return_value={
-            "takeaway": "Cache stays warm.",
-            "insights": ["One", "Two", "Three"],
-            "recommended_action": "Act.",
-        },
+        return_value=(
+            "TAKEAWAY: Cache stays warm.\n"
+            "INSIGHT 1: One\n"
+            "INSIGHT 2: Two\n"
+            "INSIGHT 3: Three\n"
+            "RECOMMENDED ACTION: Act."
+        ),
     )
     def test_question_ai_insights_uses_cache(
         self,
@@ -611,11 +615,13 @@ class AnalyticsApiTests(TestCase):
     )
     @patch(
         "surveys.services.ai_insights.AIService.call",
-        return_value={
-            "takeaway": "Throttle test.",
-            "insights": ["One", "Two", "Three"],
-            "recommended_action": "Act.",
-        },
+        return_value=(
+            "TAKEAWAY: Throttle test.\n"
+            "INSIGHT 1: One\n"
+            "INSIGHT 2: Two\n"
+            "INSIGHT 3: Three\n"
+            "RECOMMENDED ACTION: Act."
+        ),
     )
     def test_question_ai_insights_throttle_blocks_after_limit(
         self,

@@ -1,4 +1,5 @@
 from .answer import Answer
+from .ai_chat import AIChatMessage, AIChatSession
 from .choice import Choice
 from .collector import Collector
 from .email_invitation import EmailInvitation
@@ -11,6 +12,8 @@ from .survey import Survey
 
 __all__ = [
     "Answer",
+    "AIChatMessage",
+    "AIChatSession",
     "Choice",
     "Collector",
     "EmailInvitation",

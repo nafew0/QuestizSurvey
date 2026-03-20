@@ -10,6 +10,10 @@ from surveys.views import (
     PublicSavedReportDataView,
     QuestionViewSet,
     SavedReportViewSet,
+    SurveyAIChatMessageCreateView,
+    SurveyAIChatSessionDetailView,
+    SurveyAIChatSessionListCreateView,
+    SurveyAISummaryView,
     SurveyAnalyticsCrossTabView,
     SurveyAnalyticsQuestionDetailView,
     SurveyAnalyticsQuestionInsightsView,
@@ -146,6 +150,26 @@ urlpatterns = [
         "surveys/<uuid:survey_pk>/analytics/crosstab/",
         SurveyAnalyticsCrossTabView.as_view(),
         name="analytics-crosstab",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/ai/insights/",
+        SurveyAISummaryView.as_view(),
+        name="survey-ai-insights",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/ai/chats/",
+        SurveyAIChatSessionListCreateView.as_view(),
+        name="survey-ai-chat-sessions",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/ai/chats/<uuid:session_pk>/",
+        SurveyAIChatSessionDetailView.as_view(),
+        name="survey-ai-chat-session-detail",
+    ),
+    path(
+        "surveys/<uuid:survey_pk>/ai/chats/<uuid:session_pk>/messages/",
+        SurveyAIChatMessageCreateView.as_view(),
+        name="survey-ai-chat-messages",
     ),
     path(
         "surveys/<uuid:survey_pk>/reports/",

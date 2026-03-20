@@ -121,6 +121,13 @@ class AnalyticsService:
         )
         return ResponseFilterService(queryset, self.raw_filters).apply()
 
+    def _get_question_answers_queryset_for_responses(self, responses):
+        return (
+            Answer.objects.filter(response__in=responses)
+            .select_related("question", "response")
+            .order_by("-answered_at")
+        )
+
     def get_summary(self):
         queryset = self.get_filtered_responses()
         total_responses = queryset.count()
@@ -342,9 +349,9 @@ class AnalyticsService:
 
     def _get_question_answers(self, question, responses):
         return list(
-            Answer.objects.filter(response__in=responses, question=question)
-            .select_related("response")
-            .order_by("-answered_at")
+            self._get_question_answers_queryset_for_responses(responses).filter(
+                question=question
+            )
         )
 
     def _attach_insights(self, insight_type, data):

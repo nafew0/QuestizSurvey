@@ -1,4 +1,5 @@
 from .analytics import AnalyticsService
+from .ai_chat_service import AIChatService
 from .ai_service import (
     AIService,
     AIServiceConfigurationError,
@@ -15,6 +16,7 @@ from .reports import (
 
 __all__ = [
     "AnalyticsService",
+    "AIChatService",
     "AIService",
     "AIServiceConfigurationError",
     "AIServiceRequestError",

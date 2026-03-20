@@ -1,3 +1,9 @@
+from .ai_views import (
+    SurveyAIChatMessageCreateView,
+    SurveyAIChatSessionDetailView,
+    SurveyAIChatSessionListCreateView,
+    SurveyAISummaryView,
+)
 from .analytics_views import (
     SurveyAnalyticsCrossTabView,
     SurveyAnalyticsQuestionDetailView,
@@ -14,6 +20,10 @@ from .response_views import PublicSurveyView, SurveyResponseViewSet
 from .survey_views import SurveyViewSet
 
 __all__ = [
+    "SurveyAIChatMessageCreateView",
+    "SurveyAIChatSessionDetailView",
+    "SurveyAIChatSessionListCreateView",
+    "SurveyAISummaryView",
     "SurveyAnalyticsCrossTabView",
     "SurveyAnalyticsQuestionDetailView",
     "SurveyAnalyticsQuestionInsightsView",
