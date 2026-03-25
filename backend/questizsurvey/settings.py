@@ -314,6 +314,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "subscriptions.tasks.check_expired_subscriptions",
         "schedule": crontab(hour=3, minute=0),
     },
+    "subscriptions-expire-stale-bkash-transactions": {
+        "task": "subscriptions.tasks.expire_stale_bkash_transactions",
+        "schedule": crontab(minute=15),
+    },
 }
 
 USE_X_FORWARDED_HOST = env_bool("USE_X_FORWARDED_HOST", not DEBUG)
@@ -328,6 +332,9 @@ AUTH_REFRESH_COOKIE_SECURE = env_bool("AUTH_REFRESH_COOKIE_SECURE", IS_PRODUCTIO
 AUTH_REFRESH_COOKIE_SAMESITE = os.environ.get("AUTH_REFRESH_COOKIE_SAMESITE", "Lax")
 AUTH_REFRESH_COOKIE_DOMAIN = os.environ.get("AUTH_REFRESH_COOKIE_DOMAIN", "").strip()
 TRUSTED_PROXY_IPS = env_list("TRUSTED_PROXY_IPS", [])
+BKASH_CALLBACK_TRUSTED_IPS = env_list("BKASH_CALLBACK_TRUSTED_IPS", [])
+BKASH_WEBHOOK_TOPIC_ARN = os.environ.get("BKASH_WEBHOOK_TOPIC_ARN", "").strip()
+BKASH_WEBHOOK_URL = os.environ.get("BKASH_WEBHOOK_URL", "").strip()
 CONTENT_SECURITY_POLICY = "; ".join(
     [
         "default-src 'self'",
@@ -392,3 +399,40 @@ BKASH_BASE_URL = os.environ.get(
     "BKASH_BASE_URL",
     "https://tokenized.sandbox.bka.sh/v1.2.0-beta",
 )
+
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+AUDIT_LOG_LEVEL = os.environ.get("AUDIT_LOG_LEVEL", "INFO")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+        "audit": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "standard",
+        },
+        "audit_console": {
+            "class": "logging.StreamHandler",
+            "formatter": "audit",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": LOG_LEVEL,
+    },
+    "loggers": {
+        "audit": {
+            "handlers": ["audit_console"],
+            "level": AUDIT_LOG_LEVEL,
+            "propagate": False,
+        },
+    },
+}

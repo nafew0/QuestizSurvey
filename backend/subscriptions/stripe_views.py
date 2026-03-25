@@ -9,6 +9,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from questizsurvey.audit import log_audit_event
 from .models import Plan
 from .serializers import StripeCheckoutSessionSerializer
 from .stripe_service import (
@@ -19,6 +20,7 @@ from .stripe_service import (
     StripeUserInputError,
     StripeWebhookSignatureError,
 )
+from .throttles import PaymentCheckoutThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ class StripeConfigView(APIView):
 
 class StripeCheckoutView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PaymentCheckoutThrottle]
 
     def post(self, request):
         serializer = StripeCheckoutSessionSerializer(data=request.data)
@@ -51,6 +54,15 @@ class StripeCheckoutView(APIView):
                 serializer.validated_data["billing_cycle"],
             )
         except StripeCheckoutConflictError as exc:
+            log_audit_event(
+                "stripe_checkout",
+                outcome="failure",
+                level="warning",
+                request=request,
+                plan_id=serializer.validated_data["plan_id"],
+                billing_cycle=serializer.validated_data["billing_cycle"],
+                reason="checkout_conflict",
+            )
             return Response(
                 {
                     "detail": str(exc),
@@ -59,46 +71,102 @@ class StripeCheckoutView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         except StripeConfigurationError as exc:
+            log_audit_event(
+                "stripe_checkout",
+                outcome="failure",
+                level="warning",
+                request=request,
+                plan_id=serializer.validated_data["plan_id"],
+                billing_cycle=serializer.validated_data["billing_cycle"],
+                reason="stripe_not_configured",
+            )
             return Response(
                 {"detail": str(exc), "code": "stripe_not_configured"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except StripeUserInputError as exc:
+            log_audit_event(
+                "stripe_checkout",
+                outcome="failure",
+                level="warning",
+                request=request,
+                plan_id=serializer.validated_data["plan_id"],
+                billing_cycle=serializer.validated_data["billing_cycle"],
+                reason="invalid_request",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except StripeServiceError as exc:
+            log_audit_event(
+                "stripe_checkout",
+                outcome="failure",
+                level="warning",
+                request=request,
+                plan_id=serializer.validated_data["plan_id"],
+                billing_cycle=serializer.validated_data["billing_cycle"],
+                reason="provider_error",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
 
+        log_audit_event(
+            "stripe_checkout",
+            request=request,
+            plan_id=str(plan.pk),
+            billing_cycle=serializer.validated_data["billing_cycle"],
+        )
         return Response({"checkout_url": checkout_url}, status=status.HTTP_200_OK)
 
 
 class StripeCustomerPortalView(APIView):
     permission_classes = [IsAuthenticated]
+    throttle_classes = [PaymentCheckoutThrottle]
 
     def post(self, request):
         try:
             portal_url = StripeService.create_customer_portal_session(request.user)
         except StripeConfigurationError as exc:
+            log_audit_event(
+                "stripe_customer_portal",
+                outcome="failure",
+                level="warning",
+                request=request,
+                reason="stripe_not_configured",
+            )
             return Response(
                 {"detail": str(exc), "code": "stripe_not_configured"},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except StripeUserInputError as exc:
+            log_audit_event(
+                "stripe_customer_portal",
+                outcome="failure",
+                level="warning",
+                request=request,
+                reason="invalid_request",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except StripeServiceError as exc:
+            log_audit_event(
+                "stripe_customer_portal",
+                outcome="failure",
+                level="warning",
+                request=request,
+                reason="provider_error",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        log_audit_event("stripe_customer_portal", request=request)
         return Response({"portal_url": portal_url}, status=status.HTTP_200_OK)
 
 

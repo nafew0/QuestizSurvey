@@ -142,14 +142,42 @@ function formatTimestamp(value) {
   })
 }
 
+function escapeHtmlAttribute(value) {
+  return `${value ?? ''}`
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
+
 function buildPopupEmbedCode(publicUrl) {
+  const serializedUrl = JSON.stringify(publicUrl)
   return `<button id="questiz-launch">Open survey</button>
 <script>
   (function () {
+    var surveyUrl = ${serializedUrl};
     var button = document.getElementById('questiz-launch');
     var overlay = document.createElement('div');
+    var panel = document.createElement('div');
+    var closeButton = document.createElement('button');
+    var iframe = document.createElement('iframe');
+
+    if (!button) {
+      return;
+    }
+
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.62);display:none;align-items:center;justify-content:center;padding:24px;z-index:9999;';
-    overlay.innerHTML = '<div style="position:relative;width:min(960px,100%);height:min(720px,100%);background:#fff;border-radius:24px;overflow:hidden;"><button style="position:absolute;top:12px;right:12px;z-index:2;border:0;background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;" id="questiz-close">Close</button><iframe src="${publicUrl}" style="width:100%;height:100%;border:0;"></iframe></div>';
+    panel.style.cssText = 'position:relative;width:min(960px,100%);height:min(720px,100%);background:#fff;border-radius:24px;overflow:hidden;';
+    closeButton.type = 'button';
+    closeButton.id = 'questiz-close';
+    closeButton.textContent = 'Close';
+    closeButton.style.cssText = 'position:absolute;top:12px;right:12px;z-index:2;border:0;background:#fff;border-radius:999px;padding:8px 12px;cursor:pointer;';
+    iframe.src = surveyUrl;
+    iframe.style.cssText = 'width:100%;height:100%;border:0;';
+
+    panel.appendChild(closeButton);
+    panel.appendChild(iframe);
+    overlay.appendChild(panel);
     document.body.appendChild(overlay);
     button.addEventListener('click', function () {
       overlay.style.display = 'flex';
@@ -164,7 +192,7 @@ function buildPopupEmbedCode(publicUrl) {
 }
 
 function buildIframeEmbedCode(publicUrl) {
-  return `<iframe src="${publicUrl}" width="100%" height="600" frameborder="0" style="border:0;border-radius:24px;overflow:hidden;"></iframe>`
+  return `<iframe src="${escapeHtmlAttribute(publicUrl)}" width="100%" height="600" frameborder="0" style="border:0;border-radius:24px;overflow:hidden;"></iframe>`
 }
 
 function addUtmSource(url, source) {
@@ -489,7 +517,12 @@ export default function SurveyDistributePage() {
   }
 
   const handlePrintQr = () => {
-    if (!survey) {
+    if (!survey || !qrRef.current) {
+      return
+    }
+
+    const svg = qrRef.current.querySelector('svg')
+    if (!svg) {
       return
     }
 
@@ -498,17 +531,48 @@ export default function SurveyDistributePage() {
       return
     }
 
-    printWindow.document.write(`
-      <html>
-        <head><title>${survey.title} QR Code</title></head>
-        <body style="font-family:Arial,sans-serif;text-align:center;padding:32px;">
-          <h1>${survey.title}</h1>
-          <p>${publicUrl}</p>
-          ${qrRef.current?.innerHTML || ''}
-        </body>
-      </html>
-    `)
-    printWindow.document.close()
+    const { document: doc } = printWindow
+    doc.title = `${survey.title} QR Code`
+
+    while (doc.head.firstChild) {
+      doc.head.removeChild(doc.head.firstChild)
+    }
+    while (doc.body.firstChild) {
+      doc.body.removeChild(doc.body.firstChild)
+    }
+
+    const style = doc.createElement('style')
+    style.textContent = `
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 32px;
+      }
+
+      p {
+        margin-bottom: 24px;
+      }
+
+      svg {
+        max-width: 280px;
+        height: auto;
+      }
+    `
+
+    const title = doc.createElement('h1')
+    title.textContent = survey.title
+
+    const url = doc.createElement('p')
+    url.textContent = publicUrl
+
+    const qrWrapper = doc.createElement('div')
+    qrWrapper.appendChild(svg.cloneNode(true))
+
+    doc.head.appendChild(style)
+    doc.body.appendChild(title)
+    doc.body.appendChild(url)
+    doc.body.appendChild(qrWrapper)
+
     printWindow.focus()
     printWindow.print()
   }

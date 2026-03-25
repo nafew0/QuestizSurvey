@@ -1,3 +1,5 @@
+import ipaddress
+
 from django.conf import settings
 
 
@@ -15,3 +17,30 @@ def get_client_ip(request):
 
     return remote_addr
 
+
+def ip_matches_allowlist(ip_address, allowlist):
+    normalized_ip = (ip_address or "").strip()
+    if not normalized_ip:
+        return False
+
+    try:
+        parsed_ip = ipaddress.ip_address(normalized_ip)
+    except ValueError:
+        return False
+
+    for candidate in allowlist or []:
+        normalized_candidate = (candidate or "").strip()
+        if not normalized_candidate:
+            continue
+
+        try:
+            if "/" in normalized_candidate:
+                network = ipaddress.ip_network(normalized_candidate, strict=False)
+                if parsed_ip in network:
+                    return True
+            elif parsed_ip == ipaddress.ip_address(normalized_candidate):
+                return True
+        except ValueError:
+            continue
+
+    return False

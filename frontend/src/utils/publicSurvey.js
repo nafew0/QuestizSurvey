@@ -113,7 +113,8 @@ export function setRespondedCookie(slug, days = 30) {
   }
 
   const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString()
-  document.cookie = `${getRespondedCookieName(slug)}=true; expires=${expires}; path=/; SameSite=Lax`
+  const securePart = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${getRespondedCookieName(slug)}=true; expires=${expires}; path=/; SameSite=Lax${securePart}`
 }
 
 export function buildInitialPublicAnswers(survey) {

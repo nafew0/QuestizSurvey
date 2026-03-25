@@ -98,6 +98,28 @@ class PublicSurveyTests(TestCase):
         self.assertEqual(answer.comment_text, "Loved it")
         self.assertIsNotNone(survey_response.completed_at)
 
+    @override_settings(SESSION_COOKIE_SECURE=True)
+    def test_completed_submission_sets_secure_completion_cookie(self):
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        cookie_name = f"questiz_responded_{self.survey.slug}"
+        self.assertIn(cookie_name, response.cookies)
+        self.assertTrue(response.cookies[cookie_name]["secure"])
+
     def test_public_submission_accepts_open_ended_with_other_row(self):
         question = Question.objects.create(
             page=self.page,

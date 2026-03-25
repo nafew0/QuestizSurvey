@@ -50,6 +50,18 @@ export async function exportAdminPayments(params = {}) {
   return response.data
 }
 
+export async function searchAdminBkashTransaction(trxId) {
+  const response = await api.get(
+    `/admin/payments/bkash/search/?${buildParams({ trx_id: trxId }).toString()}`
+  )
+  return response.data
+}
+
+export async function refundAdminBkashPayment(paymentId, payload) {
+  const response = await api.post(`/admin/payments/bkash/${paymentId}/refund/`, payload)
+  return response.data
+}
+
 export async function getAdminSettings() {
   const response = await api.get('/admin/settings/')
   return response.data

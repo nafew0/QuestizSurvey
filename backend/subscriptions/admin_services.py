@@ -203,38 +203,57 @@ class AdminPaymentsService:
 
         payments = []
         for transaction in queryset:
-            amount = Decimal(transaction.amount or 0)
-            payments.append(
-                {
-                    "id": str(transaction.id),
-                    "provider": "bkash",
-                    "provider_reference": transaction.payment_id,
-                    "invoice_number": transaction.invoice_number,
-                    "trx_id": transaction.trx_id or "",
-                    "status": transaction.status,
-                    "amount": str(amount),
-                    "currency": transaction.currency,
-                    "created_at": transaction.created_at.isoformat(),
-                    "description": f"bKash {transaction.target_plan.name} plan",
-                    "billing_cycle": transaction.billing_cycle,
-                    "user": {
-                        "id": str(transaction.user_id),
-                        "username": transaction.user.username,
-                        "email": transaction.user.email,
-                    },
-                    "plan": {
-                        "id": str(transaction.target_plan_id),
-                        "name": transaction.target_plan.name,
-                        "slug": transaction.target_plan.slug,
-                    },
-                    "revenue_amount": float(
-                        amount
-                        if transaction.status == BkashTransaction.Status.COMPLETED
-                        else Decimal("0")
-                    ),
-                }
-            )
+            payments.append(cls.serialize_bkash_payment(transaction))
         return payments
+
+    @classmethod
+    def serialize_bkash_payment(cls, transaction):
+        amount = Decimal(transaction.amount or 0)
+        refunded_amount = Decimal(transaction.refund_amount or 0)
+        net_revenue_amount = amount
+        if transaction.refund_status == BkashTransaction.RefundStatus.COMPLETED:
+            net_revenue_amount = max(Decimal("0"), amount - refunded_amount)
+        refundable = (
+            transaction.status == BkashTransaction.Status.COMPLETED
+            and transaction.refund_status == BkashTransaction.RefundStatus.NONE
+            and amount > 0
+        )
+        return {
+            "id": str(transaction.id),
+            "provider": "bkash",
+            "provider_reference": transaction.payment_id,
+            "invoice_number": transaction.invoice_number,
+            "trx_id": transaction.trx_id or "",
+            "status": transaction.status,
+            "amount": str(amount),
+            "currency": transaction.currency,
+            "created_at": transaction.created_at.isoformat(),
+            "description": f"bKash {transaction.target_plan.name} plan",
+            "billing_cycle": transaction.billing_cycle,
+            "user": {
+                "id": str(transaction.user_id),
+                "username": transaction.user.username,
+                "email": transaction.user.email,
+            },
+            "plan": {
+                "id": str(transaction.target_plan_id),
+                "name": transaction.target_plan.name,
+                "slug": transaction.target_plan.slug,
+            },
+            "refund_status": transaction.refund_status,
+            "refund_amount": str(refunded_amount),
+            "refund_reason": transaction.refund_reason,
+            "refund_trx_id": transaction.refund_trx_id or "",
+            "refundable": refundable,
+            "available_refund_amount": str(
+                amount - refunded_amount if refundable else Decimal("0")
+            ),
+            "revenue_amount": float(
+                net_revenue_amount
+                if transaction.status == BkashTransaction.Status.COMPLETED
+                else Decimal("0")
+            ),
+        }
 
     @classmethod
     def _matches_search(cls, payment, search):

@@ -1,13 +1,72 @@
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
-from PIL import Image, UnidentifiedImageError
 import os
+from io import BytesIO
+
+from django.contrib.auth import get_user_model
+from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image, ImageOps, ImageSequence, UnidentifiedImageError
 
 from subscriptions.serializers import PlanSummarySerializer
 from subscriptions.services import LicenseService
 
 User = get_user_model()
+FORMAT_CONTENT_TYPES = {
+    "JPEG": "image/jpeg",
+    "PNG": "image/png",
+    "WEBP": "image/webp",
+    "GIF": "image/gif",
+}
+EXTENSION_FORMATS = {
+    ".jpg": "JPEG",
+    ".jpeg": "JPEG",
+    ".png": "PNG",
+    ".webp": "WEBP",
+    ".gif": "GIF",
+}
+
+
+def _normalize_avatar_frame(frame, image_format):
+    normalized = ImageOps.exif_transpose(frame)
+    if image_format == "JPEG" and normalized.mode not in {"RGB", "L"}:
+        normalized = normalized.convert("RGB")
+    return normalized.copy()
+
+
+def sanitize_avatar_upload(uploaded_file):
+    uploaded_file.seek(0)
+    with Image.open(uploaded_file) as image:
+        image_format = (image.format or "").upper()
+        if image_format not in FORMAT_CONTENT_TYPES:
+            extension = os.path.splitext(uploaded_file.name or "")[1].lower()
+            image_format = EXTENSION_FORMATS.get(extension, "PNG")
+
+        if getattr(image, "is_animated", False):
+            frames = [
+                _normalize_avatar_frame(frame.copy(), image_format)
+                for frame in ImageSequence.Iterator(image)
+            ]
+        else:
+            frames = [_normalize_avatar_frame(image, image_format)]
+
+        buffer = BytesIO()
+        save_kwargs = {}
+        if len(frames) > 1 and image_format in {"GIF", "WEBP"}:
+            save_kwargs["save_all"] = True
+            save_kwargs["append_images"] = frames[1:]
+            if "duration" in image.info:
+                save_kwargs["duration"] = image.info["duration"]
+            if "loop" in image.info:
+                save_kwargs["loop"] = image.info["loop"]
+
+        frames[0].save(buffer, format=image_format, **save_kwargs)
+        buffer.seek(0)
+
+        return SimpleUploadedFile(
+            uploaded_file.name,
+            buffer.getvalue(),
+            content_type=FORMAT_CONTENT_TYPES.get(image_format, "application/octet-stream"),
+        )
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -153,7 +212,10 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         finally:
             value.seek(0)
 
-        return value
+        try:
+            return sanitize_avatar_upload(value)
+        except (UnidentifiedImageError, OSError, ValueError) as exc:
+            raise serializers.ValidationError("Upload a valid image file.") from exc
 
 
 class ChangePasswordSerializer(serializers.Serializer):

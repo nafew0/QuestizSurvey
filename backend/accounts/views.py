@@ -4,6 +4,7 @@ from django.contrib.auth.models import update_last_login
 from django.core.exceptions import ImproperlyConfigured
 from django.db import transaction
 from django.db.models import Q
+from django.contrib.auth import get_user_model
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -14,7 +15,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.exceptions import TokenError
-from django.contrib.auth import get_user_model
+
+from questizsurvey.audit import log_audit_event
 
 from .models import EmailVerificationToken
 from .throttles import LoginRateThrottle, RegisterRateThrottle
@@ -44,22 +46,13 @@ from .verification import (
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
+INVALID_LOGIN_DETAIL = "No active account found with the given credentials."
 
 
 class EmailVerificationUnavailable(APIException):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     default_detail = "Email verification is temporarily unavailable. Please try again later."
     default_code = "email_verification_unavailable"
-
-
-def build_verification_required_response(user):
-    return {
-        "detail": "Please verify your email before logging in.",
-        "email_verification_required": True,
-        "email_hint": mask_email(user.email),
-        "resend_available": True,
-    }
-
 
 def get_resend_verification_response():
     return {
@@ -147,6 +140,14 @@ def login_view(request):
     password = request.data.get("password") or ""
 
     if not identifier or not password:
+        log_audit_event(
+            "login_failure",
+            outcome="failure",
+            level="warning",
+            request=request,
+            identifier=identifier,
+            reason="missing_credentials",
+        )
         return Response(
             {"detail": "Username/email and password are required."},
             status=status.HTTP_400_BAD_REQUEST,
@@ -159,19 +160,43 @@ def login_view(request):
     )
 
     if not user or not user.check_password(password) or not user.is_active:
+        log_audit_event(
+            "login_failure",
+            outcome="failure",
+            level="warning",
+            request=request,
+            actor_user=user,
+            identifier=identifier,
+            reason="invalid_credentials",
+        )
         return Response(
-            {"detail": "No active account found with the given credentials."},
+            {"detail": INVALID_LOGIN_DETAIL},
             status=status.HTTP_401_UNAUTHORIZED,
         )
 
     if is_email_verification_required() and not user.email_verified:
+        log_audit_event(
+            "login_failure",
+            outcome="failure",
+            level="warning",
+            request=request,
+            actor_user=user,
+            identifier=identifier,
+            reason="email_unverified",
+        )
         return Response(
-            build_verification_required_response(user),
-            status=status.HTTP_403_FORBIDDEN,
+            {"detail": INVALID_LOGIN_DETAIL},
+            status=status.HTTP_401_UNAUTHORIZED,
         )
 
     refresh = RefreshToken.for_user(user)
     update_last_login(None, user)
+    log_audit_event(
+        "login_success",
+        request=request,
+        actor_user=user,
+        identifier=identifier,
+    )
 
     data = {
         "user": UserSerializer(user).data,
@@ -199,10 +224,20 @@ class VerifiedTokenRefreshView(TokenRefreshView):
                 user_id = token.get("user_id")
                 user = User.objects.filter(pk=user_id).only("id", "email", "email_verified").first()
                 if user and is_email_verification_required() and not user.email_verified:
-                    return Response(
-                        build_verification_required_response(user),
-                        status=status.HTTP_403_FORBIDDEN,
+                    log_audit_event(
+                        "token_refresh_denied",
+                        outcome="failure",
+                        level="warning",
+                        request=request,
+                        actor_user=user,
+                        reason="email_unverified",
                     )
+                    response = Response(
+                        {"detail": INVALID_LOGIN_DETAIL},
+                        status=status.HTTP_401_UNAUTHORIZED,
+                    )
+                    clear_refresh_cookie(response)
+                    return response
             except TokenError:
                 pass
 
@@ -399,6 +434,7 @@ class ChangePasswordView(generics.UpdateAPIView):
         user = request.user
         user.set_password(serializer.validated_data["new_password"])
         user.save()
+        log_audit_event("password_change", request=request, actor_user=user)
 
         return Response(
             {"message": "Password changed successfully."}, status=status.HTTP_200_OK
@@ -413,6 +449,7 @@ def delete_account_view(request):
     DELETE: Delete the authenticated user's account.
     """
     user = request.user
+    log_audit_event("account_delete", request=request, actor_user=user)
     user.delete()
 
     return Response(

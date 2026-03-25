@@ -100,6 +100,12 @@ class BkashTransaction(models.Model):
         CANCELLED = "cancelled", "Cancelled"
         EXPIRED = "expired", "Expired"
 
+    class RefundStatus(models.TextChoices):
+        NONE = "none", "Not refunded"
+        PENDING = "pending", "Refund pending"
+        COMPLETED = "completed", "Refunded"
+        FAILED = "failed", "Refund failed"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -132,7 +138,19 @@ class BkashTransaction(models.Model):
         choices=Status.choices,
         default=Status.INITIATED,
     )
+    refund_status = models.CharField(
+        max_length=20,
+        choices=RefundStatus.choices,
+        default=RefundStatus.NONE,
+    )
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    refund_reason = models.CharField(max_length=255, blank=True, default="")
+    refund_sku = models.CharField(max_length=255, blank=True, default="")
+    refund_trx_id = models.CharField(max_length=255, blank=True, null=True, unique=True)
+    refund_requested_at = models.DateTimeField(null=True, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
     bkash_response = models.JSONField(default=dict, blank=True)
+    refund_response = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -153,6 +171,7 @@ class SubscriptionEvent(models.Model):
         BKASH_ACTIVATED = "bkash_activated", "bKash activated"
         BKASH_CANCEL_REQUESTED = "bkash_cancel_requested", "bKash cancel requested"
         BKASH_DOWNGRADED = "bkash_downgraded", "bKash downgraded"
+        BKASH_REFUNDED = "bkash_refunded", "bKash refunded"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     subscription = models.ForeignKey(

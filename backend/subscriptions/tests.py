@@ -1,4 +1,5 @@
 from datetime import timedelta
+from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -16,7 +17,9 @@ from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent, User
 from subscriptions.tasks import (
     check_expired_subscriptions,
     check_expiring_subscriptions,
+    expire_stale_bkash_transactions,
 )
+from subscriptions.throttles import PaymentCheckoutThrottle, PaymentStatusThrottle
 from surveys.models import Collector, Page, Question, Survey, SurveyResponse
 
 User = get_user_model()
@@ -200,6 +203,7 @@ class SubscriptionApiAndLimitsTests(TestCase):
 )
 class StripePaymentTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.public_client = APIClient()
         self.user = User.objects.create_user(
@@ -289,6 +293,70 @@ class StripePaymentTests(TestCase):
         )
         subscription.refresh_from_db()
         self.assertEqual(subscription.stripe_customer_id, "cus_123")
+
+    @patch("subscriptions.stripe_views.StripeService.create_checkout_session")
+    def test_create_checkout_endpoint_is_throttled(self, create_checkout_session_mock):
+        create_checkout_session_mock.return_value = "https://checkout.stripe.com/pay/cs_test_123"
+
+        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+            first_response = self.client.post(
+                "/api/payments/stripe/create-checkout/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+            second_response = self.client.post(
+                "/api/payments/stripe/create-checkout/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @patch("subscriptions.stripe_service.stripe.billing_portal.Session.create")
+    def test_customer_portal_endpoint_is_throttled(self, portal_create_mock):
+        UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.STRIPE,
+            stripe_customer_id="cus_123",
+            stripe_subscription_id="sub_123",
+        )
+        portal_create_mock.return_value = {
+            "url": "https://billing.stripe.com/session/test",
+        }
+
+        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+            first_response = self.client.post("/api/payments/stripe/customer-portal/")
+            second_response = self.client.post("/api/payments/stripe/customer-portal/")
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @patch("subscriptions.stripe_views.StripeService.create_checkout_session")
+    def test_create_checkout_writes_audit_log(self, create_checkout_session_mock):
+        create_checkout_session_mock.return_value = "https://checkout.stripe.com/pay/cs_test_123"
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.post(
+                "/api/payments/stripe/create-checkout/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any('"event": "stripe_checkout"' in message for message in captured.output))
 
     @patch("subscriptions.stripe_service.stripe.Subscription.retrieve")
     @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
@@ -539,6 +607,31 @@ class BkashServiceTests(TestCase):
         with self.assertRaises(BkashServiceError):
             BkashService.execute_payment("payment_123")
 
+    @patch.object(BkashService, "_authorized_request")
+    def test_search_transaction_queries_provider_by_trx_id(
+        self, authorized_request_mock
+    ):
+        authorized_request_mock.return_value = {
+            "statusCode": "0000",
+            "paymentID": "payment_123",
+            "trxID": "trx_123",
+        }
+
+        response = BkashService.search_transaction("trx_123")
+
+        self.assertEqual(response["paymentID"], "payment_123")
+        self.assertEqual(
+            authorized_request_mock.call_args.args,
+            ("GET", "/tokenized/checkout/payment/search/trx_123"),
+        )
+
+    def test_already_processed_detection_handles_status_code_2029(self):
+        self.assertTrue(
+            BkashService._looks_already_processed(
+                {"statusCode": "2029", "statusMessage": "Duplicate payment"}
+            )
+        )
+
 
 @override_settings(
     API_ORIGIN="http://localhost:8000",
@@ -644,6 +737,60 @@ class BkashPaymentTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         create_payment_mock.assert_not_called()
 
+    @patch.object(BkashService, "create_payment")
+    def test_create_checkout_endpoint_is_throttled(self, create_payment_mock):
+        create_payment_mock.return_value = {
+            "payment_id": "payment_123",
+            "bkash_url": "https://sandbox.payment/bkash/123",
+            "invoice_number": "INV-123",
+            "amount": self.pro_plan.bkash_price_monthly,
+            "response": {"statusCode": "0000"},
+        }
+
+        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+            first_response = self.client.post(
+                "/api/payments/bkash/create/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+            second_response = self.client.post(
+                "/api/payments/bkash/create/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+
+    @patch.object(BkashService, "create_payment")
+    def test_create_checkout_writes_audit_log(self, create_payment_mock):
+        create_payment_mock.return_value = {
+            "payment_id": "payment_123",
+            "bkash_url": "https://sandbox.payment/bkash/123",
+            "invoice_number": "INV-123",
+            "amount": self.pro_plan.bkash_price_monthly,
+            "response": {"statusCode": "0000"},
+        }
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.post(
+                "/api/payments/bkash/create/",
+                {
+                    "plan_id": str(self.pro_plan.id),
+                    "billing_cycle": UserSubscription.BillingCycle.MONTHLY,
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any('"event": "bkash_checkout"' in message for message in captured.output))
+
     @patch.object(BkashService, "verify_payment")
     def test_callback_success_activates_subscription_idempotently(
         self, verify_payment_mock
@@ -715,6 +862,35 @@ class BkashPaymentTests(TestCase):
         self.assertEqual(transaction_record.status, BkashTransaction.Status.CANCELLED)
         self.assertEqual(subscription.plan, self.free_plan)
 
+    @override_settings(BKASH_CALLBACK_TRUSTED_IPS=["203.0.113.10"])
+    @patch.object(BkashService, "sync_transaction")
+    def test_callback_rejects_non_allowlisted_source_without_sync(
+        self, sync_transaction_mock
+    ):
+        response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_blocked", "status": "success"},
+            REMOTE_ADDR="198.51.100.42",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("/payment/failed", response.url)
+        sync_transaction_mock.assert_not_called()
+
+    @override_settings(BKASH_CALLBACK_TRUSTED_IPS=["203.0.113.10"])
+    @patch.object(BkashService, "sync_transaction")
+    def test_callback_accepts_allowlisted_source(
+        self, sync_transaction_mock
+    ):
+        response = self.public_client.get(
+            "/api/payments/bkash/callback/",
+            {"paymentID": "payment_allowed", "status": "success"},
+            REMOTE_ADDR="203.0.113.10",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        sync_transaction_mock.assert_called_once()
+
     @patch.object(BkashService, "sync_transaction", side_effect=Exception("boom"))
     def test_callback_unexpected_error_still_redirects_to_failure_page(
         self, sync_transaction_mock
@@ -727,6 +903,141 @@ class BkashPaymentTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
         self.assertIn("/payment/failed", response.url)
         sync_transaction_mock.assert_called_once()
+
+    @patch.object(BkashService, "sync_transaction")
+    def test_callback_logs_when_allowlist_is_unconfigured(self, sync_transaction_mock):
+        with self.assertLogs("audit", level="WARNING") as captured:
+            response = self.public_client.get(
+                "/api/payments/bkash/callback/",
+                {"paymentID": "payment_any", "status": "success"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            any(
+                '"event": "bkash_callback_allowlist_unconfigured"' in message
+                for message in captured.output
+            )
+        )
+
+    @patch("subscriptions.bkash_views.confirm_sns_subscription")
+    @patch("subscriptions.bkash_views.verify_sns_message_signature")
+    @patch("subscriptions.bkash_views.parse_sns_message")
+    def test_webhook_handles_subscription_confirmation(
+        self,
+        parse_sns_message_mock,
+        verify_signature_mock,
+        confirm_subscription_mock,
+    ):
+        parse_sns_message_mock.return_value = {
+            "Type": "SubscriptionConfirmation",
+            "TopicArn": "arn:aws:sns:ap-southeast-1:123456789012:bkash",
+            "MessageId": "msg-123",
+            "SubscribeURL": "https://sns.ap-southeast-1.amazonaws.com/confirm",
+        }
+
+        response = self.public_client.post(
+            "/api/payments/bkash/webhook/",
+            data="{}",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verify_signature_mock.assert_called_once()
+        confirm_subscription_mock.assert_called_once()
+
+    @patch("subscriptions.bkash_views.process_bkash_webhook_notification.delay")
+    @patch("subscriptions.bkash_views.extract_notification_payload")
+    @patch("subscriptions.bkash_views.verify_sns_message_signature")
+    @patch("subscriptions.bkash_views.parse_sns_message")
+    def test_webhook_notification_queues_sync_for_matching_payment(
+        self,
+        parse_sns_message_mock,
+        verify_signature_mock,
+        extract_notification_payload_mock,
+        webhook_delay_mock,
+    ):
+        BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_webhook",
+            invoice_number="INV-WEBHOOK",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+        parse_sns_message_mock.return_value = {
+            "Type": "Notification",
+            "TopicArn": "arn:aws:sns:ap-southeast-1:123456789012:bkash",
+            "MessageId": "msg-456",
+        }
+        extract_notification_payload_mock.return_value = {
+            "paymentID": "payment_webhook",
+            "trxID": "trx_webhook",
+            "transactionStatus": "Completed",
+        }
+
+        response = self.public_client.post(
+            "/api/payments/bkash/webhook/",
+            data="{}",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verify_signature_mock.assert_called_once()
+        webhook_delay_mock.assert_called_once_with(
+            payment_id="payment_webhook",
+            status_hint=BkashTransaction.Status.COMPLETED,
+        )
+
+    @patch.object(BkashService, "search_transaction")
+    @patch("subscriptions.bkash_views.process_bkash_webhook_notification.delay")
+    @patch("subscriptions.bkash_views.extract_notification_payload")
+    @patch("subscriptions.bkash_views.verify_sns_message_signature")
+    @patch("subscriptions.bkash_views.parse_sns_message")
+    def test_webhook_uses_search_transaction_when_only_trx_id_is_present(
+        self,
+        parse_sns_message_mock,
+        verify_signature_mock,
+        extract_notification_payload_mock,
+        webhook_delay_mock,
+        search_transaction_mock,
+    ):
+        BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_search",
+            invoice_number="INV-SEARCH",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+        parse_sns_message_mock.return_value = {
+            "Type": "Notification",
+            "TopicArn": "arn:aws:sns:ap-southeast-1:123456789012:bkash",
+            "MessageId": "msg-789",
+        }
+        extract_notification_payload_mock.return_value = {
+            "trxID": "trx_search",
+            "transactionStatus": "Completed",
+        }
+        search_transaction_mock.return_value = {
+            "paymentID": "payment_search",
+            "trxID": "trx_search",
+            "merchantInvoiceNumber": "INV-SEARCH",
+        }
+
+        response = self.public_client.post(
+            "/api/payments/bkash/webhook/",
+            data="{}",
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        verify_signature_mock.assert_called_once()
+        search_transaction_mock.assert_called_once_with("trx_search")
+        webhook_delay_mock.assert_called_once_with(
+            payment_id="payment_search",
+            status_hint=BkashTransaction.Status.COMPLETED,
+        )
 
     def test_status_endpoint_is_owner_only(self):
         BkashTransaction.objects.create(
@@ -743,6 +1054,25 @@ class BkashPaymentTests(TestCase):
         response = other_client.get("/api/payments/bkash/status/payment_owner_only/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch.object(BkashService, "sync_transaction")
+    def test_status_endpoint_is_throttled(self, sync_transaction_mock):
+        transaction_record = BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_status",
+            invoice_number="INV-STATUS",
+            amount=self.pro_plan.bkash_price_monthly,
+        )
+        sync_transaction_mock.return_value = transaction_record
+
+        with patch.object(PaymentStatusThrottle, "rate", "1/min"):
+            first_response = self.client.get("/api/payments/bkash/status/payment_status/")
+            second_response = self.client.get("/api/payments/bkash/status/payment_status/")
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
     def test_cancel_endpoint_flags_bkash_subscription_for_period_end(self):
         UserSubscription.objects.create(
@@ -822,6 +1152,86 @@ class BkashPaymentTests(TestCase):
             subscription.payment_provider, UserSubscription.PaymentProvider.NONE
         )
         self.assertEqual(len(mail.outbox), 1)
+
+    @patch.object(BkashService, "_authorized_request")
+    def test_refund_payment_records_completed_refund_and_downgrades_subscription(
+        self, authorized_request_mock
+    ):
+        subscription = UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+            current_period_start=timezone.now() - timedelta(days=2),
+            current_period_end=timezone.now() + timedelta(days=28),
+        )
+        transaction_record = BkashTransaction.objects.create(
+            user=self.user,
+            subscription=subscription,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_refund",
+            trx_id="trx_refund",
+            invoice_number="INV-REFUND",
+            amount=Decimal("2900.00"),
+            currency="BDT",
+            status=BkashTransaction.Status.COMPLETED,
+        )
+        authorized_request_mock.return_value = {
+            "statusCode": "0000",
+            "refundTrxID": "refund_trx_123",
+        }
+
+        refunded_transaction = BkashService.refund_payment(
+            "payment_refund",
+            amount=Decimal("2900.00"),
+            reason="Customer request",
+            sku="INV-REFUND",
+        )
+
+        subscription.refresh_from_db()
+        transaction_record.refresh_from_db()
+        self.assertEqual(
+            refunded_transaction.refund_status,
+            BkashTransaction.RefundStatus.COMPLETED,
+        )
+        self.assertEqual(transaction_record.refund_trx_id, "refund_trx_123")
+        self.assertEqual(subscription.plan, self.free_plan)
+        self.assertTrue(
+            SubscriptionEvent.objects.filter(
+                user=self.user,
+                event_type=SubscriptionEvent.EventType.BKASH_REFUNDED,
+            ).exists()
+        )
+
+    @patch.object(BkashService, "query_payment")
+    def test_expire_stale_bkash_transactions_marks_unresolved_transactions_expired(
+        self, query_payment_mock
+    ):
+        transaction_record = BkashTransaction.objects.create(
+            user=self.user,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="payment_stale",
+            invoice_number="INV-STALE",
+            amount=self.pro_plan.bkash_price_monthly,
+            created_at=timezone.now() - timedelta(hours=25),
+        )
+        BkashTransaction.objects.filter(pk=transaction_record.pk).update(
+            created_at=timezone.now() - timedelta(hours=25)
+        )
+        query_payment_mock.return_value = {
+            "statusCode": "2062",
+            "statusMessage": "Payment expired",
+            "transactionStatus": "Expired",
+        }
+
+        expired_count = expire_stale_bkash_transactions()
+
+        transaction_record.refresh_from_db()
+        self.assertEqual(expired_count, 1)
+        self.assertEqual(transaction_record.status, BkashTransaction.Status.EXPIRED)
 
 
 class SubscriptionEventMigrationTestCase(TransactionTestCase):

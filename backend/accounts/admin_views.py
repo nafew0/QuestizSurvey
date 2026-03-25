@@ -13,8 +13,19 @@ from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from questizsurvey.audit import log_audit_event
 from subscriptions.admin_services import AdminPaymentsService
-from subscriptions.models import Plan, SubscriptionEvent
+from subscriptions.bkash_service import (
+    BkashConfigurationError,
+    BkashService,
+    BkashServiceError,
+    BkashUserInputError,
+)
+from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent
+from subscriptions.serializers import (
+    BkashRefundRequestSerializer,
+    BkashSearchTransactionSerializer,
+)
 from subscriptions.services import LicenseService
 
 from .ai_secrets import get_ai_api_key, get_ai_api_key_env_var
@@ -31,6 +42,7 @@ from .admin_serializers import (
 from .ai_testing import AITestConnectionError, AITestService
 from .models import SiteSettings
 from .password_reset import send_password_reset_email
+from .throttles import AdminRateThrottle
 
 User = get_user_model()
 
@@ -46,6 +58,11 @@ class AdminPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class AdminAPIView(APIView):
+    permission_classes = [IsSuperuserPermission]
+    throttle_classes = [AdminRateThrottle]
 
 
 def get_site_settings():
@@ -67,15 +84,12 @@ def parse_datetime_filter(value, *, end_of_day=False):
     return parsed
 
 
-class AdminDashboardView(APIView):
-    permission_classes = [IsSuperuserPermission]
-
+class AdminDashboardView(AdminAPIView):
     def get(self, request):
         return Response(AdminPaymentsService.build_dashboard_payload())
 
 
-class AdminUsersView(APIView):
-    permission_classes = [IsSuperuserPermission]
+class AdminUsersView(AdminAPIView):
     pagination_class = AdminPagination
 
     def get_queryset(self, request):
@@ -138,9 +152,7 @@ class AdminUsersView(APIView):
         )
 
 
-class AdminUserDetailView(APIView):
-    permission_classes = [IsSuperuserPermission]
-
+class AdminUserDetailView(AdminAPIView):
     def get_user(self, user_id):
         return get_object_or_404(
             User.objects.select_related("subscription__plan"),
@@ -185,6 +197,14 @@ class AdminUserDetailView(APIView):
             if "is_active" in validated:
                 next_is_active = validated["is_active"]
                 if locked_user.pk == request.user.pk and not next_is_active:
+                    log_audit_event(
+                        "admin_user_update",
+                        outcome="failure",
+                        level="warning",
+                        request=request,
+                        target_user=locked_user,
+                        reason="self_deactivation_blocked",
+                    )
                     return Response(
                         {"detail": "You cannot deactivate your own account."},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -195,6 +215,14 @@ class AdminUserDetailView(APIView):
                     and not next_is_active
                     and User.objects.filter(is_superuser=True, is_active=True).count() <= 1
                 ):
+                    log_audit_event(
+                        "admin_user_update",
+                        outcome="failure",
+                        level="warning",
+                        request=request,
+                        target_user=locked_user,
+                        reason="last_superuser_blocked",
+                    )
                     return Response(
                         {
                             "detail": "Questiz must keep at least one active superuser account."
@@ -211,6 +239,14 @@ class AdminUserDetailView(APIView):
                     == subscription.PaymentProvider.STRIPE
                     and LicenseService.is_subscription_paid_and_active(subscription)
                 ):
+                    log_audit_event(
+                        "admin_user_update",
+                        outcome="failure",
+                        level="warning",
+                        request=request,
+                        target_user=locked_user,
+                        reason="active_stripe_subscription",
+                    )
                     return Response(
                         {
                             "detail": "Active Stripe-managed subscriptions must be changed from the Stripe billing portal."
@@ -240,6 +276,12 @@ class AdminUserDetailView(APIView):
                         "previous_state": previous_state,
                     },
                 )
+        log_audit_event(
+            "admin_user_update",
+            request=request,
+            target_user=target_user,
+            updated_fields=sorted(validated.keys()),
+        )
 
         refreshed_user = self.get_user(user_id)
         detail = AdminPaymentsService.build_user_detail_snapshot(refreshed_user)
@@ -263,26 +305,36 @@ class AdminUserDetailView(APIView):
         )
 
 
-class AdminSendPasswordResetView(APIView):
-    permission_classes = [IsSuperuserPermission]
-
+class AdminSendPasswordResetView(AdminAPIView):
     def post(self, request, user_id):
         target_user = get_object_or_404(User, pk=user_id, is_active=True)
         try:
             send_password_reset_email(target_user, requested_by=request.user)
         except ImproperlyConfigured as exc:
+            log_audit_event(
+                "admin_password_reset_send",
+                outcome="failure",
+                level="warning",
+                request=request,
+                target_user=target_user,
+                reason="email_not_configured",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+        log_audit_event(
+            "admin_password_reset_send",
+            request=request,
+            target_user=target_user,
+        )
         return Response(
             {"detail": "Password reset email sent successfully."},
             status=status.HTTP_200_OK,
         )
 
 
-class AdminPaymentsView(APIView):
-    permission_classes = [IsSuperuserPermission]
+class AdminPaymentsView(AdminAPIView):
     pagination_class = AdminPagination
 
     def get_payment_data(self, request):
@@ -355,9 +407,153 @@ class AdminPaymentsExportView(AdminPaymentsView):
         return response
 
 
-class AdminSettingsView(APIView):
-    permission_classes = [IsSuperuserPermission]
+class AdminBkashPaymentSearchView(AdminAPIView):
+    def get(self, request):
+        serializer = BkashSearchTransactionSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
 
+        trx_id = serializer.validated_data["trx_id"]
+        try:
+            provider_status = BkashService.search_transaction(trx_id)
+        except BkashConfigurationError as exc:
+            log_audit_event(
+                "admin_bkash_search",
+                outcome="failure",
+                level="warning",
+                request=request,
+                trx_id=trx_id,
+                reason="bkash_not_configured",
+            )
+            return Response(
+                {"detail": str(exc), "code": "bkash_not_configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except BkashServiceError as exc:
+            log_audit_event(
+                "admin_bkash_search",
+                outcome="failure",
+                level="warning",
+                request=request,
+                trx_id=trx_id,
+                reason="provider_error",
+            )
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        transaction_record = BkashService.get_matching_transaction(
+            payment_id=(provider_status.get("paymentID") or "").strip(),
+            trx_id=(provider_status.get("trxID") or trx_id).strip(),
+            invoice_number=(
+                provider_status.get("merchantInvoiceNumber")
+                or provider_status.get("merchantInvoiceNo")
+                or ""
+            ).strip(),
+        )
+        log_audit_event(
+            "admin_bkash_search",
+            request=request,
+            target_user=transaction_record.user if transaction_record else None,
+            trx_id=trx_id,
+            payment_id=(provider_status.get("paymentID") or "").strip(),
+            transaction_found=bool(transaction_record),
+        )
+        return Response(
+            {
+                "provider_status": provider_status,
+                "transaction": (
+                    AdminPaymentsService.serialize_bkash_payment(transaction_record)
+                    if transaction_record
+                    else None
+                ),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminBkashRefundView(AdminAPIView):
+    def post(self, request, payment_id):
+        transaction_record = get_object_or_404(
+            BkashTransaction.objects.select_related("user", "target_plan"),
+            payment_id=payment_id,
+        )
+        serializer = BkashRefundRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            refunded_transaction = BkashService.refund_payment(
+                payment_id,
+                amount=serializer.validated_data["amount"],
+                reason=serializer.validated_data.get("reason", ""),
+                sku=serializer.validated_data.get("sku", ""),
+            )
+        except BkashConfigurationError as exc:
+            log_audit_event(
+                "admin_bkash_refund",
+                outcome="failure",
+                level="warning",
+                request=request,
+                target_user=transaction_record.user,
+                payment_id=payment_id,
+                reason="bkash_not_configured",
+            )
+            return Response(
+                {"detail": str(exc), "code": "bkash_not_configured"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except BkashUserInputError as exc:
+            log_audit_event(
+                "admin_bkash_refund",
+                outcome="failure",
+                level="warning",
+                request=request,
+                target_user=transaction_record.user,
+                payment_id=payment_id,
+                refund_amount=str(serializer.validated_data["amount"]),
+                reason="invalid_request",
+            )
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except BkashServiceError as exc:
+            log_audit_event(
+                "admin_bkash_refund",
+                outcome="failure",
+                level="warning",
+                request=request,
+                target_user=transaction_record.user,
+                payment_id=payment_id,
+                refund_amount=str(serializer.validated_data["amount"]),
+                reason="provider_error",
+            )
+            return Response(
+                {"detail": str(exc)},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        log_audit_event(
+            "admin_bkash_refund",
+            request=request,
+            target_user=refunded_transaction.user,
+            payment_id=payment_id,
+            refund_amount=str(refunded_transaction.refund_amount),
+            refund_status=refunded_transaction.refund_status,
+            refund_trx_id=refunded_transaction.refund_trx_id or "",
+        )
+        return Response(
+            {
+                "transaction": AdminPaymentsService.serialize_bkash_payment(
+                    refunded_transaction
+                ),
+                "provider_status": refunded_transaction.refund_response,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminSettingsView(AdminAPIView):
     def get(self, request):
         return Response(SiteSettingsAdminSerializer(get_site_settings()).data)
 
@@ -369,12 +565,15 @@ class AdminSettingsView(APIView):
         for field, value in serializer.validated_data.items():
             setattr(settings_obj, field, value)
         settings_obj.save()
+        log_audit_event(
+            "admin_settings_update",
+            request=request,
+            updated_fields=sorted(serializer.validated_data.keys()),
+        )
         return Response(SiteSettingsAdminSerializer(settings_obj).data)
 
 
-class AdminSettingsTestAIView(APIView):
-    permission_classes = [IsSuperuserPermission]
-
+class AdminSettingsTestAIView(AdminAPIView):
     def post(self, request):
         settings_obj = get_site_settings()
         provider = request.data.get("provider") or settings_obj.ai_provider
@@ -392,6 +591,15 @@ class AdminSettingsTestAIView(APIView):
         api_key = get_ai_api_key(settings_obj, serializer.validated_data["provider"])
         if not api_key:
             env_var_name = get_ai_api_key_env_var(serializer.validated_data["provider"])
+            log_audit_event(
+                "admin_ai_test",
+                outcome="failure",
+                level="warning",
+                request=request,
+                provider=serializer.validated_data["provider"],
+                model=serializer.validated_data["model"],
+                reason="missing_api_key",
+            )
             return Response(
                 {
                     "detail": f"Set {env_var_name} on the server before testing this provider."
@@ -405,8 +613,23 @@ class AdminSettingsTestAIView(APIView):
                 **serializer.validated_data,
             )
         except AITestConnectionError as exc:
+            log_audit_event(
+                "admin_ai_test",
+                outcome="failure",
+                level="warning",
+                request=request,
+                provider=serializer.validated_data["provider"],
+                model=serializer.validated_data["model"],
+                reason="connection_failed",
+            )
             return Response(
                 {"detail": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        log_audit_event(
+            "admin_ai_test",
+            request=request,
+            provider=serializer.validated_data["provider"],
+            model=serializer.validated_data["model"],
+        )
         return Response(result, status=status.HTTP_200_OK)

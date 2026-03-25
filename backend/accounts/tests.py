@@ -1,11 +1,14 @@
 import os
+import tempfile
 from datetime import timedelta
 from decimal import Decimal
+from io import BytesIO
 import re
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core import mail
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.contrib.admin.sites import AdminSite
 from django.db import connection
@@ -14,6 +17,7 @@ from django.test.client import RequestFactory
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db.migrations.executor import MigrationExecutor
+from PIL import Image
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -22,6 +26,7 @@ from questizsurvey.client_ip import get_client_ip
 from .admin import EmailVerificationTokenAdmin
 from .ai_testing import AITestService
 from .models import EmailVerificationToken, SiteSettings
+from .throttles import AdminRateThrottle
 from .verification import send_verification_email
 from subscriptions.admin_services import StripePaymentsResult
 from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent, UserSubscription
@@ -44,6 +49,7 @@ class AccountsAuthFlowTestCase(TestCase):
     """Production-oriented auth and verification coverage."""
 
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.register_url = "/api/auth/register/"
         self.login_url = "/api/auth/login/"
@@ -194,9 +200,13 @@ class AccountsAuthFlowTestCase(TestCase):
             {"username": "needsverify", "password": "TestPass123!"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(response.data["email_verification_required"])
-        self.assertIn("email_hint", response.data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            response.data["detail"],
+            "No active account found with the given credentials.",
+        )
+        self.assertNotIn("email_verification_required", response.data)
+        self.assertNotIn("email_hint", response.data)
 
     def test_refresh_denies_unverified_user_when_required(self):
         user = self.create_user(username="refreshuser", email="refresh@example.com", email_verified=False)
@@ -208,8 +218,12 @@ class AccountsAuthFlowTestCase(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertTrue(response.data["email_verification_required"])
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            response.data["detail"],
+            "No active account found with the given credentials.",
+        )
+        self.assertIn(settings.AUTH_REFRESH_COOKIE_NAME, response.cookies)
 
     def test_send_verification_email_requires_cooldown(self):
         user = self.create_user(username="resenduser", email="resend@example.com", email_verified=False)
@@ -388,6 +402,92 @@ class AccountsAuthFlowTestCase(TestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("avatar", response.data)
 
+    def test_login_success_writes_audit_log(self):
+        self.create_user()
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.post(
+                self.login_url,
+                {"username": "testuser", "password": "TestPass123!"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any('"event": "login_success"' in message for message in captured.output))
+
+    def test_login_failure_writes_audit_log(self):
+        self.create_user()
+
+        with self.assertLogs("audit", level="WARNING") as captured:
+            response = self.client.post(
+                self.login_url,
+                {"username": "testuser", "password": "WrongPassword"},
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertTrue(any('"event": "login_failure"' in message for message in captured.output))
+        self.assertTrue(any('"reason": "invalid_credentials"' in message for message in captured.output))
+
+    def test_change_password_writes_audit_log(self):
+        user = self.create_user(username="changepass", email="changepass@example.com")
+        self.client.force_authenticate(user=user)
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.patch(
+                "/api/auth/user/change-password/",
+                {
+                    "old_password": "TestPass123!",
+                    "new_password": "UpdatedPass123!",
+                    "new_password2": "UpdatedPass123!",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any('"event": "password_change"' in message for message in captured.output))
+
+    def test_delete_account_writes_audit_log(self):
+        user = self.create_user(username="deleteaudit", email="deleteaudit@example.com")
+        self.client.force_authenticate(user=user)
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.delete("/api/auth/user/delete/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(User.objects.filter(pk=user.pk).exists())
+        self.assertTrue(any('"event": "account_delete"' in message for message in captured.output))
+
+    def test_profile_update_strips_avatar_exif_metadata_and_preserves_orientation(self):
+        user = self.create_user(username="avatarclean", email="avatarclean@example.com")
+        self.client.force_authenticate(user=user)
+
+        image = Image.new("RGB", (10, 20), color="red")
+        exif = Image.Exif()
+        exif[274] = 6
+        exif[270] = "Questiz EXIF"
+        image_bytes = BytesIO()
+        image.save(image_bytes, format="JPEG", exif=exif)
+        image_bytes.seek(0)
+        avatar = SimpleUploadedFile(
+            "avatar.jpg",
+            image_bytes.getvalue(),
+            content_type="image/jpeg",
+        )
+
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.patch(
+                    self.update_url,
+                    {"avatar": avatar},
+                    format="multipart",
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                user.refresh_from_db()
+                with user.avatar.open("rb") as saved_avatar:
+                    with Image.open(saved_avatar) as saved_image:
+                        self.assertEqual(saved_image.size, (20, 10))
+                        self.assertEqual(len(saved_image.getexif()), 0)
+
 
 class EmailVerificationMigrationTestCase(TransactionTestCase):
     """Ensure rollout migration marks existing users verified."""
@@ -470,6 +570,7 @@ class ClientIpResolutionTests(TestCase):
 )
 class AdminApiTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.client = APIClient()
         self.superuser = User.objects.create_superuser(
             username="admin",
@@ -652,6 +753,103 @@ class AdminApiTests(TestCase):
         self.assertIn("INV-BKASH-1", export_text)
         self.assertIn("in_test", export_text)
 
+    @patch("accounts.admin_views.BkashService.search_transaction")
+    def test_admin_can_search_bkash_transaction_by_trx_id(self, search_transaction_mock):
+        subscription = UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+        )
+        BkashTransaction.objects.create(
+            user=self.user,
+            subscription=subscription,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="pay_bkash_search",
+            trx_id="trx_bkash_search",
+            invoice_number="INV-BKASH-SEARCH",
+            amount=Decimal("499.00"),
+            currency="BDT",
+            status=BkashTransaction.Status.COMPLETED,
+        )
+        search_transaction_mock.return_value = {
+            "paymentID": "pay_bkash_search",
+            "trxID": "trx_bkash_search",
+            "merchantInvoiceNumber": "INV-BKASH-SEARCH",
+            "transactionStatus": "Completed",
+        }
+        self.authenticate_admin()
+
+        response = self.client.get(
+            "/api/admin/payments/bkash/search/",
+            {"trx_id": "trx_bkash_search"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["transaction"]["provider_reference"],
+            "pay_bkash_search",
+        )
+        search_transaction_mock.assert_called_once_with("trx_bkash_search")
+
+    @patch("accounts.admin_views.BkashService.refund_payment")
+    def test_admin_can_submit_bkash_refund(self, refund_payment_mock):
+        subscription = UserSubscription.objects.create(
+            user=self.user,
+            plan=self.pro_plan,
+            status=UserSubscription.Status.ACTIVE,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_provider=UserSubscription.PaymentProvider.BKASH,
+        )
+        transaction_record = BkashTransaction.objects.create(
+            user=self.user,
+            subscription=subscription,
+            target_plan=self.pro_plan,
+            billing_cycle=UserSubscription.BillingCycle.MONTHLY,
+            payment_id="pay_bkash_refund",
+            trx_id="trx_bkash_refund",
+            invoice_number="INV-BKASH-REFUND",
+            amount=Decimal("499.00"),
+            currency="BDT",
+            status=BkashTransaction.Status.COMPLETED,
+        )
+        transaction_record.refund_status = BkashTransaction.RefundStatus.COMPLETED
+        transaction_record.refund_amount = Decimal("100.00")
+        transaction_record.refund_reason = "Customer request"
+        transaction_record.refund_trx_id = "refund_trx_admin"
+        transaction_record.save(
+            update_fields=[
+                "refund_status",
+                "refund_amount",
+                "refund_reason",
+                "refund_trx_id",
+            ]
+        )
+        refund_payment_mock.return_value = transaction_record
+        self.authenticate_admin()
+
+        response = self.client.post(
+            "/api/admin/payments/bkash/pay_bkash_refund/refund/",
+            {
+                "amount": "100.00",
+                "reason": "Customer request",
+                "sku": "INV-BKASH-REFUND",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["transaction"]["refund_status"],
+            BkashTransaction.RefundStatus.COMPLETED,
+        )
+        self.assertEqual(
+            refund_payment_mock.call_args.kwargs["amount"],
+            Decimal("100.00"),
+        )
+
     @patch.dict(
         os.environ,
         {
@@ -705,6 +903,19 @@ class AdminApiTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("ai_api_key_openai", response.data)
+
+    def test_admin_settings_patch_writes_audit_log(self):
+        self.authenticate_admin()
+
+        with self.assertLogs("audit", level="INFO") as captured:
+            response = self.client.patch(
+                "/api/admin/settings/",
+                {"require_email_verification": False},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(any('"event": "admin_settings_update"' in message for message in captured.output))
 
     @patch.dict(
         os.environ,
@@ -865,3 +1076,13 @@ class AdminApiTests(TestCase):
         self.assertEqual(confirm_response.status_code, status.HTTP_200_OK)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("UpdatedPass123!"))
+
+    def test_admin_endpoints_are_throttled(self):
+        self.authenticate_admin()
+
+        with patch.object(AdminRateThrottle, "rate", "1/min"):
+            first_response = self.client.get("/api/admin/dashboard/")
+            second_response = self.client.get("/api/admin/dashboard/")
+
+        self.assertEqual(first_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

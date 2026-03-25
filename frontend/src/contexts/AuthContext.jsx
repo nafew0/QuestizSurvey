@@ -93,12 +93,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const errorMessage = extractErrorMessage(err, 'Login failed')
       setError(errorMessage)
-      return {
-        success: false,
-        error: errorMessage,
-        emailVerificationRequired: Boolean(err.response?.data?.email_verification_required),
-        emailHint: err.response?.data?.email_hint || '',
-      }
+      return { success: false, error: errorMessage }
     }
   }
 

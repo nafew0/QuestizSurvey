@@ -188,22 +188,27 @@ CELERY_RESULT_BACKEND=redis://127.0.0.1:6379/2
 CELERY_TASK_ALWAYS_EAGER=False
 CELERY_TASK_EAGER_PROPAGATES=True
 USE_X_FORWARDED_HOST=True
-TRUSTED_PROXY_IPS=127.0.0.1,::1
 CSRF_COOKIE_SECURE=True
 SESSION_COOKIE_SECURE=True
+TRUSTED_PROXY_IPS=127.0.0.1,::1
+BKASH_CALLBACK_TRUSTED_IPS=REPLACE_WITH_BKASH_IPS_OR_CIDRS
+BKASH_WEBHOOK_URL=https://survey.mindspear.app/api/payments/bkash/webhook/
+BKASH_WEBHOOK_TOPIC_ARN=arn:aws:sns:REGION:ACCOUNT_ID:BKASH_TOPIC_NAME
 GUNICORN_BIND=127.0.0.1:8010
 GUNICORN_WORKERS=3
 GUNICORN_TIMEOUT=120
 
 OPENAI_API_KEY=
-OPENAI_RESPONSES_MODEL=
 ANTHROPIC_API_KEY=
-ANTHROPIC_MODEL=
+OPENAI_RESPONSES_MODEL=
 ```
 
 Questiz now loads `backend/.env` automatically through Django settings, so `manage.py`, Gunicorn, and Celery all read the same env file.
 
-AI provider secrets are environment-only. Do not enter API keys in Django admin or application settings; set `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` in `backend/.env` instead.
+For bKash production:
+- `BKASH_CALLBACK_TRUSTED_IPS` should contain the callback source IPs or CIDRs provided by bKash.
+- `BKASH_WEBHOOK_URL` should match the HTTPS SNS endpoint you register with bKash.
+- `BKASH_WEBHOOK_TOPIC_ARN` should be set to the exact AWS SNS topic ARN used by that webhook so Django can reject forged notifications before processing them.
 
 Lock down the env file:
 

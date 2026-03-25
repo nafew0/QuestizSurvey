@@ -4,6 +4,7 @@ from .bkash_views import (
     BkashCheckoutView,
     BkashPaymentStatusView,
     bkash_callback_view,
+    bkash_webhook_view,
 )
 from .views import CurrentSubscriptionView, PlanListView, SubscriptionUsageView
 from .views import SubscriptionCancelView
@@ -46,6 +47,7 @@ urlpatterns = [
     path("payments/stripe/webhook/", stripe_webhook_view, name="stripe-webhook"),
     path("payments/bkash/create/", BkashCheckoutView.as_view(), name="bkash-create"),
     path("payments/bkash/callback/", bkash_callback_view, name="bkash-callback"),
+    path("payments/bkash/webhook/", bkash_webhook_view, name="bkash-webhook"),
     path(
         "payments/bkash/status/<str:payment_id>/",
         BkashPaymentStatusView.as_view(),

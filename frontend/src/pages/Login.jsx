@@ -12,7 +12,7 @@ const Login = () => {
   const [formData, setFormData] = useState({ username: '', password: '' })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [verificationState, setVerificationState] = useState(null)
+  const [recoveryIdentifier, setRecoveryIdentifier] = useState('')
   const [resending, setResending] = useState(false)
   const [resendCooldown, setResendCooldown] = useState(0)
 
@@ -50,11 +50,8 @@ const Login = () => {
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value })
     setError('')
-    if (verificationState && e.target.name === 'username') {
-      setVerificationState((current) => ({
-        ...current,
-        identifier: e.target.value,
-      }))
+    if (recoveryIdentifier && e.target.name === 'username') {
+      setRecoveryIdentifier(e.target.value)
     }
   }
 
@@ -64,22 +61,17 @@ const Login = () => {
     setError('')
     const result = await login(formData.username, formData.password)
     if (result.success) {
-      setVerificationState(null)
+      setRecoveryIdentifier('')
       navigate(redirectTo)
-    } else if (result.emailVerificationRequired) {
-      setVerificationState({
-        emailHint: result.emailHint,
-        identifier: formData.username.trim(),
-      })
-      setError('')
     } else {
+      setRecoveryIdentifier(formData.username.trim())
       setError(result.error)
     }
     setLoading(false)
   }
 
   const handleResendVerification = async () => {
-    const identifier = verificationState?.identifier?.trim() || formData.username.trim()
+    const identifier = recoveryIdentifier.trim() || formData.username.trim()
     if (!identifier || resending || resendCooldown > 0) {
       return
     }
@@ -141,19 +133,16 @@ const Login = () => {
                 </p>
 
                 <form onSubmit={handleSubmit} className="mt-7 space-y-5">
-                  {verificationState ? (
+                  {recoveryIdentifier ? (
                     <div className="rounded-2xl border border-[rgb(var(--theme-secondary-strong-rgb)/0.9)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.68)] p-4 text-sm text-[rgb(var(--theme-secondary-ink-rgb))]">
                       <div className="flex items-start gap-3">
                         <span className="theme-icon-secondary inline-flex h-10 w-10 items-center justify-center rounded-full">
                           <MailCheck className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 flex-1">
-                          <p className="font-semibold">Please verify your email first</p>
+                          <p className="font-semibold">Need help signing in?</p>
                           <p className="mt-1 opacity-80">
-                            We blocked sign in because this account is not verified yet.
-                            {verificationState.emailHint
-                              ? ` Verification email sent to ${verificationState.emailHint}.`
-                              : ''}
+                            If the account is eligible, Questiz can resend a verification email or you can request a password reset without confirming whether the account exists.
                           </p>
                           <div className="mt-3 flex flex-wrap gap-3">
                             <Button
@@ -170,10 +159,10 @@ const Login = () => {
                                   : 'Resend verification email'}
                             </Button>
                             <Link
-                              to="/verify-email"
+                              to="/forgot-password"
                               className="self-center text-sm font-semibold text-primary hover:text-primary/80"
                             >
-                              Open verification page
+                              Reset password
                             </Link>
                           </div>
                         </div>

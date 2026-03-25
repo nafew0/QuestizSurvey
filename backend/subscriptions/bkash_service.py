@@ -3,7 +3,7 @@ import logging
 import secrets
 from decimal import Decimal
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from django.conf import settings
@@ -11,7 +11,7 @@ from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
 
-from .models import BkashTransaction, UserSubscription
+from .models import BkashTransaction, SubscriptionEvent, UserSubscription
 from .services import LicenseService
 
 logger = logging.getLogger(__name__)
@@ -52,7 +52,9 @@ class BkashService:
     TOKEN_CACHE_TTL_FALLBACK_SECONDS = 3500
     SUCCESS_CODES = {"0000", "000", "0"}
     AUTH_FAILURE_CODES = {"2001", "2002", "2011", "2023"}
+    ALREADY_PROCESSED_CODES = {"2029"}
     CALLBACK_PATH = "/api/payments/bkash/callback/"
+    WEBHOOK_PATH = "/api/payments/bkash/webhook/"
 
     @classmethod
     def _build_api_url(cls, path, query_params=None):
@@ -73,6 +75,19 @@ class BkashService:
                 "API_ORIGIN must be configured for the public bKash callback URL."
             )
         return f"{api_origin}{cls.CALLBACK_PATH}"
+
+    @classmethod
+    def build_webhook_url(cls):
+        configured_url = (getattr(settings, "BKASH_WEBHOOK_URL", "") or "").strip()
+        if configured_url:
+            return configured_url
+
+        api_origin = (getattr(settings, "API_ORIGIN", "") or "").rstrip("/")
+        if not api_origin:
+            raise BkashConfigurationError(
+                "API_ORIGIN must be configured for the public bKash webhook URL."
+            )
+        return f"{api_origin}{cls.WEBHOOK_PATH}"
 
     @classmethod
     def _require_configuration(cls, *, require_callback=False):
@@ -233,8 +248,14 @@ class BkashService:
 
     @classmethod
     def _looks_already_processed(cls, data):
+        status_code = str((data or {}).get("statusCode", "")).strip()
         message = str((data or {}).get("statusMessage", "")).strip().lower()
-        return "already" in message or "duplicate" in message or "processing" in message
+        return (
+            status_code in cls.ALREADY_PROCESSED_CODES
+            or "already" in message
+            or "duplicate" in message
+            or "processing" in message
+        )
 
     @classmethod
     def _normalize_remote_status(cls, data):
@@ -482,6 +503,31 @@ class BkashService:
         return cls._sanitize_response(response)
 
     @classmethod
+    def search_transaction(cls, trx_id):
+        cls._require_configuration()
+        normalized_trx_id = (trx_id or "").strip()
+        if not normalized_trx_id:
+            raise BkashUserInputError("trxID is required to search a transaction.")
+        response = cls._authorized_request(
+            "GET",
+            f"/tokenized/checkout/payment/search/{quote(normalized_trx_id, safe='')}",
+        )
+        return cls._sanitize_response(response)
+
+    @classmethod
+    def _normalize_refund_status(cls, data):
+        transaction_status = str((data or {}).get("transactionStatus", "")).strip().lower()
+        status_message = str((data or {}).get("statusMessage", "")).strip().lower()
+
+        if cls._is_success_response(data) or (data or {}).get("refundTrxID"):
+            return BkashTransaction.RefundStatus.COMPLETED
+        if transaction_status in {"pending", "processing"}:
+            return BkashTransaction.RefundStatus.PENDING
+        if "pending" in status_message or "processing" in status_message:
+            return BkashTransaction.RefundStatus.PENDING
+        return BkashTransaction.RefundStatus.FAILED
+
+    @classmethod
     def verify_payment(cls, payment_id):
         try:
             response = cls.execute_payment(payment_id)
@@ -512,6 +558,29 @@ class BkashService:
         return f"{public_app_url}/payment/success?provider=bkash"
 
     @classmethod
+    def get_matching_transaction(
+        cls,
+        *,
+        payment_id="",
+        trx_id="",
+        invoice_number="",
+    ):
+        queryset = BkashTransaction.objects.select_related("user", "target_plan")
+        if payment_id:
+            transaction_record = queryset.filter(payment_id=payment_id).first()
+            if transaction_record:
+                return transaction_record
+        if trx_id:
+            transaction_record = queryset.filter(trx_id=trx_id).first()
+            if transaction_record:
+                return transaction_record
+        if invoice_number:
+            transaction_record = queryset.filter(invoice_number=invoice_number).first()
+            if transaction_record:
+                return transaction_record
+        return None
+
+    @classmethod
     def _merge_responses(cls, current_response, new_response):
         merged = {}
         if isinstance(current_response, dict):
@@ -521,7 +590,7 @@ class BkashService:
         return merged
 
     @classmethod
-    def sync_transaction(cls, payment_id, *, status_hint=None):
+    def sync_transaction(cls, payment_id, *, status_hint=None, response_data=None):
         transaction_record = (
             BkashTransaction.objects.select_related("user", "target_plan")
             .filter(payment_id=payment_id)
@@ -534,9 +603,11 @@ class BkashService:
             return transaction_record
 
         remote_status = None
-        response_data = {}
+        response_data = cls._sanitize_response(response_data or {})
 
-        if status_hint == BkashTransaction.Status.COMPLETED or status_hint is None:
+        if status_hint == BkashTransaction.Status.COMPLETED and not response_data:
+            remote_status, response_data = cls.verify_payment(payment_id)
+        elif status_hint is None:
             remote_status, response_data = cls.verify_payment(payment_id)
         else:
             remote_status = status_hint
@@ -590,4 +661,121 @@ class BkashService:
                     "updated_at",
                 ]
             )
+            return transaction_record
+
+    @classmethod
+    def refund_payment(cls, payment_id, *, amount, reason="", sku=""):
+        normalized_payment_id = (payment_id or "").strip()
+        if not normalized_payment_id:
+            raise BkashUserInputError("paymentID is required to issue a refund.")
+
+        transaction_record = (
+            BkashTransaction.objects.select_related("subscription", "target_plan", "user")
+            .filter(payment_id=normalized_payment_id)
+            .first()
+        )
+        if not transaction_record:
+            raise BkashUserInputError("The bKash payment could not be found.")
+        if transaction_record.status != BkashTransaction.Status.COMPLETED:
+            raise BkashUserInputError("Only completed bKash transactions can be refunded.")
+        if transaction_record.refund_status in {
+            BkashTransaction.RefundStatus.PENDING,
+            BkashTransaction.RefundStatus.COMPLETED,
+        }:
+            raise BkashUserInputError("This bKash transaction has already been refunded.")
+        if not transaction_record.trx_id:
+            raise BkashUserInputError("The original bKash transaction ID is missing.")
+
+        refund_amount = Decimal(str(amount)).quantize(Decimal("0.01"))
+        if refund_amount <= 0:
+            raise BkashUserInputError("Refund amount must be greater than zero.")
+        if refund_amount > Decimal(transaction_record.amount):
+            raise BkashUserInputError("Refund amount cannot exceed the original payment amount.")
+
+        response = cls._authorized_request(
+            "POST",
+            "/tokenized/checkout/payment/refund",
+            payload={
+                "paymentID": normalized_payment_id,
+                "trxID": transaction_record.trx_id,
+                "amount": f"{refund_amount:.2f}",
+                "sku": (sku or transaction_record.invoice_number or "").strip(),
+                "reason": (reason or "").strip(),
+            },
+        )
+        refund_status = cls._normalize_refund_status(response)
+        if refund_status == BkashTransaction.RefundStatus.FAILED:
+            raise BkashServiceError(
+                cls._extract_error_message(
+                    response,
+                    default="bKash could not complete the refund request.",
+                )
+            )
+
+        with transaction.atomic():
+            transaction_record = (
+                BkashTransaction.objects.select_related("target_plan", "user")
+                .select_for_update()
+                .get(pk=transaction_record.pk)
+            )
+            if transaction_record.refund_status in {
+                BkashTransaction.RefundStatus.PENDING,
+                BkashTransaction.RefundStatus.COMPLETED,
+            }:
+                raise BkashUserInputError("This bKash transaction has already been refunded.")
+
+            transaction_record.refund_status = refund_status
+            transaction_record.refund_amount = refund_amount
+            transaction_record.refund_reason = (reason or "").strip()
+            transaction_record.refund_sku = (sku or transaction_record.invoice_number or "").strip()
+            transaction_record.refund_requested_at = timezone.now()
+            transaction_record.refunded_at = (
+                timezone.now()
+                if refund_status == BkashTransaction.RefundStatus.COMPLETED
+                else None
+            )
+            transaction_record.refund_trx_id = (
+                response.get("refundTrxID") or transaction_record.refund_trx_id
+            )
+            transaction_record.refund_response = cls._merge_responses(
+                transaction_record.refund_response,
+                cls._sanitize_response(response),
+            )
+            transaction_record.save(
+                update_fields=[
+                    "refund_status",
+                    "refund_amount",
+                    "refund_reason",
+                    "refund_sku",
+                    "refund_requested_at",
+                    "refunded_at",
+                    "refund_trx_id",
+                    "refund_response",
+                    "updated_at",
+                ]
+            )
+
+            if (
+                refund_status == BkashTransaction.RefundStatus.COMPLETED
+                and refund_amount == Decimal(transaction_record.amount)
+                and transaction_record.subscription_id
+            ):
+                subscription = UserSubscription.objects.select_for_update().get(
+                    pk=transaction_record.subscription_id
+                )
+                if (
+                    subscription.payment_provider == UserSubscription.PaymentProvider.BKASH
+                    and subscription.plan_id == transaction_record.target_plan_id
+                ):
+                    previous_state = LicenseService.serialize_subscription_state(subscription)
+                    LicenseService.downgrade_to_free(
+                        subscription,
+                        event_type=SubscriptionEvent.EventType.BKASH_REFUNDED,
+                        event_metadata={
+                            "previous_state": previous_state,
+                            "payment_id": transaction_record.payment_id,
+                            "refund_trx_id": transaction_record.refund_trx_id or "",
+                        },
+                    )
+
             return transaction_record

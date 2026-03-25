@@ -23,6 +23,7 @@ python-dotenv==1.0.1
 
 # Image processing (for avatar uploads)
 Pillow==10.2.0
+cryptography==45.0.7
 
 # Testing
 pytest==8.0.0

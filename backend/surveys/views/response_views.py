@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -310,6 +311,7 @@ class PublicSurveyView(APIView):
             key=f"questiz_responded_{survey_slug}",
             value="true",
             max_age=self.completion_cookie_days * 24 * 60 * 60,
+            secure=getattr(settings, "SESSION_COOKIE_SECURE", not settings.DEBUG),
             samesite="Lax",
         )
         return response

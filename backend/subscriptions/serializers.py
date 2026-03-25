@@ -77,8 +77,30 @@ class BkashTransactionSerializer(serializers.ModelSerializer):
             "amount",
             "currency",
             "status",
+            "refund_status",
+            "refund_amount",
+            "refund_reason",
+            "refund_trx_id",
+            "refund_requested_at",
+            "refunded_at",
             "billing_cycle",
             "target_plan",
             "created_at",
             "updated_at",
         ]
+
+
+class BkashRefundRequestSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2)
+    reason = serializers.CharField(required=False, allow_blank=True, max_length=255)
+    sku = serializers.CharField(required=False, allow_blank=True, max_length=255)
+
+
+class BkashSearchTransactionSerializer(serializers.Serializer):
+    trx_id = serializers.CharField(required=True, max_length=255)
+
+    def validate_trx_id(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("trx_id is required.")
+        return normalized
