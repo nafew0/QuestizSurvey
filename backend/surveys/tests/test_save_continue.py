@@ -22,6 +22,7 @@ class SaveAndContinueTests(TestCase):
             status=Survey.Status.ACTIVE,
         )
         self.page = Page.objects.create(survey=self.survey, title="Page 1", order=1)
+        self.page_two = Page.objects.create(survey=self.survey, title="Page 2", order=2)
         self.question_one = Question.objects.create(
             page=self.page,
             question_type=Question.QuestionType.SHORT_TEXT,
@@ -55,6 +56,12 @@ class SaveAndContinueTests(TestCase):
                 "dropdown_options": ["Yes", "No"],
             },
         )
+        self.page_two_question = Question.objects.create(
+            page=self.page_two,
+            question_type=Question.QuestionType.SHORT_TEXT,
+            text="What should we improve next?",
+            order=1,
+        )
 
     def test_save_partial_response_resume_and_complete(self):
         start_response = self.public_client.post(
@@ -84,6 +91,10 @@ class SaveAndContinueTests(TestCase):
         self.assertEqual(resume_response.status_code, status.HTTP_200_OK)
         self.assertEqual(
             resume_response.data["response"]["id"], str(survey_response_id)
+        )
+        self.assertEqual(
+            resume_response.data["response"]["answers"][0]["question_id"],
+            str(self.question_one.id),
         )
         self.assertEqual(
             resume_response.data["response"]["answers"][0]["text_value"], "Designer"
@@ -222,4 +233,83 @@ class SaveAndContinueTests(TestCase):
         self.assertEqual(
             survey_response.answers.get(question=self.matrix_plus_question).matrix_data["Item 2"]["Col1"],
             "Yes",
+        )
+
+    def test_multi_page_resume_preserves_first_page_answers_when_advancing(self):
+        start_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page_two.id),
+                "answers": [
+                    {
+                        "question": str(self.question_one.id),
+                        "text_value": "Network engineer",
+                    },
+                    {
+                        "question": str(self.question_two.id),
+                        "text_value": "Managing campus routing and peering.",
+                    },
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(start_response.status_code, status.HTTP_201_CREATED)
+
+        resume_token = start_response.data["resume_token"]
+
+        resume_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/load/",
+            {"resume_token": resume_token},
+            format="json",
+        )
+        self.assertEqual(resume_response.status_code, status.HTTP_200_OK)
+        response_payload = resume_response.data["response"]
+        answer_lookup = {
+            item["question_id"]: item
+            for item in response_payload["answers"]
+        }
+        self.assertEqual(str(response_payload["current_page"]), str(self.page_two.id))
+        self.assertEqual(
+            answer_lookup[str(self.question_one.id)]["text_value"],
+            "Network engineer",
+        )
+        self.assertEqual(
+            answer_lookup[str(self.question_two.id)]["text_value"],
+            "Managing campus routing and peering.",
+        )
+
+        complete_response = self.public_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": resume_token,
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page_two.id),
+                "answers": [
+                    {
+                        "question": str(self.question_one.id),
+                        "text_value": "Network engineer",
+                    },
+                    {
+                        "question": str(self.question_two.id),
+                        "text_value": "Managing campus routing and peering.",
+                    },
+                    {
+                        "question": str(self.page_two_question.id),
+                        "text_value": "Improve outage communication.",
+                    },
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(complete_response.status_code, status.HTTP_200_OK)
+
+        survey_response = SurveyResponse.objects.get(id=start_response.data["id"])
+        self.assertEqual(
+            survey_response.answers.get(question=self.question_one).text_value,
+            "Network engineer",
+        )
+        self.assertEqual(
+            survey_response.answers.get(question=self.page_two_question).text_value,
+            "Improve outage communication.",
         )

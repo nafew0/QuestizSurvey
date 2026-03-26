@@ -66,7 +66,6 @@ export default function MatrixPlusRenderer({
                 disabled={disabled}
                 options={selectOptions}
                 placeholder="Select"
-                portal={false}
                 triggerClassName="survey-theme-control survey-theme-input h-11 text-sm"
                 contentClassName="max-h-72"
               />

@@ -12,15 +12,6 @@ from .models import SiteSettings
 User = get_user_model()
 
 
-def mask_secret(value):
-    normalized = (value or "").strip()
-    if not normalized:
-        return ""
-    if len(normalized) <= 8:
-        return "*" * len(normalized)
-    return f"{normalized[:4]}{'*' * (len(normalized) - 8)}{normalized[-4:]}"
-
-
 class AdminSubscriptionSummarySerializer(serializers.ModelSerializer):
     plan = PlanSummarySerializer(read_only=True)
 
@@ -146,7 +137,6 @@ class SiteSettingsAdminSerializer(serializers.ModelSerializer):
         meta = get_ai_api_key_meta(obj, SiteSettings.AIProvider.OPENAI)
         return {
             "configured": meta["configured"],
-            "masked_value": mask_secret(meta["value"]),
             "source": meta["source"],
         }
 
@@ -154,7 +144,6 @@ class SiteSettingsAdminSerializer(serializers.ModelSerializer):
         meta = get_ai_api_key_meta(obj, SiteSettings.AIProvider.ANTHROPIC)
         return {
             "configured": meta["configured"],
-            "masked_value": mask_secret(meta["value"]),
             "source": meta["source"],
         }
 

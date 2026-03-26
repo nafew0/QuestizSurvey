@@ -11,6 +11,7 @@ from .views import SubscriptionCancelView
 from .stripe_views import (
     StripeCheckoutView,
     StripeConfigView,
+    StripeCheckoutSessionStatusView,
     StripeCustomerPortalView,
     stripe_webhook_view,
 )
@@ -43,6 +44,11 @@ urlpatterns = [
         "payments/stripe/customer-portal/",
         StripeCustomerPortalView.as_view(),
         name="stripe-customer-portal",
+    ),
+    path(
+        "payments/stripe/session-status/<str:session_id>/",
+        StripeCheckoutSessionStatusView.as_view(),
+        name="stripe-session-status",
     ),
     path("payments/stripe/webhook/", stripe_webhook_view, name="stripe-webhook"),
     path("payments/bkash/create/", BkashCheckoutView.as_view(), name="bkash-create"),

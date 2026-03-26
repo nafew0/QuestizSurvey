@@ -27,7 +27,7 @@ def _send_email(subject, message, recipient_email):
     send_mail(
         subject=subject,
         message=message,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@questiz.local"),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@mindspear.local"),
         recipient_list=[recipient_email],
         fail_silently=False,
     )
@@ -61,14 +61,14 @@ def check_expiring_subscriptions():
             continue
 
         renewal_line = (
-            f"Renew now from your Questiz profile: {renew_url}"
+            f"Renew now from your MindSpear profile: {renew_url}"
             if renew_url
-            else "Log in to Questiz and renew from your profile."
+            else "Log in to MindSpear and renew from your profile."
         )
         _send_email(
-            subject=f"Your Questiz {subscription.plan.name} plan expires soon",
+            subject=f"Your MindSpear {subscription.plan.name} plan expires soon",
             message=(
-                f"Your Questiz {subscription.plan.name} subscription expires on "
+                f"Your MindSpear {subscription.plan.name} subscription expires on "
                 f"{timezone.localtime(subscription.current_period_end).strftime('%B %d, %Y %H:%M %Z')}.\n\n"
                 f"{renewal_line}\n"
             ),
@@ -123,11 +123,11 @@ def check_expired_subscriptions():
             )
 
         _send_email(
-            subject="Your Questiz subscription has expired",
+            subject="Your MindSpear subscription has expired",
             message=(
-                f"Your Questiz {previous_plan_name} subscription was downgraded to Free after "
+                f"Your MindSpear {previous_plan_name} subscription was downgraded to Free after "
                 f"the {LicenseService.BKASH_GRACE_PERIOD_DAYS}-day grace period ended.\n\n"
-                f"{f'You can renew from your profile: {profile_url}' if profile_url else 'Log in to Questiz to renew at any time.'}\n"
+                f"{f'You can renew from your profile: {profile_url}' if profile_url else 'Log in to MindSpear to renew at any time.'}\n"
             ),
             recipient_email=subscription.user.email,
         )

@@ -18,6 +18,8 @@ export function CustomSelect({
   triggerClassName = '',
   contentClassName = '',
   align = 'start',
+  side = 'bottom',
+  collisionPadding = 12,
   portal = true,
 }) {
   const normalizedValue = value ?? ''
@@ -48,10 +50,13 @@ export function CustomSelect({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={align}
+        side={side}
         sideOffset={8}
+        collisionPadding={collisionPadding}
+        avoidCollisions
         portal={portal}
         className={cn(
-          'theme-panel w-[var(--radix-dropdown-menu-trigger-width)] min-w-[14rem] rounded-2xl p-2',
+          'theme-panel w-[var(--radix-dropdown-menu-trigger-width)] min-w-[14rem] max-w-[calc(100vw-2rem)] rounded-2xl p-2',
           'max-h-72 overflow-y-auto',
           contentClassName
         )}

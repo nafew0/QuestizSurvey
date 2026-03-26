@@ -14,7 +14,6 @@ export default function DropdownRenderer({ question, value, onChange, disabled =
           label: choice.text,
         })) ?? []),
       ]}
-      portal={false}
       triggerClassName="survey-theme-control survey-theme-input h-12 px-4 text-sm"
       contentClassName="max-h-80"
     />

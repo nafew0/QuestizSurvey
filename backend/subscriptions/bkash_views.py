@@ -55,10 +55,10 @@ def _map_callback_status(value):
     return BkashTransaction.Status.FAILED
 
 
-def _safe_redirect(url_builder, *, status_value="failed"):
+def _safe_redirect(url_builder, *, status_value="failed", payment_id=""):
     try:
         if status_value == "success":
-            return redirect(url_builder())
+            return redirect(url_builder(payment_id=payment_id))
         return redirect(url_builder(status_value=status_value))
     except Exception:  # pragma: no cover - last-resort fallback for callback UX
         logger.exception("Could not build the Questiz bKash callback redirect URL.")
@@ -394,6 +394,7 @@ def bkash_callback_view(request):
             return _safe_redirect(
                 BkashService.build_success_redirect_url,
                 status_value="success",
+                payment_id=payment_id,
             )
 
         BkashService.sync_transaction(

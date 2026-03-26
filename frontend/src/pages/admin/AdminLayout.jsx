@@ -39,9 +39,9 @@ export default function AdminLayout() {
   const plansUrl = getPlansUrl()
 
   return (
-    <div className="theme-app-gradient min-h-screen px-4 py-6 sm:px-6">
-      <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-        <aside className="theme-panel rounded-[2rem] p-5 lg:sticky lg:top-6 lg:h-[calc(100vh-3rem)]">
+    <div className="theme-app-gradient min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-5">
+      <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start">
+        <aside className="theme-panel rounded-[2rem] p-5 lg:sticky lg:top-20 lg:h-[calc(100vh-6rem)]">
           <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-[rgb(var(--theme-primary-soft-rgb)/0.72)] p-4">
             <div className="flex items-center gap-3">
               <div className="theme-icon-primary flex h-11 w-11 items-center justify-center rounded-2xl">
@@ -49,7 +49,7 @@ export default function AdminLayout() {
               </div>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                  Questiz
+                  MindSpear
                 </p>
                 <p className="text-lg font-semibold text-foreground">Admin panel</p>
               </div>
@@ -104,7 +104,7 @@ export default function AdminLayout() {
           </div>
         </aside>
 
-        <section className="min-w-0">
+        <section className="min-w-0 xl:max-w-6xl">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">

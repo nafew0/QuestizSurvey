@@ -303,6 +303,106 @@ export default function QuestionSettingsPanel({
               </div>
             </PanelSection>
 
+            <PanelSection
+              eyebrow="Welcome"
+              title="Welcome page"
+              description="This heading is stored separately from the survey title. Leave it blank to reuse the survey title automatically."
+            >
+              <div className="flex items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-white p-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">Show welcome page</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Respondents see this screen before the first page.
+                  </p>
+                </div>
+                <Switch
+                  checked={Boolean(survey.welcome_page?.enabled)}
+                  onCheckedChange={(checked) =>
+                    onSurveyFieldChange('welcome_page', {
+                      ...(survey.welcome_page ?? {}),
+                      enabled: checked,
+                    })
+                  }
+                />
+              </div>
+
+              <Field
+                label="Welcome title"
+                hint="Leave blank to mirror the survey title instead of storing a separate heading."
+              >
+                <Input
+                  value={survey.welcome_page?.title ?? ''}
+                  placeholder={survey.title || 'Survey title'}
+                  onChange={(event) =>
+                    onSurveyFieldChange('welcome_page', {
+                      ...(survey.welcome_page ?? {}),
+                      title: event.target.value,
+                    })
+                  }
+                  className="rounded-2xl"
+                />
+              </Field>
+
+              <Field
+                label="Welcome description"
+                hint="Leave blank to reuse the survey description on the welcome page."
+              >
+                <Textarea
+                  value={survey.welcome_page?.desc ?? ''}
+                  placeholder={
+                    survey.description || 'Introduce the survey before respondents start.'
+                  }
+                  onChange={(event) =>
+                    onSurveyFieldChange('welcome_page', {
+                      ...(survey.welcome_page ?? {}),
+                      desc: event.target.value,
+                    })
+                  }
+                  className="rounded-2xl"
+                />
+              </Field>
+            </PanelSection>
+
+            <PanelSection
+              eyebrow="Closing"
+              title="Closing message"
+              description="This controls the thank-you screen shown after a successful submission."
+            >
+              <Field
+                label="Closing title"
+                hint="Leave blank to use the default thank-you heading."
+              >
+                <Input
+                  value={survey.thank_you_page?.title ?? ''}
+                  placeholder="Thank you for your response"
+                  onChange={(event) =>
+                    onSurveyFieldChange('thank_you_page', {
+                      ...(survey.thank_you_page ?? {}),
+                      title: event.target.value,
+                    })
+                  }
+                  className="rounded-2xl"
+                />
+              </Field>
+
+              <Field
+                label="Closing description"
+                hint="Leave blank to use the default confirmation message."
+              >
+                <Textarea
+                  value={survey.thank_you_page?.desc ?? ''}
+                  placeholder="Your response has been recorded successfully."
+                  onChange={(event) =>
+                    onSurveyFieldChange('thank_you_page', {
+                      ...(survey.thank_you_page ?? {}),
+                      desc: event.target.value,
+                    })
+                  }
+                  className="rounded-2xl"
+                />
+              </Field>
+            </PanelSection>
+
             {selectedPage ? (
               <PanelSection
                 eyebrow="Page"

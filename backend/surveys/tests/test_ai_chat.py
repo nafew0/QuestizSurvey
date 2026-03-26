@@ -236,6 +236,45 @@ class AIChatApiTests(TestCase):
     @patch(
         "surveys.services.ai_chat_service.AIService.call",
         return_value=(
+            "HEADLINE: Long-form summary stays intact.\n"
+            "SUMMARY: "
+            + ("Across the filtered survey, respondents consistently highlight reliability, responsiveness, and onboarding clarity as the main strengths while also pointing to delays in escalation ownership and uneven expectation setting across teams. " * 4)
+            + "\nKEY FINDINGS:\n"
+            + "- " + ("Finding one stays fully visible for decision makers. " * 6) + "\n"
+            + "- " + ("Finding two also stays fully visible without hard trimming. " * 6) + "\n"
+            + "RECOMMENDATIONS:\n"
+            + "- " + ("Recommendation one should remain complete in the API payload. " * 5) + "\n"
+            + "- " + ("Recommendation two should remain complete in the API payload. " * 5) + "\n"
+            + "SUGGESTED QUESTIONS:\n"
+            + "- " + ("What evidence best explains the neutral-to-detractor shift over time? " * 2) + "\n"
+            + "- " + ("Which operational step causes the biggest trust drop after an incident? " * 2) + "\n"
+            + "- " + ("Which segment reacts most strongly to slow escalation ownership? " * 2)
+        ),
+    )
+    def test_summary_endpoint_does_not_trim_long_ai_fields(
+        self,
+        _mocked_call,
+        _mocked_provider_config,
+    ):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/ai/insights/",
+            {"filters": {"status": "completed"}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(response.data["summary"]), 700)
+        self.assertIn("reliability, responsiveness, and onboarding clarity", response.data["summary"])
+        self.assertGreater(len(response.data["key_findings"][0]), 260)
+        self.assertGreater(len(response.data["recommendations"][0]), 260)
+
+    @patch(
+        "surveys.services.ai_chat_service.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_chat_service.AIService.call",
+        return_value=(
             "HEADLINE: Filtered segment summary.\n"
             "SUMMARY: One collector shows the sharper friction pattern.\n"
             "KEY FINDINGS:\n"

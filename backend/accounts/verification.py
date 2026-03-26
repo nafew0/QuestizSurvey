@@ -95,9 +95,9 @@ def deliver_verification_email(user, verification_token):
     plain_message = strip_tags(html_message)
 
     send_mail(
-        subject="Verify your Questiz email",
+        subject="Verify your MindSpear email",
         message=plain_message,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@questiz.local"),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@mindspear.local"),
         recipient_list=[user.email],
         html_message=html_message,
         fail_silently=False,

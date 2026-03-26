@@ -549,13 +549,17 @@ class BkashService:
         )
 
     @classmethod
-    def build_success_redirect_url(cls):
+    def build_success_redirect_url(cls, *, payment_id=""):
         public_app_url = (getattr(settings, "PUBLIC_APP_URL", "") or "").rstrip("/")
         if not public_app_url:
             raise BkashConfigurationError(
                 "PUBLIC_APP_URL must be configured for payment result redirects."
             )
-        return f"{public_app_url}/payment/success?provider=bkash"
+        query_params = {"provider": "bkash"}
+        normalized_payment_id = (payment_id or "").strip()
+        if normalized_payment_id:
+            query_params["payment_id"] = normalized_payment_id
+        return f"{public_app_url}/payment/success?{urlencode(query_params)}"
 
     @classmethod
     def get_matching_transaction(

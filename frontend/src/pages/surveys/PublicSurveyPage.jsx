@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 
 import QuestionRenderer from '@/components/survey/QuestionRenderer'
+import Navbar from '@/components/Navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -166,22 +167,20 @@ function PublicStateCard({ state }) {
   const Icon = state.Icon ?? AlertCircle
 
   return (
-    <div className="theme-app-gradient min-h-screen px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-2xl">
-        <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
-          <div className="theme-icon-accent mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
-            <Icon className="h-6 w-6" />
-          </div>
-          <Badge variant={state.badgeVariant} className="mt-5">
-            {state.badge}
-          </Badge>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
-            {state.title}
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-            {state.detail || state.description}
-          </p>
+    <div className="mx-auto max-w-2xl">
+      <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
+        <div className="theme-icon-accent mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+          <Icon className="h-6 w-6" />
         </div>
+        <Badge variant={state.badgeVariant} className="mt-5">
+          {state.badge}
+        </Badge>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+          {state.title}
+        </h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+          {state.detail || state.description}
+        </p>
       </div>
     </div>
   )
@@ -189,7 +188,7 @@ function PublicStateCard({ state }) {
 
 function LoadingState() {
   return (
-    <div className="theme-app-gradient flex min-h-screen items-center justify-center px-4 py-10 text-foreground">
+    <div className="flex min-h-[50vh] items-center justify-center px-4 py-10 text-foreground">
       <div className="theme-panel flex items-center gap-3 rounded-2xl px-5 py-4">
         <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
         <span className="text-sm font-medium text-muted-foreground">
@@ -202,44 +201,42 @@ function LoadingState() {
 
 function PasswordGate({ password, setPassword, errorMessage, onUnlock, loading }) {
   return (
-    <div className="theme-app-gradient min-h-screen px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-2xl">
-        <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
-          <div className="theme-icon-secondary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
-            <LockKeyhole className="h-6 w-6" />
-          </div>
-          <Badge variant="outline" className="mt-5">
-            Password required
-          </Badge>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
-            This survey link is protected.
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-            Enter the survey password to continue.
-          </p>
-          <div className="mx-auto mt-6 max-w-md space-y-3 text-left">
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter password"
-              className="h-12 w-full rounded-2xl border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {errorMessage ? (
-              <p className="text-sm font-medium text-rose-500">{errorMessage}</p>
+    <div className="mx-auto max-w-2xl">
+      <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
+        <div className="theme-icon-secondary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+          <LockKeyhole className="h-6 w-6" />
+        </div>
+        <Badge variant="outline" className="mt-5">
+          Password required
+        </Badge>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+          This survey link is protected.
+        </h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+          Enter the survey password to continue.
+        </p>
+        <div className="mx-auto mt-6 max-w-md space-y-3 text-left">
+          <input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Enter password"
+            className="h-12 w-full rounded-2xl border border-input bg-background px-4 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          {errorMessage ? (
+            <p className="text-sm font-medium text-rose-500">{errorMessage}</p>
+          ) : null}
+          <Button
+            type="button"
+            className="w-full rounded-2xl"
+            disabled={loading}
+            onClick={onUnlock}
+          >
+            {loading ? (
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
             ) : null}
-            <Button
-              type="button"
-              className="w-full rounded-2xl"
-              disabled={loading}
-              onClick={onUnlock}
-            >
-              {loading ? (
-                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              Unlock survey
-            </Button>
-          </div>
+            Unlock survey
+          </Button>
         </div>
       </div>
     </div>
@@ -248,34 +245,66 @@ function PasswordGate({ password, setPassword, errorMessage, onUnlock, loading }
 
 function LoginRequiredGate({ surveyTitle, redirectTarget }) {
   return (
-    <div className="theme-app-gradient min-h-screen px-4 py-10 text-foreground">
-      <div className="mx-auto max-w-2xl">
-        <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
-          <div className="theme-icon-primary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
-            <LockKeyhole className="h-6 w-6" />
-          </div>
-          <Badge variant="outline" className="mt-5">
-            Sign in required
-          </Badge>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
-            {surveyTitle || 'This survey'} requires you to sign in.
-          </h1>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-            Log in or create an account to continue to this survey.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Button asChild className="rounded-2xl">
-              <Link to={`/login?redirect=${encodeURIComponent(redirectTarget)}`}>
-                Log in
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="rounded-2xl">
-              <Link to={`/register?redirect=${encodeURIComponent(redirectTarget)}`}>
-                Register
-              </Link>
-            </Button>
-          </div>
+    <div className="mx-auto max-w-2xl">
+      <div className="theme-panel rounded-[2rem] px-6 py-8 text-center sm:px-8">
+        <div className="theme-icon-primary mx-auto flex h-14 w-14 items-center justify-center rounded-2xl">
+          <LockKeyhole className="h-6 w-6" />
         </div>
+        <Badge variant="outline" className="mt-5">
+          Sign in required
+        </Badge>
+        <h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+          {surveyTitle || 'This survey'} requires you to sign in.
+        </h1>
+        <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
+          Log in or create an account to continue to this survey.
+        </p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button asChild className="rounded-2xl">
+            <Link to={`/login?redirect=${encodeURIComponent(redirectTarget)}`}>
+              Log in
+            </Link>
+          </Button>
+          <Button asChild variant="outline" className="rounded-2xl">
+            <Link to={`/register?redirect=${encodeURIComponent(redirectTarget)}`}>
+              Register
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PublicSurveyFooter() {
+  return (
+    <footer className="bg-[rgb(var(--theme-secondary-rgb))] text-white">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-center px-4 py-5 sm:px-6">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-center">
+          <img
+            src="/branding/bdrenlogo.png"
+            alt="BdREN logo"
+            className="h-10 w-auto rounded-md object-contain"
+          />
+          <p className="max-w-3xl text-sm leading-6 text-white">
+            © 2026 BdREN - Developed by Bangladesh Research and Education Network (BdREN).
+          </p>
+        </div>
+      </div>
+    </footer>
+  )
+}
+
+function PublicSurveyLayout({ children, surveyThemeCss = '' }) {
+  return (
+    <div className="min-h-screen bg-[rgb(var(--theme-neutral-rgb)/0.12)] text-foreground">
+      <Navbar />
+      <div className="flex min-h-screen flex-col pt-16">
+        <main className="public-survey-theme survey-theme-root theme-app-gradient flex-1 px-4 py-6 text-foreground sm:px-6 sm:py-8">
+          {surveyThemeCss ? <style>{surveyThemeCss}</style> : null}
+          {children}
+        </main>
+        <PublicSurveyFooter />
       </div>
     </div>
   )
@@ -431,7 +460,6 @@ export default function PublicSurveyPage() {
         setErrors({})
         setDisqualifyMessage('')
         setResumeToken(nextResumeToken)
-        setResumeLookupToken(nextResumeToken)
         setPageHistory(nextHistory)
         setPasswordError('')
         setPasswordDraft('')
@@ -441,7 +469,7 @@ export default function PublicSurveyPage() {
           setRespondedCookie(nextSurvey.slug)
           setStage('thankyou')
           setResumeToken('')
-          setResumeLookupToken('')
+          writeSurveyStorageValue(slug, 'resume', '')
         } else if (!nextSurvey.pages.length) {
           setStage('thankyou')
         } else if (responseData.response || !nextSurvey.welcome_page?.enabled) {
@@ -552,13 +580,13 @@ export default function PublicSurveyPage() {
 
       if (nextToken) {
         setResumeToken(nextToken)
-        setResumeLookupToken(nextToken)
+        writeSurveyStorageValue(slug, 'resume', nextToken)
       }
 
       if (nextStatus === 'completed') {
         setRespondedCookie(survey.slug)
         setResumeToken('')
-        setResumeLookupToken('')
+        writeSurveyStorageValue(slug, 'resume', '')
       }
 
       if (showSavedToast) {
@@ -731,43 +759,56 @@ export default function PublicSurveyPage() {
   }
 
   if (loading) {
-    return <LoadingState />
+    return (
+      <PublicSurveyLayout surveyThemeCss={themeCss}>
+        <LoadingState />
+      </PublicSurveyLayout>
+    )
   }
 
   if (blockedState) {
-    return <PublicStateCard state={blockedState} />
+    return (
+      <PublicSurveyLayout surveyThemeCss={themeCss}>
+        <PublicStateCard state={blockedState} />
+      </PublicSurveyLayout>
+    )
   }
 
   if (stage === 'login-required') {
     return (
-      <LoginRequiredGate
-        surveyTitle={loginRequiredState?.surveyTitle}
-        redirectTarget={redirectTarget}
-      />
+      <PublicSurveyLayout surveyThemeCss={themeCss}>
+        <LoginRequiredGate
+          surveyTitle={loginRequiredState?.surveyTitle}
+          redirectTarget={redirectTarget}
+        />
+      </PublicSurveyLayout>
     )
   }
 
   if (stage === 'password') {
     return (
-      <PasswordGate
-        password={passwordDraft}
-        setPassword={setPasswordDraft}
-        errorMessage={passwordError}
-        onUnlock={handleUnlock}
-        loading={loading}
-      />
+      <PublicSurveyLayout surveyThemeCss={themeCss}>
+        <PasswordGate
+          password={passwordDraft}
+          setPassword={setPasswordDraft}
+          errorMessage={passwordError}
+          onUnlock={handleUnlock}
+          loading={loading}
+        />
+      </PublicSurveyLayout>
     )
   }
 
   if (!survey) {
-    return <PublicStateCard state={BLOCKED_STATE_MAP.unavailable} />
+    return (
+      <PublicSurveyLayout surveyThemeCss={themeCss}>
+        <PublicStateCard state={BLOCKED_STATE_MAP.unavailable} />
+      </PublicSurveyLayout>
+    )
   }
 
   return (
-    <div
-      className="public-survey-theme survey-theme-root theme-app-gradient min-h-screen px-4 py-6 text-foreground sm:px-6 sm:py-8"
-    >
-      <style>{themeCss}</style>
+    <PublicSurveyLayout surveyThemeCss={themeCss}>
       <div className="mx-auto max-w-4xl space-y-5">
         <header className="survey-theme-shell px-5 py-5 sm:px-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -974,6 +1015,6 @@ export default function PublicSurveyPage() {
           ) : null}
         </div>
       </div>
-    </div>
+    </PublicSurveyLayout>
   )
 }

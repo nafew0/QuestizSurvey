@@ -324,10 +324,28 @@ export function useSurveyBuilder(surveyId) {
 
   const updateSurveyField = useCallback(
     (field, value) => {
-      updateLocalSurvey((current) => ({
-        ...current,
-        [field]: value,
-      }))
+      updateLocalSurvey((current) => {
+        const nextSurvey = {
+          ...current,
+          [field]: value,
+        }
+
+        if (field === 'title' && (current.welcome_page?.title ?? '') === current.title) {
+          nextSurvey.welcome_page = {
+            ...(current.welcome_page ?? {}),
+            title: value,
+          }
+        }
+
+        if (field === 'description' && (current.welcome_page?.desc ?? '') === current.description) {
+          nextSurvey.welcome_page = {
+            ...(nextSurvey.welcome_page ?? current.welcome_page ?? {}),
+            desc: value,
+          }
+        }
+
+        return nextSurvey
+      })
       scheduleSurveySave()
     },
     [scheduleSurveySave, updateLocalSurvey]

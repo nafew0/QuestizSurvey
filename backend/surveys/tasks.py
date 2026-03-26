@@ -68,7 +68,8 @@ def deliver_invitation_email(invitation, *, subject="", message="", reminder=Fal
         else invitation.collector.settings.get("email_message", "").strip()
     )
     subject_line = build_email_subject(invitation, subject, reminder)
-    survey_url = f"{get_public_app_url()}/s/{survey.slug}?invite={invitation.token}"
+    public_app_url = get_public_app_url()
+    survey_url = f"{public_app_url}/s/{survey.slug}?invite={invitation.token}"
     tracking_pixel_url = f"{get_api_base_url()}/track/open/{invitation.token}/"
 
     context = {
@@ -80,6 +81,7 @@ def deliver_invitation_email(invitation, *, subject="", message="", reminder=Fal
         "custom_message": custom_message,
         "subject": subject_line,
         "is_reminder": reminder,
+        "logo_url": f"{public_app_url}/branding/logo.svg" if public_app_url else "",
     }
     html_message = render_to_string("emails/invitation.html", context)
     plain_message = strip_tags(html_message)
@@ -87,7 +89,7 @@ def deliver_invitation_email(invitation, *, subject="", message="", reminder=Fal
     send_mail(
         subject=subject_line,
         message=plain_message,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@questiz.local"),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@mindspear.local"),
         recipient_list=[invitation.email],
         html_message=html_message,
         fail_silently=False,

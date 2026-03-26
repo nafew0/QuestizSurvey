@@ -359,6 +359,54 @@ class StripePaymentTests(TestCase):
         self.assertTrue(any('"event": "stripe_checkout"' in message for message in captured.output))
 
     @patch("subscriptions.stripe_service.stripe.Subscription.retrieve")
+    @patch("subscriptions.stripe_service.stripe.checkout.Session.retrieve")
+    def test_session_status_endpoint_syncs_subscription_without_webhook(
+        self,
+        checkout_session_retrieve_mock,
+        subscription_retrieve_mock,
+    ):
+        now = timezone.now()
+        checkout_session_retrieve_mock.return_value = {
+            "id": "cs_test_123",
+            "mode": "subscription",
+            "status": "complete",
+            "payment_status": "paid",
+            "customer": "cus_123",
+            "client_reference_id": str(self.user.id),
+            "subscription": "sub_123",
+            "metadata": {"user_id": str(self.user.id)},
+        }
+        subscription_retrieve_mock.return_value = {
+            "id": "sub_123",
+            "customer": "cus_123",
+            "status": "active",
+            "current_period_start": int(now.timestamp()),
+            "current_period_end": int((now + timedelta(days=30)).timestamp()),
+            "items": {
+                "data": [
+                    {
+                        "price": {
+                            "id": "price_pro_monthly",
+                        }
+                    }
+                ]
+            },
+            "metadata": {"user_id": str(self.user.id)},
+        }
+
+        response = self.client.get(
+            "/api/payments/stripe/session-status/cs_test_123/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["completed"])
+        subscription = UserSubscription.objects.get(user=self.user)
+        self.assertEqual(subscription.plan, self.pro_plan)
+        self.assertEqual(
+            subscription.payment_provider, UserSubscription.PaymentProvider.STRIPE
+        )
+
+    @patch("subscriptions.stripe_service.stripe.Subscription.retrieve")
     @patch("subscriptions.stripe_service.stripe.Webhook.construct_event")
     def test_webhook_checkout_session_completed_updates_subscription(
         self,
@@ -829,6 +877,7 @@ class BkashPaymentTests(TestCase):
 
         self.assertEqual(first_response.status_code, status.HTTP_302_FOUND)
         self.assertEqual(second_response.status_code, status.HTTP_302_FOUND)
+        self.assertIn("payment_id=payment_123", first_response.url)
         self.assertEqual(subscription.plan, self.pro_plan)
         self.assertEqual(
             subscription.payment_provider, UserSubscription.PaymentProvider.BKASH

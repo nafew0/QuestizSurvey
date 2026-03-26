@@ -1000,7 +1000,7 @@ export default function SurveyAnalyticsPage() {
                   <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.7fr)]">
                     <div className="space-y-4">
                       <div className="rounded-[1.6rem] border border-[rgb(var(--theme-border-rgb)/0.8)] bg-white px-5 py-4">
-                        <p className="text-sm leading-7 text-foreground">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-7 text-foreground">
                           {aiSummaryQuery.data.summary}
                         </p>
                       </div>
@@ -1012,7 +1012,7 @@ export default function SurveyAnalyticsPage() {
                           </p>
                           <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
                             {(aiSummaryQuery.data.key_findings || []).map((item) => (
-                              <li key={item}>• {item}</li>
+                              <li key={item} className="break-words whitespace-pre-wrap">• {item}</li>
                             ))}
                           </ul>
                         </div>
@@ -1023,7 +1023,7 @@ export default function SurveyAnalyticsPage() {
                           </p>
                           <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
                             {(aiSummaryQuery.data.recommendations || []).map((item) => (
-                              <li key={item}>• {item}</li>
+                              <li key={item} className="break-words whitespace-pre-wrap">• {item}</li>
                             ))}
                           </ul>
                         </div>
@@ -1039,7 +1039,7 @@ export default function SurveyAnalyticsPage() {
                           <button
                             key={prompt}
                             type="button"
-                            className="w-full rounded-[1.2rem] border border-[rgb(var(--theme-primary-rgb)/0.32)] bg-white px-4 py-3 text-left text-sm leading-6 text-foreground transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgb(var(--theme-shadow-rgb)/0.12)]"
+                            className="w-full rounded-[1.2rem] border border-[rgb(var(--theme-primary-rgb)/0.32)] bg-white px-4 py-3 text-left text-sm leading-6 text-foreground transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgb(var(--theme-shadow-rgb)/0.12)] whitespace-pre-wrap break-words"
                             onClick={() => handleSuggestedChatPrompt(prompt)}
                           >
                             {prompt}

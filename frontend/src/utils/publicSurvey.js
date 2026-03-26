@@ -131,7 +131,8 @@ export function restorePublicAnswers(survey, response) {
   const questionIndex = buildQuestionIndex(survey)
 
   ;(response?.answers ?? []).forEach((answer) => {
-    const question = questionIndex[answer.question]
+    const questionId = answer.question_id || answer.question
+    const question = questionIndex[questionId]
     if (!question) {
       return
     }

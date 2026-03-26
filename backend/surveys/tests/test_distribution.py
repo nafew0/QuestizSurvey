@@ -11,7 +11,7 @@ User = get_user_model()
 
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
-    DEFAULT_FROM_EMAIL="no-reply@questiz.test",
+    DEFAULT_FROM_EMAIL="no-reply@mindspear.test",
     PUBLIC_APP_URL="http://localhost:5555",
     API_BASE_URL="http://localhost:8000/api",
     CELERY_TASK_ALWAYS_EAGER=True,
@@ -87,6 +87,9 @@ class DistributionTests(TestCase):
         self.assertEqual(self.email_collector.email_invitations.count(), 2)
         self.assertEqual(len(mail.outbox), 2)
         self.assertIn("Please take our survey", mail.outbox[0].subject)
+        self.assertEqual(mail.outbox[0].from_email, "no-reply@mindspear.test")
+        self.assertIn("MindSpear", mail.outbox[0].alternatives[0][0])
+        self.assertIn("/branding/logo.svg", mail.outbox[0].alternatives[0][0])
         self.assertIn("We would value your feedback.", mail.outbox[0].alternatives[0][0])
 
         self.email_collector.refresh_from_db()

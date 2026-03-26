@@ -103,8 +103,11 @@ class AccountsAuthFlowTestCase(TestCase):
         user = User.objects.get(username="newuser")
         self.assertFalse(user.email_verified)
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, "Verify your MindSpear email")
         self.assertIn("http://localhost:5555/verify-email?token=", mail.outbox[0].body)
         self.assertTrue(mail.outbox[0].alternatives)
+        self.assertIn("MindSpear", mail.outbox[0].alternatives[0][0])
+        self.assertIn("/branding/logo.svg", mail.outbox[0].alternatives[0][0])
         self.assertIn("http://localhost:5555/verify-email?token=", mail.outbox[0].alternatives[0][0])
 
     def test_user_registration_returns_tokens_when_verification_disabled(self):
@@ -884,6 +887,7 @@ class AdminApiTests(TestCase):
         self.assertEqual(get_response.status_code, status.HTTP_200_OK)
         self.assertTrue(get_response.data["ai_api_key_openai_meta"]["configured"])
         self.assertNotIn("sk-test-openai-1234", str(get_response.data))
+        self.assertNotIn("masked_value", get_response.data["ai_api_key_openai_meta"])
         self.assertEqual(
             get_response.data["ai_api_key_openai_meta"]["source"],
             "environment",
@@ -1048,7 +1052,10 @@ class AdminApiTests(TestCase):
 
         self.assertEqual(send_response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, "Reset your MindSpear password")
         html_body = mail.outbox[0].alternatives[0][0]
+        self.assertIn("MindSpear", html_body)
+        self.assertIn("/branding/logo.svg", html_body)
         match = re.search(
             r"reset-password\?uid=(?P<uid>[^&]+)&amp;token=(?P<token>[^\"]+)",
             html_body,

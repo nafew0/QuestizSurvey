@@ -694,16 +694,16 @@ export default function QuestionAnalyticsCard({
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                       AI Insight
                     </p>
-                    <p className="mt-2 text-base font-semibold tracking-tight text-foreground">
+                    <p className="mt-2 break-words whitespace-pre-wrap text-base font-semibold tracking-tight text-foreground">
                       {aiInsightQuery.data?.takeaway}
                     </p>
                     <ul className="mt-3 space-y-2 text-sm leading-6 text-foreground">
                       {(aiInsightQuery.data?.insights || []).map((item) => (
-                        <li key={item}>• {item}</li>
+                        <li key={item} className="break-words whitespace-pre-wrap">• {item}</li>
                       ))}
                     </ul>
                     {aiInsightQuery.data?.recommended_action ? (
-                      <p className="mt-3 text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
+                      <p className="mt-3 break-words whitespace-pre-wrap text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
                         Recommended action: {aiInsightQuery.data.recommended_action}
                       </p>
                     ) : null}

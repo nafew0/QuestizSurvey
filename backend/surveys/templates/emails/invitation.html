@@ -12,6 +12,9 @@
           <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #d7e1ee;">
             <tr>
               <td style="padding:36px 40px;background:linear-gradient(135deg,#eff6ff 0%,#f8fafc 100%);border-bottom:1px solid #d7e1ee;">
+                {% if logo_url %}
+                <img src="{{ logo_url }}" alt="MindSpear" style="height:32px;width:auto;display:block;margin-bottom:20px;" />
+                {% endif %}
                 <p style="margin:0 0 12px;font-size:12px;letter-spacing:0.24em;text-transform:uppercase;font-weight:700;color:#2563eb;">
                   {% if is_reminder %}Reminder{% else %}Survey invitation{% endif %}
                 </p>
@@ -49,7 +52,7 @@
                   <a href="{{ survey_url }}" style="color:#2563eb;text-decoration:none;">{{ survey_url }}</a>
                 </p>
                 <p style="margin:0;font-size:12px;line-height:1.7;color:#94a3b8;">
-                  You are receiving this email because a survey owner sent you an invitation through Questiz.
+                  You are receiving this email because a survey owner sent you an invitation through MindSpear.
                 </p>
               </td>
             </tr>

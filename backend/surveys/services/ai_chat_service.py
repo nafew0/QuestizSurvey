@@ -72,19 +72,19 @@ class AIChatService(QuestionAnalyticsInsightsService):
 
         result = {
             "headline": self._normalize_line(parsed.get("headline", "")),
-            "summary": self._normalize_text(parsed.get("summary", ""))[:700],
+            "summary": self._normalize_text(parsed.get("summary", "")),
             "key_findings": [
-                self._normalize_text(item)[:260]
+                self._normalize_text(item)
                 for item in (parsed.get("key_findings") or [])
                 if self._normalize_text(item)
             ][:4],
             "recommendations": [
-                self._normalize_text(item)[:260]
+                self._normalize_text(item)
                 for item in (parsed.get("recommendations") or [])
                 if self._normalize_text(item)
             ][:3],
             "suggested_questions": [
-                self._normalize_text(item)[:180]
+                self._normalize_text(item)
                 for item in (parsed.get("suggested_questions") or [])
                 if self._normalize_text(item)
             ][:3],

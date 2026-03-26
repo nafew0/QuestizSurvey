@@ -295,7 +295,7 @@ export default function SurveyDashboard() {
         },
         welcome_page: {
           enabled: true,
-          title: createForm.title,
+          title: '',
           desc: createForm.description,
         },
         thank_you_page: {

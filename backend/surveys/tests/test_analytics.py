@@ -457,6 +457,41 @@ class AnalyticsApiTests(TestCase):
     @patch(
         "surveys.services.ai_insights.AIService.call",
         return_value=(
+            "TAKEAWAY: "
+            + ("This takeaway intentionally stays long so the API preserves a full decision-ready sentence with multiple quantified clauses about pattern strength, contradictions, and respondent sentiment instead of clipping it after a short UI-oriented limit. " * 2)
+            + "\nINSIGHT 1: "
+            + ("Insight one remains complete and should not be cut off when it includes multiple supporting phrases, exact metrics, and supporting interpretation for the survey owner to read in one pass. " * 2)
+            + "\nINSIGHT 2: "
+            + ("Insight two also remains complete and should preserve its full wording across the response payload for consistent rendering in analytics cards. " * 2)
+            + "\nINSIGHT 3: "
+            + ("Insight three remains complete and keeps the final clause visible instead of ending mid-sentence during normalization. " * 2)
+            + "\nRECOMMENDED ACTION: "
+            + ("The recommended action should remain fully visible so the owner can read the entire proposed next step without trimmed text in the analytics interface. " * 2)
+        ),
+    )
+    def test_question_ai_insights_does_not_trim_long_lines(
+        self,
+        _mocked_call,
+        _mocked_provider_config,
+    ):
+        response = self.client.post(
+            f"/api/surveys/{self.survey.id}/analytics/questions/{self.text_question.id}/insights/",
+            {"filters": {"status": "completed"}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(len(response.data["takeaway"]), 280)
+        self.assertGreater(len(response.data["insights"][0]), 280)
+        self.assertGreater(len(response.data["recommended_action"]), 280)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value=(
             "TAKEAWAY: Filtered results isolate one respondent segment.\n"
             "INSIGHT 1: One\n"
             "INSIGHT 2: Two\n"

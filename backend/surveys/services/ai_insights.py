@@ -446,10 +446,10 @@ class QuestionAnalyticsInsightsService:
 
     def _normalize_text(self, value):
         normalized = " ".join(f"{value or ''}".split())
-        return normalized[:2000]
+        return normalized[:8000]
 
     def _normalize_line(self, value):
-        return self._normalize_text(value)[:280]
+        return self._normalize_text(value)[:1200]
 
     def _signature(self, value):
         serialized = json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)

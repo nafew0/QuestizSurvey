@@ -36,7 +36,7 @@ const Navbar = () => {
   }
 
   return (
-    <nav className="border-b border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb)/0.92)] backdrop-blur">
+    <nav className="fixed inset-x-0 top-0 z-50 border-b border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb)/0.92)] backdrop-blur">
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <Link to="/" className="flex items-center gap-3">

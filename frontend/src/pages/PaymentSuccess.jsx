@@ -4,6 +4,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/hooks/useToast'
+import {
+  getBkashPaymentStatus,
+  getStripeCheckoutSessionStatus,
+} from '@/services/payments'
 import { getSubscription } from '@/services/subscriptions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,6 +37,8 @@ export default function PaymentSuccess() {
   const refreshUserRef = useRef(refreshUser)
   const toastRef = useRef(toast)
   const provider = (searchParams.get('provider') || 'stripe').toLowerCase()
+  const sessionId = (searchParams.get('session_id') || '').trim()
+  const paymentId = (searchParams.get('payment_id') || '').trim()
 
   useEffect(() => {
     refreshUserRef.current = refreshUser
@@ -54,6 +60,16 @@ export default function PaymentSuccess() {
       }
 
       for (let attempt = 0; attempt < SYNC_ATTEMPTS && !cancelled; attempt += 1) {
+        try {
+          if (provider === 'stripe' && sessionId) {
+            await getStripeCheckoutSessionStatus(sessionId)
+          } else if (provider === 'bkash' && paymentId) {
+            await getBkashPaymentStatus(paymentId)
+          }
+        } catch (error) {
+          console.error('Unable to sync provider payment yet:', error)
+        }
+
         try {
           const subscription = await getSubscription()
           if (
@@ -92,7 +108,7 @@ export default function PaymentSuccess() {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, provider])
+  }, [isAuthenticated, paymentId, provider, sessionId])
 
   useEffect(() => {
     if (syncing) {

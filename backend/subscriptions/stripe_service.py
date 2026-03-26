@@ -432,6 +432,92 @@ class StripeService:
         return local_subscription
 
     @classmethod
+    def sync_checkout_session(cls, user, session_id):
+        cls._require_configuration()
+
+        normalized_session_id = (session_id or "").strip()
+        if not normalized_session_id:
+            raise StripeUserInputError("Stripe checkout session ID is required.")
+
+        try:
+            checkout_session = stripe.checkout.Session.retrieve(
+                normalized_session_id,
+                expand=["subscription"],
+            )
+        except stripe.error.StripeError as exc:
+            raise StripeServiceError(
+                "Stripe could not retrieve the checkout session."
+            ) from exc
+
+        if cls._value(checkout_session, "mode") != "subscription":
+            raise StripeUserInputError(
+                "This Stripe checkout session is not a subscription checkout."
+            )
+
+        session_user_id = str(
+            cls._metadata_value(checkout_session, "user_id")
+            or cls._value(checkout_session, "client_reference_id")
+            or ""
+        ).strip()
+        if session_user_id and session_user_id != str(user.id):
+            raise StripeUserInputError(
+                "This Stripe checkout session does not belong to the current account."
+            )
+
+        local_subscription = LicenseService.get_user_subscription(user)
+        stripe_customer_id = cls._value(checkout_session, "customer")
+        if (
+            local_subscription.stripe_customer_id
+            and stripe_customer_id
+            and local_subscription.stripe_customer_id != stripe_customer_id
+        ):
+            raise StripeUserInputError(
+                "This Stripe checkout session does not belong to the current account."
+            )
+
+        session_status = str(cls._value(checkout_session, "status") or "").strip().lower()
+        payment_status = str(
+            cls._value(checkout_session, "payment_status") or ""
+        ).strip().lower()
+        if session_status not in {"complete", "completed"} or payment_status not in {
+            "paid",
+            "no_payment_required",
+        }:
+            return {
+                "completed": False,
+                "session_status": session_status,
+                "payment_status": payment_status,
+                "subscription": local_subscription,
+            }
+
+        stripe_subscription = cls._value(checkout_session, "subscription")
+        if not stripe_subscription:
+            raise StripeServiceError(
+                "Stripe checkout completion did not include a subscription."
+            )
+
+        if isinstance(stripe_subscription, str):
+            try:
+                stripe_subscription = stripe.Subscription.retrieve(stripe_subscription)
+            except stripe.error.StripeError as exc:
+                raise StripeServiceError(
+                    "Stripe could not retrieve the subscription for this checkout session."
+                ) from exc
+
+        synchronized_subscription = cls._sync_subscription_from_stripe(
+            stripe_subscription,
+            user_id=str(user.id),
+        )
+        return {
+            "completed": LicenseService.is_subscription_paid_and_active(
+                synchronized_subscription
+            ),
+            "session_status": session_status,
+            "payment_status": payment_status,
+            "subscription": synchronized_subscription,
+        }
+
+    @classmethod
     def handle_webhook(cls, payload, sig_header):
         cls._require_configuration(require_webhook=True)
 

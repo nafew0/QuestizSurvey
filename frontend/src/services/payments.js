@@ -13,6 +13,11 @@ export async function createStripeCustomerPortalSession() {
   return response.data
 }
 
+export async function getStripeCheckoutSessionStatus(sessionId) {
+  const response = await api.get(`/payments/stripe/session-status/${sessionId}/`)
+  return response.data
+}
+
 export async function getStripeConfig() {
   const response = await api.get('/payments/stripe/config/')
   return response.data

@@ -57,19 +57,21 @@ def is_password_reset_token_valid(uid, token):
 
 def send_password_reset_email(user, *, requested_by=None):
     reset_url, uid, token = build_password_reset_link(user)
+    public_app_url = (getattr(settings, "PUBLIC_APP_URL", "") or "").rstrip("/")
     context = {
         "user": user,
         "reset_url": reset_url,
         "requested_by": requested_by,
+        "logo_url": f"{public_app_url}/branding/logo.svg" if public_app_url else "",
     }
-    subject = "Reset your Questiz password"
+    subject = "Reset your MindSpear password"
     html_body = render_to_string("emails/password_reset.html", context)
     text_body = strip_tags(html_body)
 
     message = EmailMultiAlternatives(
         subject=subject,
         body=text_body,
-        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@questiz.local"),
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@mindspear.local"),
         to=[user.email],
     )
     message.attach_alternative(html_body, "text/html")

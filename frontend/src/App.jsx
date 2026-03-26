@@ -47,14 +47,17 @@ function App() {
   const isBuilderRoute = /^\/surveys\/[^/]+\/edit\/?$/.test(location.pathname)
   const isPublicSurveyRoute = /^\/s\/[^/]+\/?$/.test(location.pathname)
   const isPublicReportRoute = /^\/reports\/[^/]+\/?$/.test(location.pathname)
-  const isAdminRoute = location.pathname === '/admin' || location.pathname.startsWith('/admin/')
   const hideNavbar =
     location.pathname.includes('/preview') ||
     isPublicSurveyRoute ||
     isPublicReportRoute ||
-    isAdminRoute ||
     location.pathname === '/reset-password' ||
     location.pathname === '/forgot-password'
+  const mainClassName = hideNavbar
+    ? undefined
+    : isBuilderRoute
+      ? 'h-screen overflow-hidden overscroll-none pt-16'
+      : 'pt-16'
 
   return (
     <AuthProvider>
@@ -62,7 +65,7 @@ function App() {
         <ToastProvider>
           <div className="min-h-screen bg-background">
             {hideNavbar ? null : <Navbar />}
-            <main className={isBuilderRoute ? 'h-[calc(100dvh-4rem)] overflow-hidden overscroll-none' : undefined}>
+            <main className={mainClassName}>
               <Suspense fallback={<AppFallback />}>
                 <Routes>
                   <Route path="/" element={<Home />} />
