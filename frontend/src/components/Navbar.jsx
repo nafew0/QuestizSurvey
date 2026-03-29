@@ -35,6 +35,9 @@ const Navbar = () => {
     return user?.username?.substring(0, 2).toUpperCase() || 'U'
   }
 
+  const textNavClass =
+    'group relative inline-flex items-center px-1 py-1 text-sm font-semibold tracking-[0.01em] text-[rgb(var(--theme-secondary-ink-rgb))] transition-[color,transform] duration-200 hover:-translate-y-px hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 after:absolute after:bottom-[-0.15rem] after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-[rgb(var(--theme-primary-rgb))] after:transition-transform after:duration-200 hover:after:scale-x-100'
+
   return (
     <nav className="fixed inset-x-0 top-0 z-50 border-b border-[rgb(var(--theme-border-rgb)/0.85)] bg-[rgb(var(--theme-neutral-rgb)/0.92)] backdrop-blur">
       <div className="container mx-auto px-4">
@@ -45,23 +48,29 @@ const Navbar = () => {
 
           <div className="hidden flex-1 lg:block" />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 md:gap-4">
             <div className="hidden md:block">
               <Link to="/pricing">
-                <Button variant="ghost" className="rounded-full gap-2">
-                  {isUpgraded ? <Star className="h-4 w-4 text-[rgb(var(--theme-primary-rgb))]" /> : null}
+                <Button
+                  className={
+                    isUpgraded
+                      ? 'h-10 rounded-full border border-[rgb(var(--theme-secondary-rgb)/0.18)] bg-[rgb(var(--theme-secondary-rgb))] px-4 text-sm font-semibold text-white shadow-[0_14px_30px_rgb(var(--theme-shadow-rgb)/0.12)] hover:bg-[rgb(var(--theme-secondary-rgb)/0.92)]'
+                      : 'h-10 rounded-full border border-emerald-600 bg-emerald-600 px-4 text-sm font-semibold text-white shadow-[0_16px_32px_rgba(5,150,105,0.28)] hover:bg-emerald-500'
+                  }
+                >
+                  {isUpgraded ? <Star className="mr-2 h-4 w-4 text-white" /> : <CreditCard className="mr-2 h-4 w-4 text-white" />}
                   {isUpgraded ? 'Pro' : 'Upgrade'}
                 </Button>
               </Link>
             </div>
-            <div className="hidden md:block">
-              <ThemeStudioDialog />
-            </div>
             {isAuthenticated ? (
               <>
-                <Link to="/dashboard">
-                  <Button variant="ghost" className="rounded-full">My Surveys</Button>
-                </Link>
+                <div className="hidden items-center gap-6 px-1 md:flex">
+                  <ThemeStudioDialog />
+                  <Link to="/dashboard" className={textNavClass}>
+                    My Surveys
+                  </Link>
+                </div>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -120,11 +129,21 @@ const Navbar = () => {
               </>
             ) : (
               <>
+                <div className="hidden items-center px-1 md:flex">
+                  <ThemeStudioDialog />
+                </div>
                 <Link to="/login">
-                  <Button variant="ghost" className="rounded-full">Log in</Button>
+                  <Button
+                    variant="ghost"
+                    className="h-10 rounded-full border border-[rgb(var(--theme-border-rgb)/0.88)] bg-white/80 px-4 text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))] shadow-sm hover:border-[rgb(var(--theme-primary-rgb)/0.28)] hover:bg-white hover:text-foreground"
+                  >
+                    Log in
+                  </Button>
                 </Link>
                 <Link to="/register">
-                  <Button className="rounded-full">Start free</Button>
+                  <Button className="h-10 rounded-full px-4 text-sm font-semibold shadow-[0_14px_28px_rgb(var(--theme-primary-rgb)/0.24)]">
+                    Start free
+                  </Button>
                 </Link>
               </>
             )}

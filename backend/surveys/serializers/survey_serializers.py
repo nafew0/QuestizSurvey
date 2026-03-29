@@ -3,6 +3,7 @@ from rest_framework import serializers
 
 from subscriptions.services import LicenseService
 from surveys.models import Survey
+from surveys.rich_text import rich_text_to_plain_text, sanitize_rich_text_html
 from surveys.security import normalize_access_settings, sanitize_access_settings
 from surveys.theme import normalize_survey_theme
 
@@ -17,6 +18,10 @@ class SurveyThemeSerializerMixin:
         data = super().to_representation(instance)
         if "theme" in data:
             data["theme"] = normalize_survey_theme(getattr(instance, "theme", None))
+        if "welcome_page" in data:
+            data["welcome_page"] = _normalize_message_page_payload(data.get("welcome_page"))
+        if "thank_you_page" in data:
+            data["thank_you_page"] = _normalize_message_page_payload(data.get("thank_you_page"))
         return data
 
 
@@ -71,6 +76,12 @@ class SurveyCreateUpdateSerializer(SurveyThemeSerializerMixin, serializers.Model
             )
         except ValueError as exc:
             raise serializers.ValidationError(str(exc)) from exc
+
+    def validate_welcome_page(self, value):
+        return _normalize_message_page_payload(value)
+
+    def validate_thank_you_page(self, value):
+        return _normalize_message_page_payload(value)
 
     class Meta:
         model = Survey
@@ -145,3 +156,13 @@ class SurveyThemeAssetUploadSerializer(serializers.Serializer):
                 )
 
         return attrs
+
+
+def _normalize_message_page_payload(value):
+    normalized = dict(value or {})
+    if "desc_html" not in normalized:
+        return normalized
+
+    normalized["desc_html"] = sanitize_rich_text_html(normalized.get("desc_html"))
+    normalized["desc"] = rich_text_to_plain_text(normalized["desc_html"])
+    return normalized

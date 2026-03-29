@@ -1,4 +1,6 @@
 import { cn } from '@/lib/utils'
+import RichTextContent from '@/components/ui/rich-text-content'
+import { Textarea } from '@/components/ui/textarea'
 import {
   getAnswerCommentText,
   getAnswerOtherText,
@@ -10,6 +12,7 @@ import {
   updateAnswerOtherText,
   updateAnswerPrimaryValue,
 } from '@/utils/questionAnswers'
+import { getQuestionTextHtml } from '@/utils/richText'
 
 import MultipleChoiceSingleRenderer from './renderers/MultipleChoiceSingleRenderer'
 import MultipleChoiceMultiRenderer from './renderers/MultipleChoiceMultiRenderer'
@@ -31,8 +34,6 @@ import FileUploadRenderer from './renderers/FileUploadRenderer'
 import DemographicsRenderer from './renderers/DemographicsRenderer'
 import SectionHeadingRenderer from './renderers/SectionHeadingRenderer'
 import InstructionalTextRenderer from './renderers/InstructionalTextRenderer'
-import { Textarea } from '@/components/ui/textarea'
-
 function BaseQuestionFrame({
   question,
   required,
@@ -64,14 +65,18 @@ function BaseQuestionFrame({
                   {numberLabel}
                 </span>
               ) : null}
-              <h3 className="text-sm font-semibold tracking-tight text-foreground">
-                {question.text}
-                {required ? <span className="ml-1 text-rose-500">*</span> : null}
-              </h3>
+              <RichTextContent
+                html={getQuestionTextHtml(question)}
+                plainText={question.text}
+                className="min-w-0 flex-1 text-sm font-semibold tracking-tight text-foreground"
+              />
+              {required ? <span className="mt-0.5 text-rose-500">*</span> : null}
             </div>
           ) : null}
           {showDescription && question.description ? (
-            <p className="survey-theme-muted text-[13px]">{question.description}</p>
+            <p className="survey-theme-muted whitespace-pre-wrap text-[13px]">
+              {question.description}
+            </p>
           ) : null}
         </div>
       ) : null}

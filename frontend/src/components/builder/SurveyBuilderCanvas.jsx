@@ -29,12 +29,15 @@ import {
 } from '@/components/ui/dialog'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
+import RichTextContent from '@/components/ui/rich-text-content'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { QUESTION_TYPE_GROUPS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 import { buildSurveyThemeCss } from '@/lib/surveyTheme'
 import { cn } from '@/lib/utils'
 import { buildQuestionNumberLookup, isStructuralQuestion } from '@/utils/questionNumbers'
+import { getQuestionTextHtml } from '@/utils/richText'
 import {
   createClientUuid,
   getInitialQuestionValue,
@@ -412,7 +415,7 @@ function QuestionCard({
   previewValue,
   onSelect,
   onDragStart,
-  onTitleChange,
+  onTextRichChange,
   onPreviewValueChange,
   onQuestionFieldChange,
   onDuplicate,
@@ -519,18 +522,35 @@ function QuestionCard({
           <div className="min-w-0 flex-1 space-y-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex min-w-0 flex-1 items-start gap-2">
-                {isInstructional ? (
-                  <Textarea
-                    value={question.text}
-                    onChange={(event) => onTitleChange(event.target.value)}
-                    className="min-h-[100px] border-0 bg-transparent px-0 py-0 text-[0.95rem] leading-7 text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                {selected ? (
+                  <RichTextEditor
+                    valueHtml={getQuestionTextHtml(question)}
+                    plainText={question.text}
+                    placeholder={
+                      isInstructional
+                        ? 'Write the content shown to respondents.'
+                        : 'Write the full question prompt.'
+                    }
+                    className="w-full shadow-none"
+                    editorClassName={cn(
+                      'border-0 bg-transparent px-0 py-0 shadow-none',
+                      isInstructional
+                        ? 'min-h-[8.5rem] text-[0.95rem] leading-7'
+                        : 'min-h-[7rem] text-base leading-7 tracking-tight'
+                    )}
+                    onChange={(value) => onTextRichChange(value.html)}
                   />
                 ) : (
                   <div className="flex min-w-0 flex-1 items-start gap-2">
-                    <Input
-                      value={question.text}
-                      onChange={(event) => onTitleChange(event.target.value)}
-                      className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-semibold tracking-tight text-foreground shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-base"
+                    <RichTextContent
+                      html={getQuestionTextHtml(question)}
+                      plainText={question.text}
+                      className={cn(
+                        'min-w-0 flex-1',
+                        isInstructional
+                          ? 'text-[0.95rem] leading-7 text-foreground'
+                          : 'text-sm font-semibold tracking-tight text-foreground md:text-base'
+                      )}
                     />
                     {question.required ? (
                       <span className="pt-0.5 text-sm font-semibold text-rose-500 md:text-base">*</span>
@@ -624,6 +644,7 @@ export default function SurveyBuilderCanvas({
   onSelectPage,
   onPageFieldChange,
   onQuestionFieldChange,
+  onQuestionRichTextChange,
   onAddPage,
   onMovePage,
   onDeletePage,
@@ -853,7 +874,7 @@ export default function SurveyBuilderCanvas({
                           })
                         )
                       }
-                      onTitleChange={(value) => onQuestionFieldChange(question.id, 'text', value)}
+                      onTextRichChange={(value) => onQuestionRichTextChange(question.id, value)}
                       onPreviewValueChange={(value) => updatePreviewAnswer(question.id, value)}
                       onQuestionFieldChange={onQuestionFieldChange}
                       onDuplicate={() => onDuplicateQuestion(question.id)}

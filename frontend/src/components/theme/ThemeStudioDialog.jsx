@@ -81,13 +81,12 @@ export default function ThemeStudioDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          className="gap-2 rounded-full border-[rgb(var(--theme-border-rgb)/0.85)] bg-white/85 shadow-sm"
+        <button
+          type="button"
+          className="group relative inline-flex items-center px-1 py-1 text-sm font-semibold tracking-[0.01em] text-[rgb(var(--theme-secondary-ink-rgb))] transition-[color,transform] duration-200 hover:-translate-y-px hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 after:absolute after:bottom-[-0.15rem] after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:rounded-full after:bg-[rgb(var(--theme-primary-rgb))] after:transition-transform after:duration-200 hover:after:scale-x-100"
         >
-          <Palette className="h-4 w-4 text-primary" />
           Theme
-        </Button>
+        </button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl pr-16 sm:pr-20">
         <DialogHeader className="space-y-0">

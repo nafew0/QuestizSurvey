@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   ArrowLeft,
   BarChart3,
@@ -15,13 +16,24 @@ import QuestionTypePalette from '@/components/builder/QuestionTypePalette'
 import SurveyBuilderCanvas from '@/components/builder/SurveyBuilderCanvas'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { useSurveyBuilder } from '@/hooks/useSurveyBuilder'
 import { STATUS_BADGE_VARIANTS } from '@/constants/surveyBuilder'
+import { cn } from '@/lib/utils'
 import { getStatusLabel } from '@/utils/surveyBuilder'
 
 export default function SurveyBuilder() {
   const navigate = useNavigate()
   const { surveyId } = useParams()
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
+  const [closingSurvey, setClosingSurvey] = useState(false)
   const {
     survey,
     loading,
@@ -38,6 +50,7 @@ export default function SurveyBuilder() {
     updateSurveyField,
     updatePageField,
     updateQuestionField,
+    updateQuestionRichText,
     updateChoiceField,
     addChoice,
     removeChoice,
@@ -60,6 +73,20 @@ export default function SurveyBuilder() {
     savingState.survey ||
     Object.values(savingState.pages).some(Boolean) ||
     Object.values(savingState.questions).some(Boolean)
+
+  const actionButtonClass =
+    'h-11 rounded-2xl border px-4 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5'
+
+  const handleConfirmClose = async () => {
+    setClosingSurvey(true)
+
+    try {
+      await closeCurrentSurvey()
+      setCloseConfirmOpen(false)
+    } finally {
+      setClosingSurvey(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -124,21 +151,31 @@ export default function SurveyBuilder() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-              <div className="theme-panel-soft flex h-10 items-center gap-2 rounded-xl px-3">
-                {isSaving ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-                ) : (
-                  <Save className="h-4 w-4 text-[rgb(var(--theme-secondary-rgb))]" />
+              <div
+                className={cn(
+                  'flex h-11 items-center gap-2 rounded-2xl border px-4 shadow-sm',
+                  isSaving
+                    ? 'border-amber-200 bg-amber-50 text-amber-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
                 )}
-                <span className="text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
-                  {isSaving ? 'Saving' : 'Synced'}
+              >
+                {isSaving ? (
+                  <LoaderCircle className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span className="text-sm font-semibold">
+                  {isSaving ? 'Saving changes' : 'All changes saved'}
                 </span>
               </div>
 
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl"
+                className={cn(
+                  actionButtonClass,
+                  'border-orange-200 bg-orange-50 text-orange-700 hover:border-orange-300 hover:bg-orange-100 hover:text-orange-800'
+                )}
                 onClick={() => navigate(`/surveys/${survey.id}/analyze`)}
               >
                 <BarChart3 className="mr-2 h-4 w-4" />
@@ -148,7 +185,10 @@ export default function SurveyBuilder() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl"
+                className={cn(
+                  actionButtonClass,
+                  'border-sky-200 bg-sky-50 text-sky-700 hover:border-sky-300 hover:bg-sky-100 hover:text-sky-800'
+                )}
                 onClick={() => navigate(`/surveys/${survey.id}/distribute`)}
               >
                 <Share2 className="mr-2 h-4 w-4" />
@@ -158,7 +198,10 @@ export default function SurveyBuilder() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-10 rounded-xl"
+                className={cn(
+                  actionButtonClass,
+                  'border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-300 hover:bg-violet-100 hover:text-violet-800'
+                )}
                 onClick={() => navigate(`/surveys/${survey.id}/preview`)}
               >
                 <Eye className="mr-2 h-4 w-4" />
@@ -166,12 +209,27 @@ export default function SurveyBuilder() {
               </Button>
 
               {survey.status === 'active' ? (
-                <Button type="button" variant="outline" className="h-10 rounded-xl" onClick={closeCurrentSurvey}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    actionButtonClass,
+                    'border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 hover:text-rose-800'
+                  )}
+                  onClick={() => setCloseConfirmOpen(true)}
+                >
                   <XCircle className="mr-2 h-4 w-4" />
                   Close
                 </Button>
               ) : (
-                <Button type="button" className="h-10 rounded-xl" onClick={publishCurrentSurvey}>
+                <Button
+                  type="button"
+                  className={cn(
+                    actionButtonClass,
+                    'border-emerald-600 bg-emerald-600 text-white shadow-[0_18px_34px_rgba(5,150,105,0.24)] hover:bg-emerald-500 hover:text-white'
+                  )}
+                  onClick={publishCurrentSurvey}
+                >
                   <Rocket className="mr-2 h-4 w-4" />
                   Publish
                 </Button>
@@ -195,6 +253,7 @@ export default function SurveyBuilder() {
                 onSelectPage={setSelectedPageId}
                 onPageFieldChange={updatePageField}
                 onQuestionFieldChange={updateQuestionField}
+                onQuestionRichTextChange={updateQuestionRichText}
                 onAddPage={createNewPage}
                 onMovePage={movePage}
                 onDeletePage={removePage}
@@ -223,12 +282,48 @@ export default function SurveyBuilder() {
               onSurveyFieldChange={updateSurveyField}
               onPageFieldChange={updatePageField}
               onQuestionFieldChange={updateQuestionField}
+              onQuestionRichTextChange={updateQuestionRichText}
               onImproveQuestion={improveQuestionById}
               improvingQuestions={improvingQuestions}
             />
           </div>
         </div>
       </div>
+
+      <Dialog open={closeConfirmOpen} onOpenChange={setCloseConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close this survey?</DialogTitle>
+            <DialogDescription>
+              This will immediately stop new responses from being submitted. Existing responses will remain available in analytics and exports.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-2xl"
+              onClick={() => setCloseConfirmOpen(false)}
+              disabled={closingSurvey}
+            >
+              Keep survey open
+            </Button>
+            <Button
+              type="button"
+              className="rounded-2xl border border-rose-600 bg-rose-600 text-white hover:bg-rose-500"
+              onClick={handleConfirmClose}
+              disabled={closingSurvey}
+            >
+              {closingSurvey ? (
+                <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <XCircle className="mr-2 h-4 w-4" />
+              )}
+              Close survey
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

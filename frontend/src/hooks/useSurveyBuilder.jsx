@@ -32,12 +32,18 @@ import {
   reindexPages,
   reindexQuestions,
 } from '@/utils/surveyBuilder'
+import {
+  buildQuestionRichTextUpdate,
+  plainTextToRichTextHtml,
+} from '@/utils/richText'
 
 function useLatestRef(value) {
   const ref = useRef(value)
   ref.current = value
   return ref
 }
+
+const AUTO_SAVE_DEBOUNCE_MS = 2000
 
 function remapDuplicatedIdentifiers(value, identifierMap) {
   if (Array.isArray(value)) {
@@ -79,7 +85,16 @@ function buildDuplicateQuestionDraft(question) {
   return {
     ...deepClone(question),
     text: `${question.text} (Copy)`,
-    settings: remapDuplicatedIdentifiers(question.settings ?? {}, choiceIdMap),
+    settings: (() => {
+      const nextSettings = remapDuplicatedIdentifiers(question.settings ?? {}, choiceIdMap)
+      const richTextUpdate = buildQuestionRichTextUpdate(
+        {
+          settings: nextSettings,
+        },
+        plainTextToRichTextHtml(`${question.text} (Copy)`)
+      )
+      return richTextUpdate.settings
+    })(),
     skip_logic: remapDuplicatedIdentifiers(question.skip_logic ?? [], choiceIdMap),
     choices: duplicatedChoices,
   }
@@ -220,7 +235,7 @@ export function useSurveyBuilder(surveyId) {
           survey: false,
         }))
       }
-    }, 700)
+    }, AUTO_SAVE_DEBOUNCE_MS)
   }, [surveyRef, toast])
 
   const schedulePageSave = useCallback(
@@ -263,7 +278,7 @@ export function useSurveyBuilder(surveyId) {
             },
           }))
         }
-      }, 700)
+      }, AUTO_SAVE_DEBOUNCE_MS)
 
       pageSaveTimeouts.current.set(pageId, timeoutId)
     },
@@ -315,7 +330,7 @@ export function useSurveyBuilder(surveyId) {
             },
           }))
         }
-      }, 700)
+      }, AUTO_SAVE_DEBOUNCE_MS)
 
       questionSaveTimeouts.current.set(questionId, timeoutId)
     },
@@ -337,7 +352,11 @@ export function useSurveyBuilder(surveyId) {
           }
         }
 
-        if (field === 'description' && (current.welcome_page?.desc ?? '') === current.description) {
+        if (
+          field === 'description' &&
+          !current.welcome_page?.desc_html &&
+          (current.welcome_page?.desc ?? '') === current.description
+        ) {
           nextSurvey.welcome_page = {
             ...(nextSurvey.welcome_page ?? current.welcome_page ?? {}),
             desc: value,
@@ -383,6 +402,31 @@ export function useSurveyBuilder(surveyId) {
                 }
               : question
           ),
+        })),
+      }))
+      scheduleQuestionSave(questionId)
+    },
+    [scheduleQuestionSave, updateLocalSurvey]
+  )
+
+  const updateQuestionRichText = useCallback(
+    (questionId, nextHtml) => {
+      updateLocalSurvey((current) => ({
+        ...current,
+        pages: current.pages.map((page) => ({
+          ...page,
+          questions: page.questions.map((question) => {
+            if (question.id !== questionId) {
+              return question
+            }
+
+            const nextRichText = buildQuestionRichTextUpdate(question, nextHtml)
+            return {
+              ...question,
+              text: nextRichText.text,
+              settings: nextRichText.settings,
+            }
+          }),
         })),
       }))
       scheduleQuestionSave(questionId)
@@ -1027,7 +1071,10 @@ export function useSurveyBuilder(surveyId) {
           question.id === pendingImprovement.questionId
             ? {
                 ...question,
-                text: nextText,
+                ...buildQuestionRichTextUpdate(
+                  question,
+                  plainTextToRichTextHtml(nextText)
+                ),
               }
             : question
         ),
@@ -1105,6 +1152,7 @@ export function useSurveyBuilder(surveyId) {
     updateSurveyField,
     updatePageField,
     updateQuestionField,
+    updateQuestionRichText,
     updateChoiceField,
     addChoice,
     removeChoice,

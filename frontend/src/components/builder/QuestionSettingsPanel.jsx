@@ -9,14 +9,15 @@ import {
 } from 'lucide-react'
 
 import SurveyThemeEditor from '@/components/builder/SurveyThemeEditor'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { CustomSelect } from '@/components/ui/custom-select'
 import { HelpPopover } from '@/components/ui/help-popover'
 import { Input } from '@/components/ui/input'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DEMOGRAPHIC_FIELDS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import { buildMessageDescriptionRichTextValue, getQuestionTextHtml } from '@/utils/richText'
 import {
   isRatingQuestion,
   questionHasChoices,
@@ -43,7 +44,7 @@ function PanelSection({ eyebrow, title, description, children }) {
 
 function Field({ label, hint, children }) {
   return (
-    <label className="block space-y-2">
+    <div className="block space-y-2">
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">{label}</p>
         {hint ? (
@@ -53,7 +54,28 @@ function Field({ label, hint, children }) {
         ) : null}
       </div>
       {children}
-    </label>
+    </div>
+  )
+}
+
+function SegmentedTabs({ value, onChange, options }) {
+  return (
+    <div className="theme-panel-soft mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-[rgb(var(--theme-border-rgb)/0.88)] bg-[rgb(var(--theme-neutral-rgb)/0.9)] p-1.5">
+      {options.map(([tabKey, label]) => (
+        <button
+          key={tabKey}
+          type="button"
+          onClick={() => onChange(tabKey)}
+          className={`rounded-2xl border px-4 py-2.5 text-sm transition ${
+            value === tabKey
+              ? 'border-[rgb(var(--theme-primary-rgb)/0.2)] bg-white font-semibold text-[rgb(var(--theme-primary-ink-rgb))] shadow-[0_10px_22px_rgb(var(--theme-shadow-rgb)/0.08)]'
+              : 'border-transparent bg-transparent font-medium text-muted-foreground hover:bg-white/75 hover:text-foreground'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -141,6 +163,7 @@ export default function QuestionSettingsPanel({
   onSurveyFieldChange,
   onPageFieldChange,
   onQuestionFieldChange,
+  onQuestionRichTextChange,
   onImproveQuestion,
   improvingQuestions,
 }) {
@@ -229,25 +252,14 @@ export default function QuestionSettingsPanel({
             </HelpPopover>
           </div>
 
-          <div className="theme-panel-soft mt-4 grid grid-cols-2 gap-2 rounded-2xl p-1">
-            {[
+          <SegmentedTabs
+            value={surveyTab}
+            onChange={setSurveyTab}
+            options={[
               ['settings', 'Settings'],
               ['design', 'Design'],
-            ].map(([tabKey, label]) => (
-              <button
-                key={tabKey}
-                type="button"
-                onClick={() => setSurveyTab(tabKey)}
-                className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                  surveyTab === tabKey
-                    ? 'bg-white text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+            ]}
+          />
         </div>
 
         {surveyTab === 'settings' ? (
@@ -347,18 +359,18 @@ export default function QuestionSettingsPanel({
                 label="Welcome description"
                 hint="Leave blank to reuse the survey description on the welcome page."
               >
-                <Textarea
-                  value={survey.welcome_page?.desc ?? ''}
+                <RichTextEditor
+                  valueHtml={survey.welcome_page?.desc_html ?? ''}
+                  plainText={survey.welcome_page?.desc ?? ''}
                   placeholder={
                     survey.description || 'Introduce the survey before respondents start.'
                   }
-                  onChange={(event) =>
-                    onSurveyFieldChange('welcome_page', {
-                      ...(survey.welcome_page ?? {}),
-                      desc: event.target.value,
-                    })
+                  onChange={(value) =>
+                    onSurveyFieldChange(
+                      'welcome_page',
+                      buildMessageDescriptionRichTextValue(survey.welcome_page, value.html)
+                    )
                   }
-                  className="rounded-2xl"
                 />
               </Field>
             </PanelSection>
@@ -389,16 +401,16 @@ export default function QuestionSettingsPanel({
                 label="Closing description"
                 hint="Leave blank to use the default confirmation message."
               >
-                <Textarea
-                  value={survey.thank_you_page?.desc ?? ''}
+                <RichTextEditor
+                  valueHtml={survey.thank_you_page?.desc_html ?? ''}
+                  plainText={survey.thank_you_page?.desc ?? ''}
                   placeholder="Your response has been recorded successfully."
-                  onChange={(event) =>
-                    onSurveyFieldChange('thank_you_page', {
-                      ...(survey.thank_you_page ?? {}),
-                      desc: event.target.value,
-                    })
+                  onChange={(value) =>
+                    onSurveyFieldChange(
+                      'thank_you_page',
+                      buildMessageDescriptionRichTextValue(survey.thank_you_page, value.html)
+                    )
                   }
-                  className="rounded-2xl"
                 />
               </Field>
             </PanelSection>
@@ -465,11 +477,7 @@ export default function QuestionSettingsPanel({
   return (
     <aside className="theme-sidebar flex min-h-[30rem] h-full flex-col gap-4 overflow-y-auto rounded-[2rem] p-4">
       <div className="theme-panel rounded-[1.75rem] p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <Badge variant="default">{QUESTION_TYPE_META[question.question_type]?.shortLabel}</Badge>
-          <Badge variant="outline">Question editor</Badge>
-        </div>
-        <div className="mt-4 flex items-start justify-between gap-3">
+        <div className="flex items-start justify-between gap-3">
           <h2 className="text-xl font-semibold tracking-tight text-foreground">
             {QUESTION_TYPE_META[question.question_type]?.label}
           </h2>
@@ -480,25 +488,14 @@ export default function QuestionSettingsPanel({
           </HelpPopover>
         </div>
 
-        <div className="theme-panel-soft mt-5 grid grid-cols-2 gap-2 rounded-2xl p-1">
-          {[
+        <SegmentedTabs
+          value={activeTab}
+          onChange={setActiveTab}
+          options={[
             ['settings', 'Settings'],
             ['logic', 'Logic'],
-          ].map(([tabKey, label]) => (
-            <button
-              key={tabKey}
-              type="button"
-              onClick={() => setActiveTab(tabKey)}
-              className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
-                activeTab === tabKey
-                  ? 'bg-white text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+          ]}
+        />
       </div>
 
       {activeTab === 'settings' ? (
@@ -508,29 +505,29 @@ export default function QuestionSettingsPanel({
             title="Question copy"
             description="Write clear prompts and optional helper text."
           >
-            <Field label="Question text">
-              <div className="space-y-3">
-                <Textarea
-                  value={question.text}
-                  onChange={(event) => onQuestionFieldChange(question.id, 'text', event.target.value)}
-                  className="rounded-2xl"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="rounded-2xl"
-                  onClick={() => onImproveQuestion(question.id)}
-                  disabled={isImprovingQuestion || !`${question.text || ''}`.trim()}
-                >
-                  {isImprovingQuestion ? (
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <WandSparkles className="mr-2 h-4 w-4" />
-                  )}
-                  Improve with AI
-                </Button>
-              </div>
-            </Field>
+            <div className="space-y-3">
+              <RichTextEditor
+                valueHtml={getQuestionTextHtml(question)}
+                plainText={question.text}
+                placeholder="Write the full question prompt."
+                editorClassName="min-h-[10rem] text-base leading-7"
+                onChange={(value) => onQuestionRichTextChange(question.id, value.html)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-2xl"
+                onClick={() => onImproveQuestion(question.id)}
+                disabled={isImprovingQuestion || !`${question.text || ''}`.trim()}
+              >
+                {isImprovingQuestion ? (
+                  <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <WandSparkles className="mr-2 h-4 w-4" />
+                )}
+                Improve with AI
+              </Button>
+            </div>
             <Field label="Description / help text">
               <Textarea
                 value={question.description || ''}

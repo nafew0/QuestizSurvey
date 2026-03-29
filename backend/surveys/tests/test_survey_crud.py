@@ -176,6 +176,78 @@ class SurveyCrudTests(TestCase):
         self.assertNotEqual(duplicated_question.id, original_question.id)
         self.assertEqual(duplicated_question.settings["allow_other"], True)
 
+    def test_update_survey_sanitizes_rich_page_descriptions_and_derives_plain_text(self):
+        survey = Survey.objects.create(user=self.user, title="Rich survey")
+
+        response = self.client.patch(
+            f"/api/surveys/{survey.id}/",
+            {
+                "welcome_page": {
+                    "enabled": True,
+                    "desc_html": '<p style="text-align:center"><strong>Welcome</strong></p><script>alert(1)</script>',
+                },
+                "thank_you_page": {
+                    "enabled": True,
+                    "desc_html": '<p><em>Thanks</em></p><img src="x" onerror="alert(1)">',
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        survey.refresh_from_db()
+
+        self.assertEqual(survey.welcome_page["desc"], "Welcome")
+        self.assertEqual(survey.thank_you_page["desc"], "Thanks")
+        self.assertIn("text-align: center", survey.welcome_page["desc_html"])
+        self.assertNotIn("<script", survey.welcome_page["desc_html"])
+        self.assertNotIn("<img", survey.thank_you_page["desc_html"])
+
+    def test_update_question_sanitizes_rich_prompt_and_derives_plain_text(self):
+        survey = self._create_survey_with_structure(self.user)
+        page = survey.pages.get()
+        question = page.questions.get()
+
+        response = self.client.put(
+            f"/api/surveys/{survey.id}/pages/{page.id}/questions/{question.id}/",
+            {
+                "question_type": question.question_type,
+                "text": "Ignored plain text",
+                "description": question.description,
+                "required": question.required,
+                "order": question.order,
+                "settings": {
+                    **question.settings,
+                    "rich_text": {
+                        "text_html": (
+                            '<p style="text-align:center">'
+                            '<strong>How was your <span style="color:#2563eb">experience</span>?</strong>'
+                            "</p><script>alert(1)</script>"
+                        )
+                    },
+                },
+                "skip_logic": question.skip_logic or [],
+                "choices": [
+                    {
+                        "id": str(choice.id),
+                        "text": choice.text,
+                        "order": choice.order,
+                        "score": choice.score,
+                    }
+                    for choice in question.choices.order_by("order")
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        question.refresh_from_db()
+
+        self.assertEqual(question.text, "How was your experience?")
+        self.assertIn("color: #2563eb", question.settings["rich_text"]["text_html"])
+        self.assertIn("text-align: center", question.settings["rich_text"]["text_html"])
+        self.assertNotIn("<script", question.settings["rich_text"]["text_html"])
+
     def test_update_question_preserves_supplied_choice_ids_for_new_choices(self):
         survey = self._create_survey_with_structure(self.user)
         page = survey.pages.get()

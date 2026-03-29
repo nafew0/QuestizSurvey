@@ -257,6 +257,86 @@
     border-radius: var(--survey-card-radius) !important;
   }
 
+  .rich-text-content p {
+    margin: 0;
+  }
+
+  .rich-text-content p + p,
+  .rich-text-content ul + p,
+  .rich-text-content ol + p,
+  .rich-text-content p + ul,
+  .rich-text-content p + ol,
+  .rich-text-content ul + ul,
+  .rich-text-content ol + ol,
+  .rich-text-content ul + ol,
+  .rich-text-content ol + ul {
+    margin-top: 0.75rem;
+  }
+
+  .rich-text-content ul,
+  .rich-text-content ol {
+    padding-left: 1.4rem;
+    list-style-position: outside;
+  }
+
+  .rich-text-content ul {
+    list-style-type: disc;
+  }
+
+  .rich-text-content ol {
+    list-style-type: decimal;
+  }
+
+  .rich-text-content li + li {
+    margin-top: 0.25rem;
+  }
+
+  .rich-text-editor-surface {
+    outline: none;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .rich-text-editor-surface:empty::before {
+    content: attr(data-placeholder);
+    color: hsl(var(--muted-foreground));
+    pointer-events: none;
+  }
+
+  .rich-text-editor-surface p {
+    margin: 0;
+  }
+
+  .rich-text-editor-surface p + p,
+  .rich-text-editor-surface ul + p,
+  .rich-text-editor-surface ol + p,
+  .rich-text-editor-surface p + ul,
+  .rich-text-editor-surface p + ol,
+  .rich-text-editor-surface ul + ul,
+  .rich-text-editor-surface ol + ol,
+  .rich-text-editor-surface ul + ol,
+  .rich-text-editor-surface ol + ul {
+    margin-top: 0.75rem;
+  }
+
+  .rich-text-editor-surface ul,
+  .rich-text-editor-surface ol {
+    padding-left: 1.4rem;
+    list-style-position: outside;
+  }
+
+  .rich-text-editor-surface ul {
+    list-style-type: disc;
+  }
+
+  .rich-text-editor-surface ol {
+    list-style-type: decimal;
+  }
+
+  .rich-text-editor-surface li + li {
+    margin-top: 0.25rem;
+  }
+
   .survey-theme-choice {
     border: 1px solid rgb(var(--survey-border-rgb) / 0.82);
     background: #ffffff;

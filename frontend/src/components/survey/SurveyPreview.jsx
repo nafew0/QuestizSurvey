@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Monitor, Smartphone, Tablet, WandSparkles } from
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import RichTextContent from '@/components/ui/rich-text-content'
 import { SURVEY_DEVICE_MODES } from '@/constants/surveyBuilder'
 import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
 import { buildQuestionNumberLookup } from '@/utils/questionNumbers'
@@ -211,11 +212,15 @@ export default function SurveyPreview({ survey }) {
                   <h2 className="text-3xl font-semibold tracking-tight">
                     {survey.welcome_page?.title || survey.title}
                   </h2>
-                  <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
-                    {survey.welcome_page?.desc ||
+                  <RichTextContent
+                    html={survey.welcome_page?.desc_html}
+                    plainText={
+                      survey.welcome_page?.desc ||
                       survey.description ||
-                      'Preview the survey introduction exactly as respondents will see it.'}
-                  </p>
+                      'Preview the survey introduction exactly as respondents will see it.'
+                    }
+                    className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground"
+                  />
                 </div>
                 <Button type="button" size="lg" className="survey-theme-control px-8" onClick={handleNext}>
                   Start preview
@@ -288,10 +293,14 @@ export default function SurveyPreview({ survey }) {
                   <h2 className="text-3xl font-semibold tracking-tight">
                     {survey.thank_you_page?.title || 'Preview complete'}
                   </h2>
-                  <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground">
-                    {survey.thank_you_page?.desc ||
-                      'This is the completion state respondents will see after submitting the survey.'}
-                  </p>
+                  <RichTextContent
+                    html={survey.thank_you_page?.desc_html}
+                    plainText={
+                      survey.thank_you_page?.desc ||
+                      'This is the completion state respondents will see after submitting the survey.'
+                    }
+                    className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground"
+                  />
                 </div>
                 <div className="flex justify-center gap-3">
                   <Button type="button" variant="outline" className="survey-theme-control" onClick={handlePrevious}>

@@ -98,6 +98,44 @@ class PublicSurveyTests(TestCase):
         self.assertEqual(answer.comment_text, "Loved it")
         self.assertIsNotNone(survey_response.completed_at)
 
+    def test_public_fetch_returns_sanitized_rich_text_fields(self):
+        self.survey.welcome_page = {
+            "enabled": True,
+            "desc": "Welcome",
+            "desc_html": '<p><strong>Welcome</strong></p><script>alert(1)</script>',
+        }
+        self.survey.thank_you_page = {
+            "enabled": True,
+            "desc": "Thanks",
+            "desc_html": '<p><em>Thanks</em></p><img src="x" onerror="alert(1)">',
+        }
+        self.survey.save(update_fields=["welcome_page", "thank_you_page"])
+        self.question.settings = {
+            "rich_text": {
+                "text_html": (
+                    '<p style="text-align:center">'
+                    '<span style="color:#2563eb">Pick one option</span>'
+                    "</p><script>alert(1)</script>"
+                )
+            }
+        }
+        self.question.save(update_fields=["settings"])
+
+        response = self.public_client.get(f"/api/public/surveys/{self.survey.slug}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["welcome_page"]["desc"], "Welcome")
+        self.assertNotIn("<script", response.data["welcome_page"]["desc_html"])
+        self.assertNotIn("<img", response.data["thank_you_page"]["desc_html"])
+        self.assertIn(
+            "text-align: center",
+            response.data["pages"][0]["questions"][0]["settings"]["rich_text"]["text_html"],
+        )
+        self.assertNotIn(
+            "<script",
+            response.data["pages"][0]["questions"][0]["settings"]["rich_text"]["text_html"],
+        )
+
     @override_settings(SESSION_COOKIE_SECURE=True)
     def test_completed_submission_sets_secure_completion_cookie(self):
         response = self.public_client.post(

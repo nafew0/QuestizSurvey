@@ -15,6 +15,7 @@ import Navbar from '@/components/Navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import RichTextContent from '@/components/ui/rich-text-content'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
 import { useToast } from '@/hooks/useToast'
 import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
@@ -893,11 +894,15 @@ export default function PublicSurveyPage() {
                 <h2 className="text-3xl font-semibold tracking-tight text-foreground">
                   {survey.welcome_page?.title || survey.title}
                 </h2>
-                <p className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground">
-                  {survey.welcome_page?.desc ||
+                <RichTextContent
+                  html={survey.welcome_page?.desc_html}
+                  plainText={
+                    survey.welcome_page?.desc ||
                     survey.description ||
-                    'Start the survey when you are ready.'}
-                </p>
+                    'Start the survey when you are ready.'
+                  }
+                  className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground"
+                />
               </div>
               <Button type="button" size="lg" className="survey-theme-control px-8" onClick={handleNext}>
                 Start survey
@@ -989,10 +994,14 @@ export default function PublicSurveyPage() {
                 <h2 className="text-3xl font-semibold tracking-tight text-foreground">
                   {survey.thank_you_page?.title || 'Thank you for your response'}
                 </h2>
-                <p className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground">
-                  {survey.thank_you_page?.desc ||
-                    'Your response has been recorded successfully.'}
-                </p>
+                <RichTextContent
+                  html={survey.thank_you_page?.desc_html}
+                  plainText={
+                    survey.thank_you_page?.desc ||
+                    'Your response has been recorded successfully.'
+                  }
+                  className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground"
+                />
               </div>
             </div>
           ) : null}

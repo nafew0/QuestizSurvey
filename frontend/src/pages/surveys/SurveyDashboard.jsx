@@ -674,7 +674,8 @@ export default function SurveyDashboard() {
                       onClick={() => navigate(`/surveys/${survey.id}/edit`)}
                     >
                       <h3
-                        className="line-clamp-2 break-words text-[1rem] font-semibold leading-[1.2] tracking-tight text-foreground sm:text-[1.08rem]"
+                        title={survey.title}
+                        className="line-clamp-1 break-words text-[1rem] font-semibold leading-[1.2] tracking-tight text-foreground sm:text-[1.08rem]"
                       >
                         {survey.title}
                       </h3>
