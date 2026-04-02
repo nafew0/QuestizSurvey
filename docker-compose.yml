@@ -46,13 +46,13 @@ services:
       REDIS_HOST: redis
       CELERY_BROKER_URL: redis://redis:6379/2
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-survey.mindspear.app,localhost}
-      APP_ORIGIN: ${APP_ORIGIN:-https://survey.mindspear.app}
-      API_ORIGIN: ${API_ORIGIN:-https://survey.mindspear.app}
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://survey.mindspear.app}
-      API_BASE_URL: ${API_BASE_URL:-https://survey.mindspear.app/api}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://survey.mindspear.app}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://survey.mindspear.app}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-survey.zai.bd,localhost}
+      APP_ORIGIN: ${APP_ORIGIN:-https://survey.zai.bd}
+      API_ORIGIN: ${API_ORIGIN:-https://survey.zai.bd}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://survey.zai.bd}
+      API_BASE_URL: ${API_BASE_URL:-https://survey.zai.bd/api}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-https://survey.zai.bd}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-https://survey.zai.bd}
       SECURE_SSL_REDIRECT: "False"
       USE_X_FORWARDED_HOST: "True"
       CSRF_COOKIE_SECURE: "True"
@@ -104,9 +104,9 @@ services:
       REDIS_HOST: redis
       CELERY_BROKER_URL: redis://redis:6379/2
       CELERY_RESULT_BACKEND: redis://redis:6379/2
-      APP_ORIGIN: ${APP_ORIGIN:-https://survey.mindspear.app}
-      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://survey.mindspear.app}
-      API_BASE_URL: ${API_BASE_URL:-https://survey.mindspear.app/api}
+      APP_ORIGIN: ${APP_ORIGIN:-https://survey.zai.bd}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://survey.zai.bd}
+      API_BASE_URL: ${API_BASE_URL:-https://survey.zai.bd/api}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.smtp.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-}
       EMAIL_PORT: ${EMAIL_PORT:-587}
