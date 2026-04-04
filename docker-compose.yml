@@ -163,6 +163,15 @@ services:
     restart: unless-stopped
     expose:
       - "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.questiz.rule=Host(`survey.zai.bd`)"
+      - "traefik.http.routers.questiz.entrypoints=websecure"
+      - "traefik.http.routers.questiz.tls.certresolver=letsencrypt"
+      - "traefik.http.services.questiz.loadbalancer.server.port=80"
+    networks:          # ← ADD THIS
+      - default        # ← ADD THIS
+      - dokploy-network  # ← ADD THIS
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - static_files:/app/staticfiles:ro
@@ -176,3 +185,8 @@ volumes:
   redis_data:
   static_files:
   media_files:
+networks:              # ← ADD THIS BLOCK
+  default:             # ← ADD THIS
+    driver: bridge     # ← ADD THIS
+  dokploy-network:     # ← ADD THIS
+    external: true     # ← ADD THIS
