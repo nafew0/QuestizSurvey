@@ -131,6 +131,45 @@ export function buildMatrixHeatmapData(analytics) {
   }))
 }
 
+export function buildMatrixPlusGroupedBarData(analytics) {
+  const rows = []
+  const rowLookup = new Map()
+  const columns = []
+
+  for (const cell of analytics?.cells ?? []) {
+    if (!rowLookup.has(cell.row_label)) {
+      const entry = { label: cell.row_label }
+      rowLookup.set(cell.row_label, entry)
+      rows.push(entry)
+    }
+
+    if (!columns.includes(cell.col_label)) {
+      columns.push(cell.col_label)
+    }
+
+    rowLookup.get(cell.row_label)[cell.col_label] = (cell.items ?? []).reduce(
+      (total, item) => total + Number(item.count || 0),
+      0
+    )
+  }
+
+  return {
+    data: rows.map((row) => {
+      const next = { label: row.label }
+
+      columns.forEach((column) => {
+        next[column] = row[column] || 0
+      })
+
+      return next
+    }),
+    series: columns.map((column) => ({
+      dataKey: column,
+      name: column,
+    })),
+  }
+}
+
 export function buildOpenEndedTableRows(analytics) {
   return (analytics?.fields ?? []).flatMap((field) =>
     (field.items ?? []).map((item) => ({
@@ -238,7 +277,7 @@ export function normalizeReportConfig(config = {}) {
           chart_type: preference?.chartType || preference?.chart_type || null,
           color_scheme: preference?.colorScheme || preference?.color_scheme || 'default',
           show_table: preference?.showTable ?? preference?.show_table ?? false,
-          show_labels: preference?.showLabels ?? preference?.show_labels ?? false,
+          show_labels: preference?.showLabels ?? preference?.show_labels ?? true,
         },
       ])
     )
@@ -256,7 +295,7 @@ export function normalizeReportConfig(config = {}) {
           chartType: preference?.chart_type || preference?.chartType || null,
           colorScheme: preference?.color_scheme || preference?.colorScheme || 'default',
           showTable: preference?.show_table ?? preference?.showTable ?? false,
-          showLabels: preference?.show_labels ?? preference?.showLabels ?? false,
+          showLabels: preference?.show_labels ?? preference?.showLabels ?? true,
         },
       ])
     )
@@ -308,7 +347,7 @@ export function buildReportSaveConfig({
           chart_type: preference?.chartType || preference?.chart_type || null,
           color_scheme: preference?.colorScheme || preference?.color_scheme || 'default',
           show_table: preference?.showTable ?? preference?.show_table ?? false,
-          show_labels: preference?.showLabels ?? preference?.show_labels ?? false,
+          show_labels: preference?.showLabels ?? preference?.show_labels ?? true,
         },
       ])
     ),

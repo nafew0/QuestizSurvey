@@ -41,10 +41,12 @@ import {
   ANALYTICS_COLOR_SCHEMES,
   buildCategoricalTableRows,
   buildMatrixHeatmapData,
+  buildMatrixPlusGroupedBarData,
   buildMatrixPlusTableRows,
   buildNumericDistributionRows,
   buildOpenEndedTableRows,
   buildTextFrequencyRows,
+  getAnalyticsColors,
   getQuestionTypeLabel,
 } from '@/lib/analytics'
 import { useToast } from '@/hooks/useToast'
@@ -58,16 +60,19 @@ const COLOR_OPTIONS = Object.entries(ANALYTICS_COLOR_SCHEMES).map(([value, schem
 function getDefaultChartType(analytics) {
   switch (analytics.type) {
     case 'categorical':
-      return analytics.question?.type === 'yes_no' ? 'waffle' : 'bar'
+      return analytics.question?.type === 'yes_no' ? 'pie' : 'bar'
     case 'numeric':
       return analytics.question?.type === 'nps' ? 'gauge' : 'bar'
     case 'text':
-      return 'word_cloud'
+      return ['short_text', 'long_text'].includes(analytics.question?.type)
+        ? 'response_list'
+        : 'word_cloud'
     case 'matrix':
-      return 'heatmap'
+      return 'grouped_bar'
     case 'open_ended':
-    case 'matrix_plus':
       return 'table'
+    case 'matrix_plus':
+      return 'grouped_bar'
     case 'ranking':
       return 'horizontal_bar'
     case 'constant_sum':
@@ -111,8 +116,13 @@ function getChartOptions(analytics) {
         { value: 'stacked_bar', label: 'Stacked', icon: BarChart3 },
         { value: 'grouped_bar', label: 'Grouped', icon: BarChart3 },
       ]
-    case 'open_ended':
     case 'matrix_plus':
+      return [
+        { value: 'grouped_bar', label: 'Grouped', icon: BarChart3 },
+        { value: 'stacked_bar', label: 'Stacked', icon: BarChart3 },
+        { value: 'table', label: 'Table', icon: Table2 },
+      ]
+    case 'open_ended':
       return [{ value: 'table', label: 'Table', icon: Table2 }]
     case 'ranking':
       return [
@@ -278,6 +288,8 @@ function chartSupportsLabels(analytics, chartType) {
       return ['bar', 'line', 'area'].includes(chartType)
     case 'matrix':
       return ['heatmap', 'stacked_bar', 'grouped_bar'].includes(chartType)
+    case 'matrix_plus':
+      return ['stacked_bar', 'grouped_bar'].includes(chartType)
     case 'constant_sum':
       return ['bar', 'pie'].includes(chartType)
     case 'temporal':
@@ -353,6 +365,45 @@ function buildDemographicsTreemap(analytics) {
   }
 }
 
+function TextResponseList({ analytics, colorScheme }) {
+  const palette = getAnalyticsColors(colorScheme)
+  const isShortText = analytics.question?.type === 'short_text'
+  const responses = (analytics.responses ?? [])
+    .filter((response) => String(response.text || '').trim())
+    .slice(0, isShortText ? 9 : 6)
+
+  if (!responses.length) {
+    return null
+  }
+
+  return (
+    <div className={isShortText ? 'grid gap-3 md:grid-cols-2 xl:grid-cols-3' : 'grid gap-3'}>
+      {responses.map((response, index) => {
+        const accent = palette[index % palette.length]
+
+        return (
+          <div
+            key={`${response.responded_at}-${index}`}
+            className="rounded-[1.5rem] border px-4 py-4 shadow-[0_18px_40px_rgb(var(--theme-shadow-rgb)/0.08)]"
+            style={{
+              background: `linear-gradient(135deg, ${accent}22 0%, ${accent}10 100%)`,
+              borderColor: `${accent}33`,
+            }}
+          >
+            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em]" style={{ color: accent }}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: accent }} />
+              Response {index + 1}
+            </div>
+            <p className="mt-3 break-words whitespace-pre-wrap text-sm leading-6 text-foreground">
+              {response.text}
+            </p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick) {
   if (analytics.type === 'categorical') {
     const data = (analytics.choices ?? []).map((choice) => ({
@@ -411,15 +462,7 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
 
   if (analytics.type === 'text') {
     if (chartType === 'response_list') {
-      return (
-        <div className="space-y-3">
-          {(analytics.responses ?? []).slice(0, 8).map((response, index) => (
-            <div key={`${response.responded_at}-${index}`} className="rounded-2xl bg-[rgb(var(--theme-neutral-rgb))] px-4 py-3 text-sm leading-6 text-foreground">
-              {response.text}
-            </div>
-          ))}
-        </div>
-      )
+      return <TextResponseList analytics={analytics} colorScheme={colorScheme} />
     }
     return (
       <QWordCloud
@@ -466,8 +509,27 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
     )
   }
 
-  if (analytics.type === 'open_ended' || analytics.type === 'matrix_plus') {
+  if (analytics.type === 'open_ended') {
     return <AnalyticsTable analytics={analytics} />
+  }
+
+  if (analytics.type === 'matrix_plus') {
+    if (chartType === 'table') {
+      return <AnalyticsTable analytics={analytics} />
+    }
+
+    const { data, series } = buildMatrixPlusGroupedBarData(analytics)
+
+    return (
+      <QBarChart
+        data={data}
+        nameKey="label"
+        series={series}
+        colorScheme={colorScheme}
+        showLabels={showLabels}
+        stacked={chartType === 'stacked_bar'}
+      />
+    )
   }
 
   if (analytics.type === 'ranking') {
@@ -534,7 +596,16 @@ function renderChart(analytics, chartType, colorScheme, showLabels, onWordClick)
 }
 
 function isTableOnlyAnalyticsType(analyticsType) {
-  return ['open_ended', 'matrix_plus', 'files'].includes(analyticsType)
+  return ['open_ended', 'files'].includes(analyticsType)
+}
+
+function buildLocalPreference(analytics, preference) {
+  return {
+    chartType: preference?.chartType ?? preference?.chart_type ?? getDefaultChartType(analytics),
+    showTable: preference?.showTable ?? preference?.show_table ?? false,
+    showLabels: preference?.showLabels ?? preference?.show_labels ?? true,
+    colorScheme: preference?.colorScheme ?? preference?.color_scheme ?? 'default',
+  }
 }
 
 export default function QuestionAnalyticsCard({
@@ -552,20 +623,12 @@ export default function QuestionAnalyticsCard({
   const [fullScreenOpen, setFullScreenOpen] = useState(false)
   const [aiInsightOpen, setAiInsightOpen] = useState(false)
   const { toast } = useToast()
-  const [localPreference, setLocalPreference] = useState(() => ({
-    chartType: preference?.chartType || getDefaultChartType(analytics),
-    showTable: preference?.showTable || false,
-    showLabels: preference?.showLabels || false,
-    colorScheme: preference?.colorScheme || 'default',
-  }))
+  const [localPreference, setLocalPreference] = useState(() =>
+    buildLocalPreference(analytics, preference)
+  )
 
   useEffect(() => {
-    setLocalPreference({
-      chartType: preference?.chartType || getDefaultChartType(analytics),
-      showTable: preference?.showTable || false,
-      showLabels: preference?.showLabels || false,
-      colorScheme: preference?.colorScheme || 'default',
-    })
+    setLocalPreference(buildLocalPreference(analytics, preference))
   }, [analytics, preference])
 
   const applyPreference = (next) => {
@@ -807,10 +870,9 @@ export default function QuestionAnalyticsCard({
         ) : null}
 
         {localPreference.showTable &&
-        analytics.type !== 'ranking' &&
         analytics.type !== 'files' &&
         analytics.type !== 'open_ended' &&
-        analytics.type !== 'matrix_plus' ? (
+        localPreference.chartType !== 'table' ? (
           <div className="mt-5">
             <AnalyticsTable analytics={analytics} />
           </div>

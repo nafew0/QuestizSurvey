@@ -30,6 +30,14 @@ function formatLimit(value, label) {
   return `${value.toLocaleString()} ${label}`
 }
 
+function formatSurveyLimit(value) {
+  if (!value) {
+    return 'Unlimited surveys'
+  }
+
+  return `${value.toLocaleString()} surveys per month`
+}
+
 function formatPrice(amount, currency) {
   const numericAmount = Number(amount || 0)
   if (numericAmount === 0) {
@@ -73,6 +81,10 @@ function getPricingDetails(plan, { yearlyBilling, isBangladeshiBilling }) {
         monthlyAmount > 0 && yearlyAmount > 0
           ? Math.max(0, monthlyAmount * 12 - yearlyAmount)
           : 0,
+      compareAtAmount:
+        monthlyAmount > 0 && yearlyAmount > 0
+          ? monthlyAmount * 12
+          : 0,
       missingPrice: plan.slug !== 'free' && activeAmount === 0,
     }
   }
@@ -88,8 +100,57 @@ function getPricingDetails(plan, { yearlyBilling, isBangladeshiBilling }) {
       monthlyAmount > 0 && yearlyAmount > 0
         ? Math.max(0, monthlyAmount * 12 - yearlyAmount)
         : 0,
+    compareAtAmount:
+      monthlyAmount > 0 && yearlyAmount > 0
+        ? monthlyAmount * 12
+        : 0,
     missingPrice: false,
   }
+}
+
+function normalizeFeature(feature) {
+  return String(feature || '')
+    .toLowerCase()
+    .replaceAll(',', '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function filterDuplicateFeatures(plan) {
+  const duplicatePatterns = [
+    /^up to \d+ (active )?surveys?$/,
+    /^up to \d+ surveys? per month$/,
+    /^unlimited surveys$/,
+    /^up to \d+ questions? per survey$/,
+    /^unlimited questions$/,
+    /^unlimited questions per survey$/,
+    /^up to \d+ responses? per survey$/,
+    /^unlimited responses$/,
+    /^unlimited responses per survey$/,
+  ]
+
+  return (plan.features || []).filter((feature) => {
+    const normalized = normalizeFeature(feature)
+    return !duplicatePatterns.some((pattern) => pattern.test(normalized))
+  })
+}
+
+function ToggleOption({ active, label, onClick }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={cn(
+        'rounded-[1rem] px-4 py-2 text-sm font-medium transition',
+        active
+          ? 'bg-white text-foreground shadow-[0_10px_28px_rgb(var(--theme-shadow-rgb)/0.12)]'
+          : 'text-muted-foreground hover:text-foreground'
+      )}
+    >
+      {label}
+    </button>
+  )
 }
 
 export default function Pricing() {
@@ -100,7 +161,7 @@ export default function Pricing() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [yearlyBilling, setYearlyBilling] = useState(false)
-  const [isBangladeshiBilling, setIsBangladeshiBilling] = useState(false)
+  const [isBangladeshiBilling, setIsBangladeshiBilling] = useState(true)
   const [checkoutPlanId, setCheckoutPlanId] = useState('')
 
   useEffect(() => {
@@ -193,58 +254,65 @@ export default function Pricing() {
     <div className="theme-app-gradient min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-8">
         <header className="theme-panel rounded-[2.25rem] px-6 py-8 md:px-8">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-3">
                 <Badge variant="default">Subscription plans</Badge>
                 {isAuthenticated ? <PlanBadge plan={user?.current_plan} /> : null}
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
                   Pick the plan that fits your survey volume
                 </h1>
-                <p className="max-w-3xl text-base leading-8 text-muted-foreground">
-                  Licensing is enforced server-side for survey count, per-survey question count, and response caps. Plan values come from Django admin, including separate Stripe and bKash prices for different billing categories.
-                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-start lg:justify-end">
+              <div className="rounded-[1.75rem] border border-[rgb(var(--theme-border-rgb)/0.76)] bg-white/80 px-6 py-5 shadow-[0_18px_42px_rgb(var(--theme-shadow-rgb)/0.1)]">
+                <img
+                  src="/branding/bdren.png"
+                  alt="BDREN"
+                  className="h-16 w-auto object-contain md:h-20"
+                />
               </div>
             </div>
           </div>
         </header>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="theme-panel-soft flex flex-col gap-3 rounded-[1.75rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="theme-panel-soft flex flex-col gap-4 rounded-[1.75rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">Billing cycle</p>
               <p className="text-xs text-muted-foreground">
                 Toggle between monthly and yearly pricing.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className={cn('text-sm', !yearlyBilling ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
-                Monthly
-              </span>
+            <div className="flex items-center gap-2 rounded-[1.5rem] bg-white/70 p-1.5">
+              <ToggleOption active={!yearlyBilling} label="Monthly" onClick={() => setYearlyBilling(false)} />
               <Switch checked={yearlyBilling} onCheckedChange={setYearlyBilling} />
-              <span className={cn('text-sm', yearlyBilling ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
-                Yearly
-              </span>
+              <ToggleOption active={yearlyBilling} label="Yearly" onClick={() => setYearlyBilling(true)} />
             </div>
           </div>
 
-          <div className="theme-panel-soft flex flex-col gap-3 rounded-[1.75rem] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 rounded-[1.75rem] border border-[rgb(var(--theme-primary-rgb)/0.16)] bg-[rgb(var(--theme-primary-rgb)/0.08)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-foreground">Billing category</p>
               <p className="text-xs text-muted-foreground">
-                Stripe is shown in USD for non-Bangladeshi nationals. bKash is shown in BDT for Bangladeshi nationals.
+                Stripe for non-Bangladeshi & bKash for Bangladeshi nationals.
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className={cn('text-sm', !isBangladeshiBilling ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
-                Non-Bangladeshi Nationals
-              </span>
+            <div className="flex items-center gap-2 rounded-[1.5rem] bg-white/72 p-1.5">
+              <ToggleOption
+                active={!isBangladeshiBilling}
+                label="International"
+                onClick={() => setIsBangladeshiBilling(false)}
+              />
               <Switch checked={isBangladeshiBilling} onCheckedChange={setIsBangladeshiBilling} />
-              <span className={cn('text-sm', isBangladeshiBilling ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
-                Bangladeshi Nationals
-              </span>
+              <ToggleOption
+                active={isBangladeshiBilling}
+                label="Bangladeshi"
+                onClick={() => setIsBangladeshiBilling(true)}
+              />
             </div>
           </div>
         </div>
@@ -273,6 +341,7 @@ export default function Pricing() {
                 yearlyBilling,
                 isBangladeshiBilling,
               })
+              const visibleFeatures = filterDuplicateFeatures(plan)
               const isCurrentPlan = currentPlanSlug === plan.slug
               const isCheckoutPlan = checkoutPlanId === plan.id
               const actionLabel = !isAuthenticated
@@ -296,14 +365,7 @@ export default function Pricing() {
                   <CardHeader className="space-y-5">
                     <div className="flex items-center justify-between gap-3">
                       <PlanBadge plan={plan} />
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Badge variant="outline">{pricing.providerLabel}</Badge>
-                        {yearlyBilling && pricing.savings > 0 ? (
-                          <Badge variant="outline">
-                            Save {formatPrice(pricing.savings, pricing.currency)}
-                          </Badge>
-                        ) : null}
-                      </div>
+                      <Badge variant="outline">{pricing.providerLabel}</Badge>
                     </div>
                     <div>
                       <CardTitle className="text-3xl">{plan.name}</CardTitle>
@@ -315,6 +377,18 @@ export default function Pricing() {
                             : 'Unlimited capacity for larger organizations and high-volume work.'}
                       </CardDescription>
                     </div>
+                    {yearlyBilling &&
+                    !pricing.missingPrice &&
+                    pricing.compareAtAmount > Number(pricing.amount || 0) ? (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className="text-sm font-medium text-muted-foreground line-through">
+                          {formatPrice(pricing.compareAtAmount, pricing.currency)}
+                        </span>
+                        <span className="text-sm font-medium text-emerald-700">
+                          Save {formatPrice(pricing.savings, pricing.currency)}
+                        </span>
+                      </div>
+                    ) : null}
                     <div className="flex items-end gap-2">
                       <span className="text-5xl font-semibold tracking-tight text-foreground">
                         {pricing.missingPrice
@@ -348,7 +422,7 @@ export default function Pricing() {
                           Survey capacity
                         </p>
                         <p className="mt-1 text-sm font-medium text-foreground">
-                          {formatLimit(plan.max_surveys, 'surveys')}
+                          {formatSurveyLimit(plan.max_surveys)}
                         </p>
                       </div>
                       <div className="theme-panel-soft rounded-2xl px-4 py-3">
@@ -369,16 +443,18 @@ export default function Pricing() {
                       </div>
                     </div>
 
-                    <div className="space-y-3">
-                      {(plan.features || []).map((feature) => (
-                        <div key={feature} className="flex items-start gap-3">
-                          <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                            <Check className="h-4 w-4" />
-                          </span>
-                          <p className="text-sm leading-6 text-muted-foreground">{feature}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {visibleFeatures.length ? (
+                      <div className="space-y-3">
+                        {visibleFeatures.map((feature) => (
+                          <div key={feature} className="flex items-start gap-3">
+                            <span className="mt-0.5 inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                              <Check className="h-4 w-4" />
+                            </span>
+                            <p className="text-sm leading-6 text-muted-foreground">{feature}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
 
                     {!isAuthenticated ? (
                       <Button asChild className="w-full rounded-full">
