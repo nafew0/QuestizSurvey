@@ -172,6 +172,7 @@ export default function PublicReportPage() {
               key={analytics.question.id}
               analytics={analytics}
               preference={payload.report.config?.card_preferences?.[analytics.question.id]}
+              publicReportId={payload.report.id}
               readOnly
             />
           ))}

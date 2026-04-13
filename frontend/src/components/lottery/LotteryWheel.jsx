@@ -34,7 +34,7 @@ function describeSegmentPath(startAngle, endAngle) {
   ].join(' ')
 }
 
-function describeLabelClipPath(startAngle, endAngle, innerRadius = 29, outerRadius = 46) {
+function describeLabelClipPath(startAngle, endAngle, innerRadius = 28, outerRadius = 46) {
   const outerStart = polarToCartesian(50, 50, outerRadius, startAngle)
   const outerEnd = polarToCartesian(50, 50, outerRadius, endAngle)
   const innerStart = polarToCartesian(50, 50, innerRadius, startAngle)
@@ -80,9 +80,8 @@ export default function LotteryWheel({
   }
 
   const segmentAngle = 360 / entries.length
-  const labelRadius = Math.max(32, 35 - entries.length * 0.07)
-  const labelFontSize = Math.max(1.45, 4.25 - entries.length * 0.1)
-  const maxLabelChars = Math.max(7, Math.floor(22 - entries.length * 0.28))
+  const labelRadius = Math.max(35, 39 - entries.length * 0.04)
+  const labelFontSize = Math.max(1.15, 3.25 - entries.length * 0.07)
 
   return (
     <div className="relative aspect-square min-h-[490px] w-full overflow-hidden rounded-[2.75rem] border border-[rgb(var(--theme-border-rgb)/0.75)] bg-[rgb(15_23_42)] p-5 text-white shadow-[0_30px_80px_rgba(15,23,42,0.25)]">
@@ -131,10 +130,7 @@ export default function LotteryWheel({
               winnerResponseId &&
               !isSpinning &&
               winnerResponseId === entry.response_id
-            const label =
-              (entry.entry_label || entry.short_label || '').length > maxLabelChars
-                ? `${(entry.entry_label || entry.short_label || '').slice(0, maxLabelChars - 1).trim()}…`
-                : entry.entry_label || entry.short_label
+            const label = entry.short_label || entry.entry_label || ''
 
             return (
               <g key={entry.response_id}>
@@ -167,23 +163,15 @@ export default function LotteryWheel({
             )
           })}
 
-          <circle cx="50" cy="50" r="14" fill="rgba(15,23,42,0.92)" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8" />
-          <circle cx="50" cy="50" r="10.5" fill="rgba(255,255,255,0.1)" />
+          <circle cx="50" cy="50" r="10.8" fill="rgba(255,255,255,0.98)" stroke="rgba(15,23,42,0.08)" strokeWidth="0.7" />
+          <circle cx="50" cy="50" r="7.5" fill="rgba(248,250,252,1)" />
           <text
             x="50"
-            y="47.4"
+            y="50.9"
             textAnchor="middle"
-            className="fill-white text-[3.2px] font-semibold uppercase tracking-[0.24em]"
+            className="fill-slate-900 text-[3.1px] font-semibold uppercase tracking-[0.24em]"
           >
-            MindSpear
-          </text>
-          <text
-            x="50"
-            y="53.2"
-            textAnchor="middle"
-            className="fill-white/80 text-[2.6px] font-medium"
-          >
-            Prize wheel
+            Spin
           </text>
         </svg>
       </div>

@@ -50,7 +50,10 @@ import {
   getQuestionTypeLabel,
 } from '@/lib/analytics'
 import { useToast } from '@/hooks/useToast'
-import { fetchQuestionInsights } from '@/services/analytics'
+import {
+  fetchPublicReportQuestionInsights,
+  fetchQuestionInsights,
+} from '@/services/analytics'
 
 const COLOR_OPTIONS = Object.entries(ANALYTICS_COLOR_SCHEMES).map(([value, scheme]) => ({
   value,
@@ -616,6 +619,7 @@ export default function QuestionAnalyticsCard({
   onPreferenceChange,
   onWordClick,
   readOnly = false,
+  publicReportId = '',
   serialNumber = null,
 }) {
   const cardRef = useRef(null)
@@ -640,11 +644,22 @@ export default function QuestionAnalyticsCard({
   const isTableOnlyType = isTableOnlyAnalyticsType(analytics.type)
   const canShowLabels = chartSupportsLabels(analytics, localPreference.chartType)
   const hasUsableResponses = Number(analytics.total_responses || 0) > 0
+  const canRequestAiInsights = Boolean(
+    hasUsableResponses && (publicReportId || (!readOnly && surveyId))
+  )
 
   const aiInsightQuery = useQuery({
-    queryKey: ['analytics-question-insight', surveyId, analytics.question.id, filters],
-    queryFn: () => fetchQuestionInsights(surveyId, analytics.question.id, filters),
-    enabled: aiInsightOpen && !readOnly && hasUsableResponses && Boolean(surveyId),
+    queryKey: [
+      'analytics-question-insight',
+      publicReportId || surveyId,
+      analytics.question.id,
+      filters,
+    ],
+    queryFn: () =>
+      publicReportId
+        ? fetchPublicReportQuestionInsights(publicReportId, analytics.question.id)
+        : fetchQuestionInsights(surveyId, analytics.question.id, filters),
+    enabled: aiInsightOpen && canRequestAiInsights,
     retry: false,
     staleTime: 5 * 60 * 1000,
   })
@@ -704,39 +719,43 @@ export default function QuestionAnalyticsCard({
             </h3>
           </div>
 
-          {!readOnly ? (
+          {!readOnly || canRequestAiInsights ? (
             <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant={aiInsightOpen ? 'default' : 'outline'}
-                size="icon"
-                className="rounded-2xl"
-                disabled={!hasUsableResponses}
-                onClick={() => setAiInsightOpen((current) => !current)}
-              >
-                {aiInsightQuery.isLoading ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <WandSparkles className="h-4 w-4" />
-                )}
-              </Button>
+              {canRequestAiInsights ? (
+                <Button
+                  type="button"
+                  variant={aiInsightOpen ? 'default' : 'outline'}
+                  size="icon"
+                  className="rounded-2xl"
+                  disabled={!hasUsableResponses}
+                  onClick={() => setAiInsightOpen((current) => !current)}
+                >
+                  {aiInsightQuery.isLoading ? (
+                    <LoaderCircle className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <WandSparkles className="h-4 w-4" />
+                  )}
+                </Button>
+              ) : null}
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="outline" size="icon" className="rounded-2xl">
-                    <Expand className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="rounded-2xl">
-                  <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {!readOnly ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" size="icon" className="rounded-2xl">
+                      <Expand className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="rounded-2xl">
+                    <DropdownMenuItem onSelect={handleDownload}>Download as PNG</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setFullScreenOpen(true)}>Full screen view</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
             </div>
           ) : null}
         </div>
 
-        {!readOnly && aiInsightOpen && (aiInsightQuery.isLoading || aiInsightQuery.data) ? (
+        {canRequestAiInsights && aiInsightOpen && (aiInsightQuery.isLoading || aiInsightQuery.data) ? (
           <div className="mt-4 rounded-[1.75rem] border border-[rgb(var(--theme-primary-rgb)/0.7)] bg-white px-5 py-4 shadow-sm shadow-primary/5">
             <div className="flex items-start gap-3">
               <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center text-[rgb(var(--theme-secondary-ink-rgb))]">
@@ -849,7 +868,7 @@ export default function QuestionAnalyticsCard({
 
         <div className="mt-5">{content}</div>
 
-        {analytics.insights?.available ? (
+        {!readOnly && analytics.insights?.available ? (
           <div className="mt-5 rounded-[1.5rem] border border-[rgb(var(--theme-secondary-strong-rgb)/0.85)] bg-[rgb(var(--theme-secondary-soft-rgb)/0.75)] p-4">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">

@@ -115,3 +115,8 @@ export async function fetchPublicReportData(reportId, password = '') {
   const response = await api.post(`/reports/${reportId}/data/`, password ? { password } : {})
   return response.data
 }
+
+export async function fetchPublicReportQuestionInsights(reportId, questionId) {
+  const response = await api.post(`/reports/${reportId}/questions/${questionId}/insights/`)
+  return response.data
+}

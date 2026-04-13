@@ -1,9 +1,12 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.test import APIClient
 
 from surveys.models import Answer, Choice, Collector, Page, Question, SavedReport, Survey, SurveyResponse
+from surveys.services.ai_service import AIProviderConfig
 
 User = get_user_model()
 
@@ -117,6 +120,7 @@ class SharedReportsApiTests(TestCase):
             unlocked_response.data["report"]["config"]["card_preferences"][str(self.question.id)]["chartType"],
             "pie",
         )
+        self.assertNotIn("insights", unlocked_response.data["questions"][0])
 
         session_response = public_client.get(f"/api/reports/{report.id}/data/")
         self.assertEqual(session_response.status_code, status.HTTP_200_OK)
@@ -133,3 +137,41 @@ class SharedReportsApiTests(TestCase):
         response = APIClient().get(f"/api/reports/{report.id}/data/")
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch(
+        "surveys.services.ai_insights.AIService.get_provider_config",
+        return_value=AIProviderConfig("openai", "gpt-5-mini", "test-key"),
+    )
+    @patch(
+        "surveys.services.ai_insights.AIService.call",
+        return_value=(
+            "TAKEAWAY: Shared viewers can request insights on demand.\n"
+            "INSIGHT 1: One\n"
+            "INSIGHT 2: Two\n"
+            "INSIGHT 3: Three\n"
+            "RECOMMENDED ACTION: Act."
+        ),
+    )
+    def test_public_report_question_insights_endpoint_returns_lazy_payload(
+        self,
+        _mocked_call,
+        _mocked_provider_config,
+    ):
+        report = SavedReport.objects.create(
+            survey=self.survey,
+            user=self.user,
+            name="Shared insight report",
+            is_shared=True,
+            config={"filters": {"status": "completed"}},
+        )
+
+        public_client = APIClient()
+        response = public_client.post(
+            f"/api/reports/{report.id}/questions/{self.question.id}/insights/",
+            {},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["available"])
+        self.assertEqual(response.data["provider"], "openai")

@@ -9,6 +9,7 @@ from surveys.views import (
     PublicSurveyLoadView,
     PublicSurveyView,
     PublicSavedReportDataView,
+    PublicSavedReportQuestionInsightsView,
     QuestionViewSet,
     SavedReportViewSet,
     SurveyAIChatMessageCreateView,
@@ -203,6 +204,11 @@ urlpatterns = [
         "reports/<uuid:report_pk>/data/",
         PublicSavedReportDataView.as_view(),
         name="public-report-data",
+    ),
+    path(
+        "reports/<uuid:report_pk>/questions/<uuid:question_pk>/insights/",
+        PublicSavedReportQuestionInsightsView.as_view(),
+        name="public-report-question-insights",
     ),
     path(
         "public/surveys/<slug:slug>/load/",

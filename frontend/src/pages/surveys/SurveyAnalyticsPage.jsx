@@ -270,7 +270,12 @@ export default function SurveyAnalyticsPage() {
     onSuccess: (report) => {
       setActiveReportId(report.id)
       setAppliedReportId(report.id)
-      setShareDialogOpen(false)
+      setShareEnabled(Boolean(report.is_shared))
+      setSharePasswordEnabled(Boolean(report.has_share_password))
+      setSharePasswordInput('')
+      queryClient.setQueryData(['saved-reports', surveyId], (current = []) =>
+        current.map((entry) => (entry.id === report.id ? report : entry))
+      )
       queryClient.invalidateQueries({ queryKey: ['saved-reports', surveyId] })
       toast({
         title: report.is_shared ? 'Share settings updated' : 'Sharing disabled',
@@ -359,9 +364,10 @@ export default function SurveyAnalyticsPage() {
         })),
     [questions]
   )
-  const sharedReportUrl = activeReport
-    ? activeReport.public_url || `${window.location.origin}/reports/${activeReport.id}`
-    : ''
+  const sharedReportUrl =
+    activeReport && (shareEnabled || activeReport.is_shared)
+      ? activeReport.public_url || `${window.location.origin}/reports/${activeReport.id}`
+      : ''
 
   useEffect(() => {
     if (!aiSummaryQuery.error || aiSummaryQuery.errorUpdatedAt === aiSummaryErrorHandledAtRef.current) {
@@ -529,27 +535,9 @@ export default function SurveyAnalyticsPage() {
     setShareDialogOpen(true)
   }
 
-  const handleCopySharedLink = async () => {
-    if (!activeReport?.is_shared || !sharedReportUrl) {
-      toast({
-        title: 'Enable sharing first',
-        description: 'Turn on public sharing to generate a report URL.',
-        variant: 'warning',
-      })
-      return
-    }
-
-    await navigator.clipboard.writeText(sharedReportUrl)
-    toast({
-      title: 'Shared link copied',
-      description: 'The public report URL is ready to paste.',
-      variant: 'success',
-    })
-  }
-
-  const handleSaveShareSettings = () => {
+  const buildSharePayload = () => {
     if (!activeReport) {
-      return
+      return null
     }
 
     if (shareEnabled && sharePasswordEnabled) {
@@ -560,7 +548,7 @@ export default function SurveyAnalyticsPage() {
           description: 'Enter a password or turn password protection off.',
           variant: 'warning',
         })
-        return
+        return null
       }
     }
 
@@ -574,10 +562,85 @@ export default function SurveyAnalyticsPage() {
       payload.share_password = sharePasswordInput.trim()
     }
 
-    shareReportMutation.mutate({
+    return payload
+  }
+
+  const copySharedLinkToClipboard = async (url) => {
+    await navigator.clipboard.writeText(url)
+    toast({
+      title: 'Shared link copied',
+      description: 'The public report URL is ready to paste.',
+      variant: 'success',
+    })
+  }
+
+  const persistShareSettings = async ({ copyLink = false, closeAfter = false } = {}) => {
+    if (!activeReport) {
+      return null
+    }
+
+    const payload = buildSharePayload()
+    if (!payload) {
+      return null
+    }
+
+    const report = await shareReportMutation.mutateAsync({
       reportId: activeReport.id,
       payload,
     })
+
+    if (copyLink && report.is_shared) {
+      const publicUrl = report.public_url || `${window.location.origin}/reports/${report.id}`
+      await copySharedLinkToClipboard(publicUrl)
+    }
+
+    if (closeAfter) {
+      setShareDialogOpen(false)
+    }
+
+    return report
+  }
+
+  const handleCopySharedLink = async () => {
+    if (!shareEnabled) {
+      toast({
+        title: 'Enable sharing first',
+        description: 'Turn on public sharing to generate a report URL.',
+        variant: 'warning',
+      })
+      return
+    }
+
+    try {
+      await persistShareSettings({ copyLink: true, closeAfter: false })
+    } catch (error) {
+      toast({
+        title: 'Unable to copy shared link',
+        description:
+          error.response?.data?.detail ||
+          error.message ||
+          'The share settings could not be saved.',
+        variant: 'error',
+      })
+    }
+  }
+
+  const handleSaveShareSettings = async () => {
+    try {
+      await persistShareSettings({
+        copyLink: shareEnabled,
+        closeAfter: true,
+      })
+    } catch (error) {
+      toast({
+        title: 'Unable to save share settings',
+        description:
+          error.response?.data?.detail ||
+          error.message ||
+          'The share settings could not be updated.',
+        variant: 'error',
+      })
+    }
   }
 
   const clearExportPoller = (jobId) => {
@@ -1225,7 +1288,7 @@ export default function SurveyAnalyticsPage() {
                     variant="outline"
                     className="rounded-full"
                     onClick={handleCopySharedLink}
-                    disabled={!activeReport.is_shared}
+                    disabled={!shareEnabled || shareReportMutation.isPending}
                   >
                     <Link2 className="mr-2 h-4 w-4" />
                     Copy link
@@ -1256,10 +1319,12 @@ export default function SurveyAnalyticsPage() {
             >
               {shareReportMutation.isPending ? (
                 <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+              ) : shareEnabled ? (
+                <Copy className="mr-2 h-4 w-4" />
               ) : (
-                <Share2 className="mr-2 h-4 w-4" />
+                <Save className="mr-2 h-4 w-4" />
               )}
-              Save share settings
+              {shareEnabled ? 'Copy link and close' : 'Save settings and close'}
             </Button>
           </DialogFooter>
         </DialogContent>

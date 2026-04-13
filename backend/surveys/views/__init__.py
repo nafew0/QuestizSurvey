@@ -15,7 +15,11 @@ from .collector_views import CollectorViewSet, EmailOpenTrackingView
 from .export_views import ExportJobViewSet
 from .page_views import PageViewSet
 from .question_views import QuestionViewSet
-from .report_views import PublicSavedReportDataView, SavedReportViewSet
+from .report_views import (
+    PublicSavedReportDataView,
+    PublicSavedReportQuestionInsightsView,
+    SavedReportViewSet,
+)
 from .response_views import PublicSurveyLoadView, PublicSurveyView, SurveyResponseViewSet
 from .survey_views import SurveyViewSet
 
@@ -37,6 +41,7 @@ __all__ = [
     "PublicSurveyView",
     "QuestionViewSet",
     "PublicSavedReportDataView",
+    "PublicSavedReportQuestionInsightsView",
     "SavedReportViewSet",
     "SurveyResponseViewSet",
     "SurveyViewSet",

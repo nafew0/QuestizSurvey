@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  ArrowLeft,
-  Gift,
-  LoaderCircle,
-  Plus,
-  RefreshCcw,
-  Save,
-  Sparkles,
-  Trash2,
-  Trophy,
-  Users,
-  Volume2,
+	import {
+	  ArrowLeft,
+	  Gift,
+	  LoaderCircle,
+	  Plus,
+	  RefreshCcw,
+	  Save,
+	  Trash2,
+	  Trophy,
+	  Users,
+	  Volume2,
   VolumeX,
   WandSparkles,
+  X,
 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -91,7 +91,6 @@ export default function SurveyLotteryPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const audioRef = useRef(null)
-  const celebrationTimerRef = useRef(null)
 
   const [draft, setDraft] = useState({
     enabled: true,
@@ -203,9 +202,6 @@ export default function SurveyLotteryPage() {
   useEffect(() => {
     return () => {
       const audio = audioRef.current
-      if (celebrationTimerRef.current) {
-        window.clearTimeout(celebrationTimerRef.current)
-      }
       if (!audio) {
         return
       }
@@ -418,20 +414,16 @@ export default function SurveyLotteryPage() {
       setCurrentPrizeLabel(getNextOpenPrizeLabel(settings.prize_slots, nextHistory))
       playFinishAudio()
 
-      if (celebrationTimerRef.current) {
-        window.clearTimeout(celebrationTimerRef.current)
-      }
-      celebrationTimerRef.current = window.setTimeout(() => {
-        setCelebrationDraw(null)
-        celebrationTimerRef.current = null
-      }, 4200)
-
       toast({
         title: `${draw.prize_label} winner selected`,
         description: draw.entry_label,
         variant: 'success',
       })
     }
+  }
+
+  const handleDismissCelebration = () => {
+    setCelebrationDraw(null)
   }
 
   if (surveyQuery.isLoading || lotteryQuery.isLoading) {
@@ -548,51 +540,45 @@ export default function SurveyLotteryPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
-            <div className="theme-panel overflow-hidden rounded-[2.5rem] p-4 md:p-5">
-              <div className="relative">
-                <LotteryWheel
-                  entries={displayedEntries}
-                  rotation={rotation}
-                  isSpinning={isSpinning}
-                  prizeLabel={nextPrizeLabel || celebrationDraw?.prize_label}
-                  winnerResponseId={highlightedWinnerResponseId}
-                  onTransitionEnd={handleWheelTransitionEnd}
-                />
+	          <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(340px,1fr)]">
+	            <div className="theme-panel overflow-hidden rounded-[2.5rem] p-4 md:p-5">
+	              <div className="relative">
+	                <button
+	                  type="button"
+	                  className="block w-full appearance-none rounded-[2.5rem] bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--theme-primary-rgb))] focus-visible:ring-offset-4 disabled:cursor-not-allowed"
+	                  disabled={
+	                    isSpinning ||
+	                    drawMutation.isPending ||
+	                    saveMutation.isPending ||
+	                    !draft.selected_fields.length ||
+	                    !openPrizeSlots.length
+	                  }
+	                  onClick={handleSpin}
+	                  aria-label={isSpinning ? 'Wheel is spinning' : 'Spin the lottery wheel'}
+	                >
+	                  <LotteryWheel
+	                    entries={displayedEntries}
+	                    rotation={rotation}
+	                    isSpinning={isSpinning}
+	                    prizeLabel={nextPrizeLabel || celebrationDraw?.prize_label}
+	                    winnerResponseId={highlightedWinnerResponseId}
+	                    onTransitionEnd={handleWheelTransitionEnd}
+	                  />
+	                </button>
 
-                <div className="absolute inset-0 z-20 flex items-center justify-center p-6">
-                  <Button
-                    type="button"
-                    className="h-28 w-28 rounded-full border border-white/12 bg-white/92 p-0 text-slate-950 shadow-[0_24px_80px_rgba(15,23,42,0.25)] backdrop-blur md:h-32 md:w-32"
-                    disabled={
-                      isSpinning ||
-                      drawMutation.isPending ||
-                      saveMutation.isPending ||
-                      !draft.selected_fields.length ||
-                      !openPrizeSlots.length
-                    }
-                    onClick={handleSpin}
-                    >
-                    <span className="flex flex-col items-center justify-center text-center">
-                      {isSpinning || drawMutation.isPending ? (
-                        <LoaderCircle className="h-7 w-7 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-7 w-7" />
-                      )}
-                      <span className="mt-2 text-[11px] font-semibold uppercase tracking-[0.24em]">
-                        {isSpinning ? 'Spinning' : 'Spin'}
-                      </span>
-                      <span className="mt-1 max-w-[5.5rem] text-[10px] leading-4 text-slate-500">
-                        {nextPrizeLabel || 'Prize'}
-                      </span>
-                    </span>
-                  </Button>
-                </div>
-
-                {celebrationDraw ? (
-                  <div className="pointer-events-none absolute inset-3 z-30 flex items-center justify-center">
-                    <div className="absolute inset-0 rounded-[2.5rem] bg-[rgba(15,23,42,0.58)]" />
-                    <div className="relative w-full max-w-2xl rounded-[2.35rem] border border-white/20 bg-white/94 px-8 py-10 text-center shadow-[0_32px_100px_rgba(15,23,42,0.34)] sm:px-10 sm:py-12">
+	                {celebrationDraw ? (
+	                  <div className="absolute inset-3 z-30 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 rounded-[2.5rem] bg-[rgba(15,23,42,0.74)] backdrop-blur-[2px]" />
+                    <div className="relative w-full max-w-2xl rounded-[2.35rem] border border-slate-200 bg-white px-8 py-10 text-center shadow-[0_32px_100px_rgba(15,23,42,0.34)] sm:px-10 sm:py-12">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="absolute right-4 top-4 rounded-full bg-white"
+                        onClick={handleDismissCelebration}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                       <Badge variant="success">Winner locked</Badge>
                       <div className="mx-auto mt-5 flex h-20 w-20 items-center justify-center rounded-[1.75rem] bg-[rgb(var(--theme-primary-soft-rgb)/0.72)] shadow-[0_18px_40px_rgba(251,191,36,0.26)]">
                         <Trophy className="h-10 w-10 text-amber-500" />
@@ -616,8 +602,13 @@ export default function SurveyLotteryPage() {
                             {value.value}
                           </Badge>
                         ))}
-                      </div>
-                    </div>
+	                      </div>
+	                      <div className="mt-8">
+	                        <Button type="button" className="rounded-full px-6" onClick={handleDismissCelebration}>
+	                          Close
+	                        </Button>
+	                      </div>
+	                    </div>
                   </div>
                 ) : null}
               </div>
