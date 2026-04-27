@@ -30,7 +30,7 @@ class LoginRateThrottle(SimpleRateThrottle):
 
 class RegisterRateThrottle(SimpleRateThrottle):
     scope = "public_register"
-    rate = "5/hour"
+    rate = "2/hour"
 
     def get_cache_key(self, request, view):
         identifier = _hash_identifier(
@@ -41,6 +41,18 @@ class RegisterRateThrottle(SimpleRateThrottle):
         return self.cache_format % {
             "scope": self.scope,
             "ident": ident,
+        }
+
+
+class TokenRefreshRateThrottle(SimpleRateThrottle):
+    scope = "public_token_refresh"
+    rate = "20/hour"
+
+    def get_cache_key(self, request, view):
+        client_ip = get_request_ip_address(request) or "unknown"
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": client_ip,
         }
 
 

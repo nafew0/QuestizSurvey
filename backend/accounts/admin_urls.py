@@ -4,6 +4,7 @@ from .admin_views import (
     AdminBkashPaymentSearchView,
     AdminBkashRefundView,
     AdminDashboardView,
+    AdminGateView,
     AdminPaymentsExportView,
     AdminPaymentsView,
     AdminSendPasswordResetView,
@@ -16,6 +17,7 @@ from .admin_views import (
 app_name = "admin_api"
 
 urlpatterns = [
+    path("_gate/", AdminGateView.as_view(), name="gate"),
     path("dashboard/", AdminDashboardView.as_view(), name="dashboard"),
     path("users/", AdminUsersView.as_view(), name="users"),
     path("users/<uuid:user_id>/", AdminUserDetailView.as_view(), name="user-detail"),

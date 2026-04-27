@@ -1,5 +1,5 @@
 <!-- ============================================================
-     QUESTIZ — BIFOLD BROCHURE
+     MindSpear Survey — BIFOLD BROCHURE
      Print format: A4 Landscape (297mm × 210mm), two panels per side
      Panel layout:
        Side 1 (outside): [ BACK COVER | FRONT COVER ]
@@ -24,7 +24,7 @@
 
 ---
 
-### Why Teams Choose Questiz
+### Why Teams Choose MindSpear Survey
 
 > *"The insights generated are transformative. We went from guessing to knowing."*
 > — Customer Experience Manager
@@ -46,7 +46,7 @@
 
 **Start free. Upgrade when you're ready.**
 
-`questiz.app/register`
+`MindSpear Survey.app/register`
 
 &nbsp;
 
@@ -62,8 +62,8 @@ Field Operations · Learning & Development · Advisory Studios
 
 **Contact & Support**
 
-- Website: `questiz.app`
-- Support: `support@questiz.app`
+- Website: `MindSpear Survey.app`
+- Support: `support@MindSpear Survey.app`
 
 &nbsp;
 
@@ -90,7 +90,7 @@ Field Operations · Learning & Development · Advisory Studios
 
 &nbsp;
 
-# Questiz
+# MindSpear Survey
 
 ## Ask Smarter. Understand Faster.
 
@@ -112,7 +112,7 @@ all in one beautifully designed platform.*
 
 &nbsp;
 
-<!-- PLACEHOLDER: QR code linking to questiz.app/register -->
+<!-- PLACEHOLDER: QR code linking to MindSpear Survey.app/register -->
 <!-- [QR CODE PLACEHOLDER — approx. 60×60px] -->
 **Scan to get started free →**
 
@@ -140,7 +140,7 @@ all in one beautifully designed platform.*
 
 ### Build Any Survey in Minutes
 
-Drag. Drop. Done. The Questiz builder puts you in control
+Drag. Drop. Done. The MindSpear Survey builder puts you in control
 without requiring any technical skill.
 
 &nbsp;
@@ -193,7 +193,7 @@ Respondents experience your brand, not ours.
 
 ### Reach Everyone, Everywhere
 
-Your audience is on different channels. Questiz meets them
+Your audience is on different channels. MindSpear Survey meets them
 on all of them — simultaneously.
 
 &nbsp;
@@ -247,7 +247,7 @@ and anonymous collection per distribution channel.
 ### See Results the Moment They Arrive
 
 No waiting for exports. No manual tallying.
-Questiz transforms raw responses into clear, live visuals
+MindSpear Survey transforms raw responses into clear, live visuals
 the instant a respondent submits.
 
 &nbsp;
@@ -282,7 +282,7 @@ reveal the relationships that matter.
 
 ### AI That Works While You Think
 
-Questiz brings artificial intelligence into two places
+MindSpear Survey brings artificial intelligence into two places
 where it matters most.
 
 &nbsp;
@@ -317,7 +317,7 @@ a spreadsheet.
 
 ### Export & Share Reports
 
-When you need to present findings, Questiz has you covered.
+When you need to present findings, MindSpear Survey has you covered.
 
 &nbsp;
 

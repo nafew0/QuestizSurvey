@@ -19,7 +19,11 @@ from rest_framework_simplejwt.exceptions import TokenError
 from questizsurvey.audit import log_audit_event
 
 from .models import EmailVerificationToken
-from .throttles import LoginRateThrottle, RegisterRateThrottle
+from .subnet_limits import (
+    compute_registration_subnet,
+    has_subnet_reached_registration_cap,
+)
+from .throttles import LoginRateThrottle, RegisterRateThrottle, TokenRefreshRateThrottle
 from .token_cookies import (
     clear_refresh_cookie,
     get_refresh_token_from_request,
@@ -104,8 +108,29 @@ class RegisterView(generics.CreateAPIView):
         verification_required = site_settings.require_email_verification
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        client_ip = get_request_ip_address(request)
+        registration_subnet = compute_registration_subnet(client_ip)
+        if has_subnet_reached_registration_cap(registration_subnet):
+            log_audit_event(
+                "register_blocked",
+                outcome="failure",
+                level="warning",
+                request=request,
+                reason="subnet_registration_cap_reached",
+                subnet=registration_subnet,
+            )
+            return Response(
+                {"detail": "Too many accounts have been created from your network."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         with transaction.atomic():
-            user = serializer.save(email_verified=not verification_required)
+            user = serializer.save(
+                email_verified=not verification_required,
+                registration_ip=client_ip or None,
+                registration_ip_subnet=registration_subnet,
+            )
 
             if verification_required:
                 maybe_send_verification_email_or_raise(user)
@@ -212,6 +237,7 @@ class VerifiedTokenRefreshView(TokenRefreshView):
     """Refresh tokens while enforcing email verification when required."""
 
     permission_classes = [AllowAny]
+    throttle_classes = [TokenRefreshRateThrottle]
 
     def post(self, request, *args, **kwargs):
         refresh_token = (

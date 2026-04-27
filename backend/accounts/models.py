@@ -29,6 +29,10 @@ class User(AbstractUser):
     designation = models.CharField(max_length=255, blank=True, default="")
     phone = models.CharField(max_length=30, blank=True, default="")
     email_verified = models.BooleanField(default=False)
+    registration_ip = models.GenericIPAddressField(null=True, blank=True)
+    registration_ip_subnet = models.CharField(
+        max_length=64, blank=True, default="", db_index=True
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

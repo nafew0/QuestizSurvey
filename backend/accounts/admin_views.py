@@ -84,6 +84,22 @@ def parse_datetime_filter(value, *, end_of_day=False):
     return parsed
 
 
+class AdminGateView(AdminAPIView):
+    """
+    Server-side admin authorization probe used by the SPA.
+
+    Returns 204 to superusers and 401/403 to everyone else. The frontend
+    must trust the HTTP status from this endpoint rather than any
+    user-serializer field, because response *bodies* can be rewritten by
+    a proxy (Burp Suite Match-and-Replace) but the permission decision
+    here is enforced by IsSuperuserPermission against the JWT-resolved
+    user.
+    """
+
+    def get(self, request):
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class AdminDashboardView(AdminAPIView):
     def get(self, request):
         return Response(AdminPaymentsService.build_dashboard_payload())
