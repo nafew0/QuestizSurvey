@@ -130,6 +130,60 @@ def format_matrix_answer(question, matrix_data, *, separator="; "):
     return separator.join(iter_matrix_answer_fragments(question, matrix_data))
 
 
+def _get_choice_map(question):
+    if question is None:
+        return {}
+    return {str(choice.id): choice.text for choice in question.choices.all()}
+
+
+def build_answer_display_lines(answer):
+    question = getattr(answer, "question", None)
+    choice_map = _get_choice_map(question)
+    lines = []
+
+    if getattr(answer, "choice_ids", None):
+        selected_labels = [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in answer.choice_ids
+        ]
+        if selected_labels:
+            lines.append(", ".join(selected_labels))
+    elif getattr(answer, "text_value", ""):
+        lines.append(answer.text_value)
+    elif getattr(answer, "numeric_value", None) is not None:
+        lines.append(str(answer.numeric_value))
+    elif getattr(answer, "date_value", None):
+        lines.append(answer.date_value.isoformat())
+    elif getattr(answer, "file_url", ""):
+        lines.append(answer.file_url)
+    elif getattr(answer, "ranking_data", None):
+        ranked_labels = [
+            choice_map.get(str(choice_id), str(choice_id))
+            for choice_id in (answer.ranking_data or [])
+        ]
+        if ranked_labels:
+            lines.append(" > ".join(ranked_labels))
+    elif getattr(answer, "constant_sum_data", None):
+        for choice_id, value in (answer.constant_sum_data or {}).items():
+            lines.append(f"{choice_map.get(str(choice_id), str(choice_id))}: {value}")
+    elif getattr(answer, "matrix_data", None):
+        lines.extend(iter_matrix_answer_fragments(question, answer.matrix_data))
+
+    other_text = (getattr(answer, "other_text", "") or "").strip()
+    if other_text:
+        lines.append(f"Other: {other_text}")
+
+    comment_text = (getattr(answer, "comment_text", "") or "").strip()
+    if comment_text:
+        lines.append(f"Comment: {comment_text}")
+
+    return [line for line in lines if not _is_blank(line)]
+
+
+def format_answer_display(answer, *, separator="; "):
+    return separator.join(build_answer_display_lines(answer))
+
+
 def build_answer_search_blob(answer):
     parts = [
         getattr(answer, "text_value", "") or "",

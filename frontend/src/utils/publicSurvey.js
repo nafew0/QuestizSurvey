@@ -13,6 +13,10 @@ import {
   getAnswerOtherText,
   stripOtherSelections,
 } from '@/utils/questionAnswers'
+import {
+  OPEN_ENDED_OTHER_KEY,
+  validateInputValue,
+} from '@/utils/inputValidation'
 
 export const RESPONDED_COOKIE_PREFIX = 'questiz_responded_'
 
@@ -290,6 +294,30 @@ export function buildResumePageHistory(survey, answers, currentPageId) {
   return Array.from({ length: targetPageIndex + 1 }, (_, index) => index)
 }
 
+export function publicAnswerHasContent(question, answerValue) {
+  if (questionValueHasContent(question, answerValue)) {
+    return true
+  }
+
+  return (
+    getAnswerOtherText(answerValue).trim().length > 0 ||
+    getAnswerCommentText(answerValue).trim().length > 0
+  )
+}
+
+export function validateResponseCopyEmail(email) {
+  const trimmedEmail = `${email || ''}`.trim()
+
+  if (!trimmedEmail) {
+    return 'Enter an email address to receive your response copy.'
+  }
+
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailPattern.test(trimmedEmail)
+    ? ''
+    : 'Enter a valid email address.'
+}
+
 export function serializePublicAnswers(survey, answers) {
   return (survey.pages ?? [])
     .flatMap((page) => page.questions)
@@ -437,6 +465,7 @@ function getEnabledDemographicFields(question) {
 
 export function getQuestionValidationError(question, value) {
   const primaryValue = getAnswerPrimaryValue(value)
+  const inputValidationError = getQuestionInputValidationError(question, value)
 
   if (!question.required) {
     if (question.question_type === 'constant_sum' && questionValueHasContent(question, primaryValue)) {
@@ -449,7 +478,7 @@ export function getQuestionValidationError(question, value) {
         return `Total must equal ${target}.`
       }
     }
-    return ''
+    return inputValidationError
   }
 
   switch (question.question_type) {
@@ -498,7 +527,9 @@ export function getQuestionValidationError(question, value) {
     case 'open_ended': {
       const rows = question.settings?.rows ?? []
       const missingRow = rows.find((row) => !`${primaryValue?.[row] ?? ''}`.trim())
-      return missingRow ? 'Complete each short-answer row before continuing.' : ''
+      return missingRow
+        ? 'Complete each short-answer row before continuing.'
+        : inputValidationError
     }
     case 'matrix_plus': {
       const rows = question.settings?.rows ?? []
@@ -516,11 +547,43 @@ export function getQuestionValidationError(question, value) {
     }
     case 'file_upload':
       return primaryValue ? '' : 'Add a file before continuing.'
-    default:
-      return questionValueHasContent(question, primaryValue)
-        ? ''
-        : 'This question is required.'
+    default: {
+      if (!questionValueHasContent(question, primaryValue)) {
+        return 'This question is required.'
+      }
+
+      return inputValidationError
+    }
   }
+}
+
+function getQuestionInputValidationError(question, value) {
+  if (!question) {
+    return ''
+  }
+
+  if (question.question_type === 'short_text' || question.question_type === 'long_text') {
+    return validateInputValue(getAnswerPrimaryValue(value), question.settings?.input_validation)
+  }
+
+  if (question.question_type === 'open_ended') {
+    const rowValidations = question.settings?.row_validations ?? {}
+    const primaryValue = getAnswerPrimaryValue(value) || {}
+
+    const orderedRows = [
+      ...(question.settings?.rows ?? []),
+      ...(question.settings?.allow_other ? [OPEN_ENDED_OTHER_KEY] : []),
+    ]
+
+    for (const rowKey of orderedRows) {
+      const nextError = validateInputValue(primaryValue?.[rowKey] ?? '', rowValidations[rowKey])
+      if (nextError) {
+        return `${rowKey === OPEN_ENDED_OTHER_KEY ? 'Other' : rowKey}: ${nextError}`
+      }
+    }
+  }
+
+  return ''
 }
 
 export function validateSurveyPage(page, answers) {

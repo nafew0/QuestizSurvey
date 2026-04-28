@@ -17,6 +17,11 @@ import RichTextEditor from '@/components/ui/rich-text-editor'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DEMOGRAPHIC_FIELDS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
+import {
+  normalizeInputValidationRule,
+  OPEN_ENDED_OTHER_KEY,
+  USER_INPUT_VALIDATION_OPTIONS,
+} from '@/utils/inputValidation'
 import { buildMessageDescriptionRichTextValue, getQuestionTextHtml } from '@/utils/richText'
 import {
   isRatingQuestion,
@@ -156,6 +161,150 @@ function ArrayEditor({ label, items, onChange }) {
   )
 }
 
+function getOpenEndedRowLabel(rowKey) {
+  return rowKey === OPEN_ENDED_OTHER_KEY ? 'Other' : rowKey
+}
+
+function remapOpenEndedRowValidations(previousRows, nextRows, previousValidations = {}) {
+  const nextValidations = {}
+  const usedPreviousRows = new Set()
+  const lengthsMatch = previousRows.length === nextRows.length
+
+  nextRows.forEach((nextRow, index) => {
+    if (previousValidations[nextRow] && !usedPreviousRows.has(nextRow)) {
+      nextValidations[nextRow] = previousValidations[nextRow]
+      usedPreviousRows.add(nextRow)
+      return
+    }
+
+    const matchingPreviousRow = previousRows.find(
+      (rowKey) => rowKey === nextRow && !usedPreviousRows.has(rowKey)
+    )
+    if (matchingPreviousRow) {
+      nextValidations[nextRow] = previousValidations[matchingPreviousRow]
+      usedPreviousRows.add(matchingPreviousRow)
+      return
+    }
+
+    if (lengthsMatch) {
+      const previousRowAtIndex = previousRows[index]
+      if (previousRowAtIndex && previousValidations[previousRowAtIndex]) {
+        nextValidations[nextRow] = previousValidations[previousRowAtIndex]
+        usedPreviousRows.add(previousRowAtIndex)
+      }
+    }
+  })
+
+  if (previousValidations[OPEN_ENDED_OTHER_KEY]) {
+    nextValidations[OPEN_ENDED_OTHER_KEY] = previousValidations[OPEN_ENDED_OTHER_KEY]
+  }
+
+  return nextValidations
+}
+
+function UserInputValidationEditor({
+  value,
+  onChange,
+  title = 'User Input Validation',
+  description = 'Validate the text that respondents type before they continue.',
+  groupName = 'user-input-validation',
+}) {
+  const validationRule = normalizeInputValidationRule(value)
+
+  const updateRule = (patch) => {
+    const nextRule = normalizeInputValidationRule({
+      ...validationRule,
+      ...patch,
+    })
+    onChange(nextRule)
+  }
+
+  return (
+    <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-700">{title}</p>
+          <p className="text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Switch
+          checked={validationRule.enabled}
+          onCheckedChange={(checked) =>
+            updateRule({
+              enabled: checked,
+              type: checked ? validationRule.type || 'email' : validationRule.type,
+            })
+          }
+        />
+      </div>
+
+      {validationRule.enabled ? (
+        <div className="space-y-4">
+          <div className="grid gap-2">
+            {USER_INPUT_VALIDATION_OPTIONS.map((option) => (
+              <label
+                key={option.value}
+                className={`flex cursor-pointer items-start gap-3 rounded-2xl border px-4 py-3 transition ${
+                  validationRule.type === option.value
+                    ? 'border-[rgb(var(--theme-primary-rgb)/0.35)] bg-white shadow-[0_10px_22px_rgb(var(--theme-shadow-rgb)/0.08)]'
+                    : 'border-[rgb(var(--theme-border-rgb)/0.7)] bg-white/60'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name={groupName}
+                  checked={validationRule.type === option.value}
+                  onChange={() => updateRule({ type: option.value })}
+                  className="mt-1 h-4 w-4"
+                />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-foreground">{option.label}</p>
+                  <p className="text-xs text-muted-foreground">{option.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {validationRule.type === 'text_only' ? (
+            <Field label="Character limit">
+              <Input
+                type="number"
+                min="0"
+                value={validationRule.char_limit}
+                onChange={(event) => updateRule({ char_limit: event.target.value })}
+                placeholder="Optional"
+                className="rounded-2xl"
+              />
+            </Field>
+          ) : null}
+
+          {validationRule.type === 'numbers_only' ? (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="From">
+                <Input
+                  type="number"
+                  value={validationRule.min_number}
+                  onChange={(event) => updateRule({ min_number: event.target.value })}
+                  placeholder="Optional"
+                  className="rounded-2xl"
+                />
+              </Field>
+              <Field label="To">
+                <Input
+                  type="number"
+                  value={validationRule.max_number}
+                  onChange={(event) => updateRule({ max_number: event.target.value })}
+                  placeholder="Optional"
+                  className="rounded-2xl"
+                />
+              </Field>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export default function QuestionSettingsPanel({
   survey,
   selectedPage,
@@ -190,6 +339,47 @@ export default function QuestionSettingsPanel({
     onQuestionFieldChange(question.id, 'settings', {
       ...(question.settings ?? {}),
       ...patch,
+    })
+  }
+
+  const updateShortTextValidation = (nextRule) => {
+    updateQuestionSettings({
+      input_validation: normalizeInputValidationRule(nextRule),
+    })
+  }
+
+  const updateOpenEndedRows = (rows) => {
+    updateQuestionSettings({
+      rows,
+      row_validations: remapOpenEndedRowValidations(
+        question.settings?.rows ?? [],
+        rows,
+        question.settings?.row_validations ?? {}
+      ),
+    })
+  }
+
+  const updateOpenEndedOtherRow = (checked) => {
+    const nextRowValidations = {
+      ...(question.settings?.row_validations ?? {}),
+    }
+
+    if (!checked) {
+      delete nextRowValidations[OPEN_ENDED_OTHER_KEY]
+    }
+
+    updateQuestionSettings({
+      allow_other: checked,
+      row_validations: nextRowValidations,
+    })
+  }
+
+  const updateOpenEndedRowValidation = (rowKey, nextRule) => {
+    updateQuestionSettings({
+      row_validations: {
+        ...(question.settings?.row_validations ?? {}),
+        [rowKey]: normalizeInputValidationRule(nextRule),
+      },
     })
   }
 
@@ -566,6 +756,20 @@ export default function QuestionSettingsPanel({
             </div>
           </PanelSection>
 
+          {question.question_type === 'short_text' ? (
+            <PanelSection
+              eyebrow="Validation"
+              title="Input validation"
+              description="Validate what respondents type into this short text field."
+            >
+              <UserInputValidationEditor
+                value={question.settings?.input_validation}
+                onChange={updateShortTextValidation}
+                groupName={`question-${question.id}-input-validation`}
+              />
+            </PanelSection>
+          ) : null}
+
           {questionHasChoices(question.question_type) &&
           ('randomize_choices' in (question.settings ?? {}) ||
             'allow_other' in (question.settings ?? {}) ||
@@ -753,7 +957,7 @@ export default function QuestionSettingsPanel({
               <ArrayEditor
                 label="Rows"
                 items={question.settings?.rows ?? []}
-                onChange={(rows) => updateQuestionSettings({ rows })}
+                onChange={updateOpenEndedRows}
               />
               <div className="flex items-center justify-between rounded-3xl border border-slate-200 bg-slate-50 px-4 py-4">
                 <div className="flex items-center gap-2">
@@ -764,8 +968,36 @@ export default function QuestionSettingsPanel({
                 </div>
                 <Switch
                   checked={Boolean(question.settings?.allow_other)}
-                  onCheckedChange={(checked) => updateQuestionSettings({ allow_other: checked })}
+                  onCheckedChange={updateOpenEndedOtherRow}
                 />
+              </div>
+            </PanelSection>
+          ) : null}
+
+          {question.question_type === 'open_ended' ? (
+            <PanelSection
+              eyebrow="Validation"
+              title="Row validation"
+              description="Turn on input validation for any individual row and choose the rule that should apply."
+            >
+              <div className="space-y-4">
+                {[
+                  ...(question.settings?.rows ?? []),
+                  ...(question.settings?.allow_other ? [OPEN_ENDED_OTHER_KEY] : []),
+                ].map((rowKey, rowIndex) => (
+                  <div
+                    key={rowKey}
+                    className="rounded-[1.75rem] border border-[rgb(var(--theme-border-rgb)/0.72)] bg-white p-4"
+                  >
+                    <UserInputValidationEditor
+                      value={question.settings?.row_validations?.[rowKey]}
+                      onChange={(nextRule) => updateOpenEndedRowValidation(rowKey, nextRule)}
+                      title={`${getOpenEndedRowLabel(rowKey)} validation`}
+                      description={`Apply a rule to ${getOpenEndedRowLabel(rowKey)} before the respondent can continue.`}
+                      groupName={`question-${question.id}-row-${rowIndex}-validation`}
+                    />
+                  </div>
+                ))}
               </div>
             </PanelSection>
           ) : null}

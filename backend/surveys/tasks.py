@@ -1,11 +1,14 @@
 from celery import shared_task
 from django.conf import settings
+from django.db.models import Prefetch
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
+from django.utils import formats
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from surveys.models import Collector, EmailInvitation, ExportJob
+from surveys.answer_formatting import build_answer_display_lines
+from surveys.models import Answer, Collector, EmailInvitation, ExportJob, Question, SurveyResponse
 from surveys.services.exports.common import build_export_context, save_export_file
 
 
@@ -106,6 +109,58 @@ def deliver_invitation_email(invitation, *, subject="", message="", reminder=Fal
     return invitation
 
 
+def _get_response_copy_answer_items(response):
+    answer_items = []
+
+    for answer in response.answers.all():
+        if answer.question.question_type in {
+            Question.QuestionType.SECTION_HEADING,
+            Question.QuestionType.INSTRUCTIONAL_TEXT,
+        }:
+            continue
+
+        answer_lines = build_answer_display_lines(answer)
+        if not answer_lines:
+            continue
+
+        answer_items.append(
+            {
+                "question_text": answer.question.text,
+                "answer_lines": answer_lines,
+            }
+        )
+
+    return answer_items
+
+
+def deliver_public_response_copy_email(response, recipient_email):
+    completed_at = response.completed_at or timezone.now()
+    context = {
+        "survey": response.survey,
+        "response": response,
+        "completed_at": completed_at,
+        "completed_at_display": formats.date_format(
+            timezone.localtime(completed_at),
+            "DATETIME_FORMAT",
+        ),
+        "answer_items": _get_response_copy_answer_items(response),
+    }
+    subject_line = f"Your response copy for {response.survey.title}"
+    html_message = render_to_string("emails/response_copy.html", context)
+    plain_message = render_to_string("emails/response_copy.txt", context)
+
+    send_mail(
+        subject=subject_line,
+        message=plain_message,
+        from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@mindspear.local"),
+        recipient_list=[recipient_email],
+        html_message=html_message,
+        fail_silently=False,
+    )
+
+    return recipient_email
+
+
 @shared_task
 def send_survey_invitation(invitation_id, subject="", message="", reminder=False):
     invitation = EmailInvitation.objects.select_related(
@@ -118,6 +173,28 @@ def send_survey_invitation(invitation_id, subject="", message="", reminder=False
         reminder=reminder,
     )
     return str(invitation.id)
+
+
+@shared_task
+def send_public_response_copy_email(response_id, recipient_email):
+    response = (
+        SurveyResponse.objects.select_related("survey")
+        .prefetch_related(
+            Prefetch(
+                "answers",
+                queryset=Answer.objects.select_related("question", "question__page")
+                .prefetch_related("question__choices")
+                .order_by("question__page__order", "question__order"),
+            )
+        )
+        .get(id=response_id)
+    )
+
+    if response.status != SurveyResponse.Status.COMPLETED:
+        return None
+
+    deliver_public_response_copy_email(response, recipient_email)
+    return recipient_email
 
 
 @shared_task

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
+    <div style="max-width:720px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:32px;">
+      <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:#64748b;">Survey response copy</p>
+      <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;">{{ survey.title }}</h1>
+      <p style="margin:0 0 28px;font-size:14px;line-height:1.7;color:#475569;">
+        Completed on {{ completed_at_display }}
+      </p>
+
+      {% if answer_items %}
+        {% for item in answer_items %}
+          <section style="margin-top:24px;padding-top:24px;border-top:1px solid #e2e8f0;">
+            <h2 style="margin:0 0 12px;font-size:17px;line-height:1.5;">{{ forloop.counter }}. {{ item.question_text }}</h2>
+            <div style="font-size:14px;line-height:1.8;color:#334155;">
+              {% for line in item.answer_lines %}
+                <p style="margin:0 0 8px;">{{ line|linebreaksbr }}</p>
+              {% endfor %}
+            </div>
+          </section>
+        {% endfor %}
+      {% else %}
+        <p style="margin:0;font-size:14px;line-height:1.7;color:#475569;">
+          No answered questions were available to include in this copy.
+        </p>
+      {% endif %}
+    </div>
+  </body>
+</html>

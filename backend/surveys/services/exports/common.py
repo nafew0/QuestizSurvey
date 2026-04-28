@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 from django.conf import settings
 from django.utils import timezone
 
-from surveys.answer_formatting import format_matrix_answer
+from surveys.answer_formatting import format_answer_display
 from surveys.models import Answer, ExportJob, Question, SavedReport, Survey, SurveyResponse
 from surveys.serializers.response_serializers import build_answer_summary
 from surveys.services.analytics import AnalyticsService
@@ -167,52 +167,8 @@ def describe_filters(filters):
         )
 
     return descriptions
-
-
-def _get_choice_map(question):
-    return {str(choice.id): choice.text for choice in question.choices.all()}
-
-
 def format_answer_for_export(answer: Answer):
-    question = answer.question
-    choice_map = _get_choice_map(question)
-
-    if answer.choice_ids:
-        values = [choice_map.get(str(choice_id), str(choice_id)) for choice_id in answer.choice_ids]
-        if answer.other_text:
-            values.append(f"Other: {answer.other_text}")
-        if answer.comment_text:
-            values.append(f"Comment: {answer.comment_text}")
-        return ", ".join(values)
-
-    if answer.text_value:
-        return answer.text_value
-
-    if answer.numeric_value is not None:
-        return str(answer.numeric_value)
-
-    if answer.date_value:
-        return answer.date_value.isoformat()
-
-    if answer.file_url:
-        return answer.file_url
-
-    if answer.ranking_data:
-        return " > ".join(
-            choice_map.get(str(choice_id), str(choice_id))
-            for choice_id in answer.ranking_data
-        )
-
-    if answer.constant_sum_data:
-        allocations = []
-        for choice_id, value in (answer.constant_sum_data or {}).items():
-            allocations.append(f"{choice_map.get(str(choice_id), str(choice_id))}: {value}")
-        return "; ".join(allocations)
-
-    if answer.matrix_data:
-        return format_matrix_answer(question, answer.matrix_data)
-
-    return ""
+    return format_answer_display(answer)
 
 
 def build_raw_response_rows(survey: Survey, questions, filters):

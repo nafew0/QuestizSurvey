@@ -8,9 +8,9 @@ import RichTextContent from '@/components/ui/rich-text-content'
 import { SURVEY_DEVICE_MODES } from '@/constants/surveyBuilder'
 import { buildSurveyThemeCss, normalizeSurveyTheme } from '@/lib/surveyTheme'
 import { buildQuestionNumberLookup } from '@/utils/questionNumbers'
+import { validateSurveyPage } from '@/utils/publicSurvey'
 import {
   getInitialQuestionValue,
-  questionValueHasContent,
   resolveNextPreviewStep,
 } from '@/utils/surveyBuilder'
 
@@ -79,17 +79,7 @@ export default function SurveyPreview({ survey }) {
       return true
     }
 
-    const nextErrors = {}
-    currentPage.questions.forEach((question) => {
-      if (!question.required) {
-        return
-      }
-
-      if (!questionValueHasContent(question, answers[question.id])) {
-        nextErrors[question.id] = 'This question is required in preview mode.'
-      }
-    })
-
+    const nextErrors = validateSurveyPage(currentPage, answers)
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
   }

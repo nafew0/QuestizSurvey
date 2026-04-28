@@ -1,6 +1,7 @@
 from django.db import transaction
 from rest_framework import serializers
 
+from surveys.input_validation import normalize_question_input_validation_settings
 from surveys.models import Choice, Question
 from surveys.rich_text import rich_text_to_plain_text, sanitize_rich_text_html
 
@@ -128,7 +129,7 @@ def _get_question_text_html(settings):
 
 
 def _normalize_question_settings_payload(settings):
-    normalized = dict(settings or {})
+    normalized = normalize_question_input_validation_settings(settings)
     rich_text = normalized.get("rich_text")
 
     if not isinstance(rich_text, dict):

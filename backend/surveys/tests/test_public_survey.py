@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core import mail
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -236,6 +237,323 @@ class PublicSurveyTests(TestCase):
         answer = Answer.objects.get(question=question)
         self.assertEqual(answer.matrix_data["Item 1"]["Col1"], "Ddown1")
         self.assertEqual(answer.matrix_data["Item 2"]["Col2"], "Ddown1")
+
+    def test_public_submission_rejects_invalid_short_text_input_validation(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.SHORT_TEXT,
+            text="Enter your email",
+            order=2,
+            settings={
+                "input_validation": {
+                    "enabled": True,
+                    "type": "email",
+                }
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "text_value": "not-an-email",
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("answers", response.data)
+        self.assertIn("Enter your email", str(response.data["answers"]))
+
+    def test_public_submission_rejects_invalid_open_ended_row_validation(self):
+        question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="Provide structured details",
+            order=2,
+            settings={
+                "rows": ["Option 1", "Option 2"],
+                "row_validations": {
+                    "Option 1": {
+                        "enabled": True,
+                        "type": "numbers_only",
+                        "min_number": 10,
+                        "max_number": 20,
+                    }
+                },
+            },
+        )
+
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(question.id),
+                        "matrix_data": {
+                            "Option 1": "25",
+                            "Option 2": "Valid text",
+                        },
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("answers", response.data)
+        self.assertIn("Option 1", str(response.data["answers"]))
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_completed_submission_sends_response_copy_email(self):
+        detail_question = Question.objects.create(
+            page=self.page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="Bandwidth snapshot",
+            order=2,
+            settings={
+                "rows": ["Commodity", "NIX"],
+                "allow_other": True,
+            },
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.public_client.post(
+                f"/api/public/surveys/{self.survey.slug}/",
+                {
+                    "status": SurveyResponse.Status.COMPLETED,
+                    "current_page": str(self.page.id),
+                    "send_response_copy": True,
+                    "response_copy_email": "copy@example.com",
+                    "answers": [
+                        {
+                            "question": str(self.question.id),
+                            "choice_ids": [str(self.choice.id)],
+                            "comment_text": "Loved it",
+                        },
+                        {
+                            "question": str(detail_question.id),
+                            "matrix_data": {
+                                "Commodity": "100 Mbps",
+                                "NIX": "50 Mbps",
+                                "__other__": "Cache",
+                            },
+                        },
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        survey_response = SurveyResponse.objects.get(survey=self.survey)
+        self.assertEqual(survey_response.respondent_email, "copy@example.com")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["copy@example.com"])
+        self.assertIn("Published Survey", mail.outbox[0].subject)
+        self.assertIn("Pick one option", mail.outbox[0].body)
+        self.assertIn("Option A", mail.outbox[0].body)
+        self.assertIn("Comment: Loved it", mail.outbox[0].body)
+        self.assertIn("Bandwidth snapshot", mail.outbox[0].body)
+        self.assertIn("Commodity: 100 Mbps", mail.outbox[0].body)
+        self.assertIn("Other: Cache", mail.outbox[0].body)
+        self.assertNotIn("multiple_choice_single", mail.outbox[0].body)
+        self.assertNotIn("open_ended", mail.outbox[0].body)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_public_submission_rejects_missing_response_copy_email(self):
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "send_response_copy": True,
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("response_copy_email", response.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_public_submission_rejects_invalid_response_copy_email(self):
+        response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "send_response_copy": True,
+                "response_copy_email": "not-an-email",
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("response_copy_email", response.data)
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_completion_transition_sends_response_copy_only_once(self):
+        start_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "send_response_copy": True,
+                "response_copy_email": "copy@example.com",
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(start_response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 0)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            finish_response = self.public_client.put(
+                f"/api/public/surveys/{self.survey.slug}/",
+                {
+                    "resume_token": start_response.data["resume_token"],
+                    "status": SurveyResponse.Status.COMPLETED,
+                    "current_page": str(self.page.id),
+                    "send_response_copy": True,
+                    "response_copy_email": "copy@example.com",
+                    "answers": [
+                        {
+                            "question": str(self.question.id),
+                            "choice_ids": [str(self.choice.id)],
+                        }
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(finish_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            repeat_response = self.public_client.put(
+                f"/api/public/surveys/{self.survey.slug}/",
+                {
+                    "resume_token": start_response.data["resume_token"],
+                    "status": SurveyResponse.Status.COMPLETED,
+                    "current_page": str(self.page.id),
+                    "send_response_copy": True,
+                    "response_copy_email": "copy@example.com",
+                    "answers": [
+                        {
+                            "question": str(self.question.id),
+                            "choice_ids": [str(self.choice.id)],
+                        }
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(repeat_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_response_copy_email_does_not_override_existing_respondent_email(self):
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.public_client.post(
+                f"/api/public/surveys/{self.survey.slug}/",
+                {
+                    "respondent_email": "owner@example.com",
+                    "status": SurveyResponse.Status.COMPLETED,
+                    "current_page": str(self.page.id),
+                    "send_response_copy": True,
+                    "response_copy_email": "copy@example.com",
+                    "answers": [
+                        {
+                            "question": str(self.question.id),
+                            "choice_ids": [str(self.choice.id)],
+                        }
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        survey_response = SurveyResponse.objects.get(survey=self.survey)
+        self.assertEqual(survey_response.respondent_email, "owner@example.com")
+        self.assertEqual(mail.outbox[0].to, ["copy@example.com"])
+
+    @override_settings(
+        EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+        CELERY_TASK_ALWAYS_EAGER=True,
+        CELERY_TASK_EAGER_PROPAGATES=True,
+    )
+    def test_response_copy_email_does_not_override_authenticated_user_email(self):
+        self.survey.settings = {"require_login": True}
+        self.survey.save(update_fields=["settings", "updated_at"])
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.respondent_client.post(
+                f"/api/public/surveys/{self.survey.slug}/",
+                {
+                    "status": SurveyResponse.Status.COMPLETED,
+                    "current_page": str(self.page.id),
+                    "send_response_copy": True,
+                    "response_copy_email": "copy@example.com",
+                    "answers": [
+                        {
+                            "question": str(self.question.id),
+                            "choice_ids": [str(self.choice.id)],
+                        }
+                    ],
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        survey_response = SurveyResponse.objects.get(survey=self.survey)
+        self.assertEqual(survey_response.respondent_email, self.respondent.email)
+        self.assertEqual(mail.outbox[0].to, ["copy@example.com"])
 
     def test_completed_submission_rejects_missing_required_open_ended_rows(self):
         question = Question.objects.create(

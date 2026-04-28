@@ -1,0 +1,16 @@
+Survey response copy
+{{ survey.title }}
+
+Completed on {{ completed_at_display }}
+
+{% if answer_items %}
+{% for item in answer_items %}
+{{ forloop.counter }}. {{ item.question_text }}
+{% for line in item.answer_lines %}
+- {{ line }}
+{% endfor %}
+
+{% endfor %}
+{% else %}
+No answered questions were available to include in this copy.
+{% endif %}

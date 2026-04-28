@@ -1,7 +1,9 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
 
 from surveys.answer_formatting import format_matrix_answer
+from surveys.input_validation import validate_question_input_answer
 from surveys.models import (
     Answer,
     Collector,
@@ -250,6 +252,12 @@ class SubmitAnswerSerializer(serializers.Serializer):
     respondent_email = serializers.EmailField(
         required=False, allow_blank=True, allow_null=True
     )
+    send_response_copy = serializers.BooleanField(required=False, default=False)
+    response_copy_email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
     status = serializers.ChoiceField(
         choices=SurveyResponse.Status.choices,
         required=False,
@@ -271,6 +279,8 @@ class SubmitAnswerSerializer(serializers.Serializer):
         current_page = attrs.get("current_page")
         invitation_token = attrs.get("invitation_token", "").strip()
         answers = attrs.get("answers", [])
+        send_response_copy = bool(attrs.get("send_response_copy", False))
+        response_copy_email = (attrs.get("response_copy_email") or "").strip()
 
         if collector and collector.survey_id != survey.id:
             raise serializers.ValidationError(
@@ -300,6 +310,10 @@ class SubmitAnswerSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     {"answers": "Choice does not belong to the supplied question."}
                 )
+
+            validation_error = validate_question_input_answer(question, answer_data)
+            if validation_error:
+                raise serializers.ValidationError({"answers": validation_error})
 
         if attrs.get("status") == SurveyResponse.Status.COMPLETED:
             submitted_answers = {
@@ -365,6 +379,15 @@ class SubmitAnswerSerializer(serializers.Serializer):
             attrs["email_invitation"] = invitation
             attrs["collector"] = invitation.collector
 
+        if send_response_copy and not response_copy_email:
+            raise serializers.ValidationError(
+                {
+                    "response_copy_email": "Enter an email address to receive your response copy."
+                }
+            )
+
+        attrs["response_copy_email"] = response_copy_email
+
         return attrs
 
     def create_response(self):
@@ -386,6 +409,9 @@ class SubmitAnswerSerializer(serializers.Serializer):
     def _apply_submission(self, response, validated_data):
         answers_data = validated_data.pop("answers", [])
         authenticated_user = self.context.get("authenticated_user")
+        send_response_copy = bool(validated_data.pop("send_response_copy", False))
+        response_copy_email = (validated_data.pop("response_copy_email", "") or "").strip()
+        was_completed = response.status == SurveyResponse.Status.COMPLETED
 
         if authenticated_user is not None:
             response.user = authenticated_user
@@ -402,6 +428,14 @@ class SubmitAnswerSerializer(serializers.Serializer):
 
         if "respondent_email" in validated_data and authenticated_user is None:
             response.respondent_email = validated_data["respondent_email"]
+
+        if (
+            send_response_copy
+            and response_copy_email
+            and authenticated_user is None
+            and not response.respondent_email
+        ):
+            response.respondent_email = response_copy_email
 
         if "status" in validated_data:
             response.status = validated_data["status"]
@@ -458,6 +492,22 @@ class SubmitAnswerSerializer(serializers.Serializer):
                 response=response,
                 question=question,
                 defaults=defaults,
+            )
+
+        if (
+            send_response_copy
+            and response_copy_email
+            and response.status == SurveyResponse.Status.COMPLETED
+            and not was_completed
+        ):
+            from surveys.tasks import dispatch_task, send_public_response_copy_email
+
+            transaction.on_commit(
+                lambda: dispatch_task(
+                    send_public_response_copy_email,
+                    str(response.id),
+                    response_copy_email,
+                )
             )
 
         return response

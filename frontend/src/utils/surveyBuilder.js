@@ -125,7 +125,19 @@ export function defaultSettingsForType(questionType) {
       return {
         allow_comment: false,
         allow_other: false,
-        rows: ['Commodity', 'NIX'],
+        rows: ['Option 1', 'Option 2'],
+        row_validations: {},
+      }
+    case 'short_text':
+      return {
+        allow_comment: false,
+        input_validation: {
+          enabled: false,
+          type: '',
+          char_limit: '',
+          min_number: '',
+          max_number: '',
+        },
       }
     case 'matrix':
       return {

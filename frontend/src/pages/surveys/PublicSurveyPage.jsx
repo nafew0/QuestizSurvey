@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -8,12 +8,16 @@ import {
   Copy,
   LoaderCircle,
   LockKeyhole,
+  Mail,
+  Sparkles,
 } from 'lucide-react'
 
 import QuestionRenderer from '@/components/survey/QuestionRenderer'
+import WelcomeShapeField from '@/components/survey/WelcomeShapeField'
 import Navbar from '@/components/Navbar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import RichTextContent from '@/components/ui/rich-text-content'
 import { useSiteTheme } from '@/contexts/SiteThemeContext'
@@ -29,9 +33,11 @@ import { normalizeSurvey, resolveNextPreviewStep } from '@/utils/surveyBuilder'
 import {
   buildInitialPublicAnswers,
   buildResumePageHistory,
+  publicAnswerHasContent,
   restorePublicAnswers,
   serializePublicAnswers,
   setRespondedCookie,
+  validateResponseCopyEmail,
   validateSurveyPage,
 } from '@/utils/publicSurvey'
 
@@ -59,6 +65,18 @@ function writeSurveyStorageValue(slug, key, value) {
     return
   }
   window.sessionStorage.removeItem(storageKey)
+}
+
+function readSurveyStorageBool(slug, key) {
+  return readSurveyStorageValue(slug, key) === 'true'
+}
+
+function prefersReducedMotion() {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false
+  }
+
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function readPublicLinkHash(hashValue) {
@@ -183,6 +201,68 @@ function PublicStateCard({ state }) {
           {state.detail || state.description}
         </p>
       </div>
+    </div>
+  )
+}
+
+function ResponseCopyPreference({
+  checked,
+  email,
+  errorMessage,
+  onToggle,
+  onEmailChange,
+  fieldIdPrefix,
+  className = '',
+}) {
+  return (
+    <div
+      className={`rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.72)] bg-[rgb(var(--theme-neutral-rgb)/0.42)] p-4 text-left ${className}`}
+    >
+      <div className="flex items-start gap-3">
+        <input
+          id={`${fieldIdPrefix}-toggle`}
+          type="checkbox"
+          checked={checked}
+          onChange={(event) => onToggle(event.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-[rgb(var(--theme-border-rgb)/0.9)] text-primary focus:ring-2 focus:ring-primary/20"
+        />
+        <div className="min-w-0 flex-1">
+          <label
+            htmlFor={`${fieldIdPrefix}-toggle`}
+            className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-foreground"
+          >
+            <Mail className="h-4 w-4 text-[rgb(var(--theme-secondary-rgb))]" />
+            Email me a copy of my responses
+          </label>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            We&apos;ll send a response summary to this address after you submit the survey.
+          </p>
+        </div>
+      </div>
+
+      {checked ? (
+        <div className="mt-4 space-y-2">
+          <label
+            htmlFor={`${fieldIdPrefix}-email`}
+            className="text-sm font-medium text-foreground"
+          >
+            Email address
+          </label>
+          <Input
+            id={`${fieldIdPrefix}-email`}
+            type="email"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            placeholder="name@example.com"
+            autoComplete="email"
+            aria-invalid={errorMessage ? 'true' : 'false'}
+            className="survey-theme-control survey-theme-input h-12"
+          />
+          {errorMessage ? (
+            <p className="text-sm font-medium text-rose-500">{errorMessage}</p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -339,9 +419,18 @@ export default function PublicSurveyPage() {
   const [blockedState, setBlockedState] = useState(null)
   const [loginRequiredState, setLoginRequiredState] = useState(null)
   const [disqualifyMessage, setDisqualifyMessage] = useState('')
+  const [sendResponseCopy, setSendResponseCopy] = useState(() =>
+    readSurveyStorageBool(slug, 'send-response-copy')
+  )
+  const [responseCopyEmail, setResponseCopyEmail] = useState(() =>
+    readSurveyStorageValue(slug, 'response-copy-email')
+  )
+  const [responseCopyEmailError, setResponseCopyEmailError] = useState('')
+  const [shouldCelebrateCompletion, setShouldCelebrateCompletion] = useState(false)
   const [accessKey, setAccessKey] = useState('')
   const [passwordDraft, setPasswordDraft] = useState('')
   const [passwordError, setPasswordError] = useState('')
+  const confettiPlayedRef = useRef(false)
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
   const redirectTarget = useMemo(() => `/s/${slug}`, [slug])
@@ -360,17 +449,45 @@ export default function PublicSurveyPage() {
     [surveyTheme]
   )
 
-  const progressValue = useMemo(() => {
-    if (!survey?.pages?.length || stage !== 'page') {
-      return 0
-    }
-
-    return ((currentPageIndex + 1) / survey.pages.length) * 100
-  }, [currentPageIndex, stage, survey?.pages])
   const questionNumbers = useMemo(
     () => buildQuestionNumberLookup(survey?.pages ?? []),
     [survey?.pages]
   )
+  const totalQuestions = useMemo(
+    () => Object.keys(questionNumbers).length,
+    [questionNumbers]
+  )
+  const answeredQuestions = useMemo(() => {
+    if (!survey?.pages?.length) {
+      return 0
+    }
+
+    return survey.pages
+      .flatMap((page) => page.questions ?? [])
+      .filter((question) => questionNumbers[question.id])
+      .reduce((count, question) => {
+        return count + (publicAnswerHasContent(question, answers[question.id]) ? 1 : 0)
+      }, 0)
+  }, [answers, questionNumbers, survey?.pages])
+  const progressValue = useMemo(() => {
+    if (stage !== 'page' || totalQuestions === 0) {
+      return 0
+    }
+
+    return (answeredQuestions / totalQuestions) * 100
+  }, [answeredQuestions, stage, totalQuestions])
+  const nextStepPreview = useMemo(() => {
+    if (stage !== 'page' || !currentPage) {
+      return null
+    }
+
+    return resolveNextPreviewStep({
+      pages: survey?.pages ?? [],
+      currentPageIndex,
+      answers,
+    })
+  }, [answers, currentPage, currentPageIndex, stage, survey?.pages])
+  const isFinalSurveyStep = Boolean(nextStepPreview && nextStepPreview.type !== 'page')
 
   useEffect(() => {
     setInvitationToken(
@@ -388,6 +505,22 @@ export default function PublicSurveyPage() {
   useEffect(() => {
     writeSurveyStorageValue(slug, 'resume', resumeLookupToken)
   }, [resumeLookupToken, slug])
+
+  useEffect(() => {
+    setSendResponseCopy(readSurveyStorageBool(slug, 'send-response-copy'))
+    setResponseCopyEmail(readSurveyStorageValue(slug, 'response-copy-email'))
+    setResponseCopyEmailError('')
+    setShouldCelebrateCompletion(false)
+    confettiPlayedRef.current = false
+  }, [slug])
+
+  useEffect(() => {
+    writeSurveyStorageValue(slug, 'send-response-copy', sendResponseCopy ? 'true' : '')
+  }, [sendResponseCopy, slug])
+
+  useEffect(() => {
+    writeSurveyStorageValue(slug, 'response-copy-email', responseCopyEmail.trim())
+  }, [responseCopyEmail, slug])
 
   useEffect(() => {
     if (
@@ -460,6 +593,8 @@ export default function PublicSurveyPage() {
         setAnswers(restoredAnswers)
         setErrors({})
         setDisqualifyMessage('')
+        setShouldCelebrateCompletion(false)
+        confettiPlayedRef.current = false
         setResumeToken(nextResumeToken)
         setPageHistory(nextHistory)
         setPasswordError('')
@@ -528,6 +663,60 @@ export default function PublicSurveyPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [currentPageIndex, stage])
 
+  useEffect(() => {
+    if (
+      stage !== 'thankyou' ||
+      !shouldCelebrateCompletion ||
+      confettiPlayedRef.current ||
+      prefersReducedMotion()
+    ) {
+      return
+    }
+
+    let cancelled = false
+    confettiPlayedRef.current = true
+
+    import('canvas-confetti')
+      .then(({ default: confetti }) => {
+        if (cancelled) {
+          return
+        }
+
+        confetti({
+          particleCount: 140,
+          spread: 78,
+          origin: { y: 0.64 },
+          disableForReducedMotion: true,
+        })
+
+        window.setTimeout(() => {
+          if (cancelled) {
+            return
+          }
+
+          confetti({
+            particleCount: 90,
+            spread: 96,
+            angle: 58,
+            origin: { x: 0.12, y: 0.66 },
+            disableForReducedMotion: true,
+          })
+          confetti({
+            particleCount: 90,
+            spread: 96,
+            angle: 122,
+            origin: { x: 0.88, y: 0.66 },
+            disableForReducedMotion: true,
+          })
+        }, 180)
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [shouldCelebrateCompletion, stage])
+
   const updateAnswer = (questionId, value) => {
     setAnswers((current) => ({
       ...current,
@@ -543,6 +732,31 @@ export default function PublicSurveyPage() {
       delete nextErrors[questionId]
       return nextErrors
     })
+  }
+
+  const updateResponseCopyPreference = (checked) => {
+    setSendResponseCopy(checked)
+    if (!checked) {
+      setResponseCopyEmailError('')
+    }
+  }
+
+  const updateResponseCopyAddress = (value) => {
+    setResponseCopyEmail(value)
+    if (responseCopyEmailError) {
+      setResponseCopyEmailError('')
+    }
+  }
+
+  const validateResponseCopyPreference = () => {
+    if (!sendResponseCopy) {
+      setResponseCopyEmailError('')
+      return ''
+    }
+
+    const nextError = validateResponseCopyEmail(responseCopyEmail)
+    setResponseCopyEmailError(nextError)
+    return nextError
   }
 
   const persistResponse = async ({
@@ -564,6 +778,13 @@ export default function PublicSurveyPage() {
         answers: serializePublicAnswers(survey, answers),
         invitation_token: invitationToken || undefined,
         access_key: accessKey || undefined,
+      }
+
+      if (nextStatus === 'completed') {
+        payload.send_response_copy = sendResponseCopy
+        payload.response_copy_email = sendResponseCopy
+          ? responseCopyEmail.trim()
+          : undefined
       }
 
       let responseData = null
@@ -630,6 +851,11 @@ export default function PublicSurveyPage() {
         setLoginRequiredState({
           surveyTitle: error.response?.data?.survey_title || survey?.title || '',
         })
+      } else if (error?.response?.data?.response_copy_email) {
+        const emailError = Array.isArray(error.response.data.response_copy_email)
+          ? error.response.data.response_copy_email[0]
+          : error.response.data.response_copy_email
+        setResponseCopyEmailError(emailError || 'Enter a valid email address.')
       } else if ([403, 404, 410].includes(error?.response?.status)) {
         setStage('blocked')
         setBlockedState(getBlockedState(error, resumeToken || resumeLookupToken))
@@ -691,11 +917,13 @@ export default function PublicSurveyPage() {
       return
     }
 
-    const resolution = resolveNextPreviewStep({
-      pages: survey.pages,
-      currentPageIndex,
-      answers,
-    })
+    const resolution =
+      nextStepPreview ||
+      resolveNextPreviewStep({
+        pages: survey.pages,
+        currentPageIndex,
+        answers,
+      })
 
     if (resolution.type === 'page') {
       const nextPage = survey.pages[resolution.pageIndex]
@@ -717,6 +945,10 @@ export default function PublicSurveyPage() {
       return
     }
 
+    if (validateResponseCopyPreference()) {
+      return
+    }
+
     const savedResponse = await persistResponse({
       nextStatus: 'completed',
       currentPageId: currentPage.id,
@@ -730,10 +962,12 @@ export default function PublicSurveyPage() {
       setDisqualifyMessage(
         resolution.message || 'This survey ended early based on your answer.'
       )
+      setShouldCelebrateCompletion(false)
       setStage('disqualify')
       return
     }
 
+    setShouldCelebrateCompletion(true)
     setStage('thankyou')
   }
 
@@ -819,7 +1053,12 @@ export default function PublicSurveyPage() {
                 {resumeToken && stage === 'page' ? (
                   <Badge variant="outline">Progress saved</Badge>
                 ) : null}
-                {stage === 'page' && survey.settings?.numbering !== false && currentPage ? (
+                {stage === 'page' && currentPage ? (
+                  <Badge variant="default">
+                    Question {answeredQuestions}/{totalQuestions}
+                  </Badge>
+                ) : null}
+                {stage === 'page' && currentPage ? (
                   <Badge variant="default">
                     Page {currentPageIndex + 1} of {survey.pages.length}
                   </Badge>
@@ -866,53 +1105,84 @@ export default function PublicSurveyPage() {
         </header>
 
         {stage === 'page' && currentPage && survey.settings?.progress_bar !== false ? (
-          <div className="survey-theme-panel px-5 py-4 sm:px-6">
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  Progress
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {Math.round(progressValue)}% complete
-                </p>
+          <div className="sticky top-20 z-20">
+            <div className="survey-theme-panel px-5 py-4 sm:px-6">
+              <div className="mb-3 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Response progress
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {Math.round(progressValue)}% complete
+                  </p>
+                </div>
+                <div className="text-right text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
+                  <p>
+                    Question: {answeredQuestions}/{totalQuestions}
+                  </p>
+                  <p className="mt-1">
+                    Page: {currentPageIndex + 1}/{survey.pages.length}
+                  </p>
+                </div>
               </div>
-              <p className="text-sm font-semibold text-[rgb(var(--theme-secondary-ink-rgb))]">
-                {currentPageIndex + 1}/{survey.pages.length}
-              </p>
+              <Progress value={progressValue} className="survey-theme-progress-track" />
             </div>
-            <Progress value={progressValue} className="survey-theme-progress-track" />
           </div>
         ) : null}
 
         <div className="survey-theme-shell px-5 py-6 sm:px-7 sm:py-7">
           {stage === 'welcome' ? (
-            <div className="space-y-6 text-center">
-              <Badge variant="default" className="mx-auto">
-                Welcome
-              </Badge>
-              <div className="space-y-4">
-                <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-                  {survey.welcome_page?.title || survey.title}
-                </h2>
-                <RichTextContent
-                  html={survey.welcome_page?.desc_html}
-                  plainText={
-                    survey.welcome_page?.desc ||
-                    survey.description ||
-                    'Start the survey when you are ready.'
-                  }
-                  className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground"
+            <div className="public-survey-welcome-shell relative overflow-hidden rounded-[1.75rem] px-1 py-2 text-center">
+              <WelcomeShapeField
+                primaryColor={surveyTheme.primary_color}
+                accentColor={surveyTheme.progress_bar_color || surveyTheme.primary_color}
+              />
+              <div className="relative z-10 space-y-6">
+                <Badge
+                  variant="default"
+                  className="public-survey-welcome-item public-survey-welcome-item-1 mx-auto"
+                >
+                  <Sparkles className="mr-2 h-3.5 w-3.5" />
+                  Welcome
+                </Badge>
+                <div className="public-survey-welcome-item public-survey-welcome-item-2 space-y-4">
+                  <h2 className="text-3xl font-semibold tracking-tight text-foreground">
+                    {survey.welcome_page?.title || survey.title}
+                  </h2>
+                  <RichTextContent
+                    html={survey.welcome_page?.desc_html}
+                    plainText={
+                      survey.welcome_page?.desc ||
+                      survey.description ||
+                      'Start the survey when you are ready.'
+                    }
+                    className="mx-auto max-w-2xl text-sm leading-8 text-muted-foreground"
+                  />
+                </div>
+                <ResponseCopyPreference
+                  checked={sendResponseCopy}
+                  email={responseCopyEmail}
+                  errorMessage={responseCopyEmailError}
+                  onToggle={updateResponseCopyPreference}
+                  onEmailChange={updateResponseCopyAddress}
+                  fieldIdPrefix="welcome-response-copy"
+                  className="public-survey-welcome-item public-survey-welcome-item-3 mx-auto max-w-2xl"
                 />
+                <Button
+                  type="button"
+                  size="lg"
+                  className="public-survey-welcome-item public-survey-welcome-item-4 survey-theme-control px-8"
+                  onClick={handleNext}
+                >
+                  Start survey
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
               </div>
-              <Button type="button" size="lg" className="survey-theme-control px-8" onClick={handleNext}>
-                Start survey
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
             </div>
           ) : null}
 
           {stage === 'page' && currentPage ? (
-            <div className="space-y-7">
+            <div className="public-survey-stage-enter space-y-7">
               <div className="space-y-2">
                 {currentPage.title ? (
                   <h2 className="text-2xl font-semibold tracking-tight text-foreground">
@@ -952,42 +1222,54 @@ export default function PublicSurveyPage() {
                 ))}
               </div>
 
-              <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="survey-theme-control"
-                  onClick={handlePrevious}
-                  disabled={
-                    saving ||
-                    (pageHistory.length === 1 && !survey.welcome_page?.enabled)
-                  }
-                >
-                  <ArrowLeft className="mr-2 h-4 w-4" />
-                  Previous
-                </Button>
+              <div className="space-y-4 pt-2">
+                {isFinalSurveyStep ? (
+                  <ResponseCopyPreference
+                    checked={sendResponseCopy}
+                    email={responseCopyEmail}
+                    errorMessage={responseCopyEmailError}
+                    onToggle={updateResponseCopyPreference}
+                    onEmailChange={updateResponseCopyAddress}
+                    fieldIdPrefix="final-response-copy"
+                  />
+                ) : null}
 
-                <Button
-                  type="button"
-                  className="survey-theme-control"
-                  onClick={handleNext}
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {currentPageIndex >= survey.pages.length - 1
-                    ? 'Submit survey'
-                    : 'Next page'}
-                  {!saving ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
-                </Button>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="survey-theme-control"
+                    onClick={handlePrevious}
+                    disabled={
+                      saving ||
+                      (pageHistory.length === 1 && !survey.welcome_page?.enabled)
+                    }
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
+                  </Button>
+
+                  <Button
+                    type="button"
+                    className="survey-theme-control"
+                    onClick={handleNext}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                    ) : null}
+                    {isFinalSurveyStep ? 'Submit survey' : 'Next page'}
+                    {!saving ? <ArrowRight className="ml-2 h-4 w-4" /> : null}
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}
 
           {stage === 'thankyou' ? (
-            <div className="space-y-6 text-center">
+            <div className="public-survey-stage-enter public-survey-celebration-shell relative overflow-hidden space-y-6 text-center">
               <Badge variant="success" className="mx-auto">
+                <Sparkles className="mr-2 h-3.5 w-3.5" />
                 Thank you
               </Badge>
               <div className="space-y-4">
@@ -1007,7 +1289,7 @@ export default function PublicSurveyPage() {
           ) : null}
 
           {stage === 'disqualify' ? (
-            <div className="space-y-6 text-center">
+            <div className="public-survey-stage-enter space-y-6 text-center">
               <Badge variant="warning" className="mx-auto">
                 Survey complete
               </Badge>

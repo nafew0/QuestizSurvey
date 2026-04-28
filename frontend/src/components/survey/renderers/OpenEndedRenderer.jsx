@@ -1,6 +1,8 @@
 import { Input } from '@/components/ui/input'
-
-const OPEN_ENDED_OTHER_KEY = '__other__'
+import {
+  getInputValidationInputProps,
+  OPEN_ENDED_OTHER_KEY,
+} from '@/utils/inputValidation'
 
 function getOrderedRows(question, value) {
   const configuredRows = question.settings?.rows ?? []
@@ -32,6 +34,9 @@ export default function OpenEndedRenderer({
     <div className="space-y-3">
       {orderedRows.map((rowKey) => {
         const label = rowKey === OPEN_ENDED_OTHER_KEY ? 'Other' : rowKey
+        const inputProps = getInputValidationInputProps(
+          question.settings?.row_validations?.[rowKey]
+        )
 
         return (
           <div
@@ -40,6 +45,7 @@ export default function OpenEndedRenderer({
           >
             <label className="text-sm font-medium text-foreground">{label}</label>
             <Input
+              {...inputProps}
               value={value?.[rowKey] || ''}
               disabled={disabled}
               onChange={(event) =>
