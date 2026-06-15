@@ -1,7 +1,10 @@
 from django.db import transaction
 from rest_framework import serializers
 
-from surveys.input_validation import normalize_question_input_validation_settings
+from surveys.input_validation import (
+    normalize_question_input_validation_settings,
+    validate_question_input_validation_settings,
+)
 from surveys.models import Choice, Question
 from surveys.rich_text import rich_text_to_plain_text, sanitize_rich_text_html
 
@@ -41,7 +44,13 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
     choices = ChoiceSerializer(many=True, required=False)
 
     def validate_settings(self, value):
-        return _normalize_question_settings_payload(value)
+        normalized_settings = _normalize_question_settings_payload(value)
+        validation_errors = validate_question_input_validation_settings(
+            normalized_settings
+        )
+        if validation_errors:
+            raise serializers.ValidationError(validation_errors)
+        return normalized_settings
 
     def validate(self, attrs):
         settings = attrs.get("settings")

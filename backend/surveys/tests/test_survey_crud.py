@@ -296,3 +296,80 @@ class SurveyCrudTests(TestCase):
             question.skip_logic[0]["condition"]["choice_id"],
             str(new_choice_id),
         )
+
+    def test_create_question_rejects_invalid_numbers_only_range(self):
+        survey = Survey.objects.create(user=self.user, title="Validation Survey")
+        page = Page.objects.create(survey=survey, title="Page 1", order=1)
+
+        response = self.client.post(
+            f"/api/surveys/{survey.id}/pages/{page.id}/questions/",
+            {
+                "question_type": Question.QuestionType.SHORT_TEXT,
+                "text": "Enter bandwidth",
+                "description": "",
+                "required": False,
+                "order": 1,
+                "settings": {
+                    "input_validation": {
+                        "enabled": True,
+                        "type": "numbers_only",
+                        "min_number": 10,
+                        "max_number": 5,
+                    }
+                },
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("settings", response.data)
+        self.assertIn("input_validation", response.data["settings"])
+        self.assertIn("From", str(response.data["settings"]["input_validation"]))
+
+    def test_update_open_ended_question_rejects_invalid_row_validation_range(self):
+        survey = Survey.objects.create(user=self.user, title="Validation Survey")
+        page = Page.objects.create(survey=survey, title="Page 1", order=1)
+        question = Question.objects.create(
+            page=page,
+            question_type=Question.QuestionType.OPEN_ENDED,
+            text="Breakdown",
+            order=1,
+            settings={
+                "rows": ["Option 1", "Option 2"],
+                "row_validations": {},
+            },
+        )
+
+        response = self.client.put(
+            f"/api/surveys/{survey.id}/pages/{page.id}/questions/{question.id}/",
+            {
+                "question_type": question.question_type,
+                "text": question.text,
+                "description": question.description,
+                "required": question.required,
+                "order": question.order,
+                "settings": {
+                    "rows": ["Option 1", "Option 2"],
+                    "row_validations": {
+                        "Option 1": {
+                            "enabled": True,
+                            "type": "numbers_only",
+                            "min_number": 4,
+                            "max_number": 4,
+                        }
+                    },
+                },
+                "skip_logic": question.skip_logic or [],
+                "choices": [],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("settings", response.data)
+        self.assertIn("row_validations", response.data["settings"])
+        self.assertIn("Option 1", response.data["settings"]["row_validations"])
+        self.assertIn(
+            "From",
+            str(response.data["settings"]["row_validations"]["Option 1"]),
+        )

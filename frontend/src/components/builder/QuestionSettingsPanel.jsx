@@ -18,6 +18,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DEMOGRAPHIC_FIELDS, QUESTION_TYPE_META } from '@/constants/surveyBuilder'
 import {
+  getInputValidationConfigError,
   normalizeInputValidationRule,
   OPEN_ENDED_OTHER_KEY,
   USER_INPUT_VALIDATION_OPTIONS,
@@ -210,6 +211,7 @@ function UserInputValidationEditor({
   groupName = 'user-input-validation',
 }) {
   const validationRule = normalizeInputValidationRule(value)
+  const validationConfigError = getInputValidationConfigError(validationRule)
 
   const updateRule = (patch) => {
     const nextRule = normalizeInputValidationRule({
@@ -265,38 +267,52 @@ function UserInputValidationEditor({
           </div>
 
           {validationRule.type === 'text_only' ? (
-            <Field label="Character limit">
-              <Input
-                type="number"
-                min="0"
-                value={validationRule.char_limit}
-                onChange={(event) => updateRule({ char_limit: event.target.value })}
-                placeholder="Optional"
-                className="rounded-2xl"
-              />
-            </Field>
+            <div className="space-y-2">
+              <Field label="Character limit">
+                <Input
+                  type="number"
+                  min="1"
+                  value={validationRule.char_limit}
+                  onChange={(event) => updateRule({ char_limit: event.target.value })}
+                  placeholder="Optional"
+                  className="rounded-2xl"
+                />
+              </Field>
+              {validationConfigError ? (
+                <p className="text-sm font-medium text-rose-500">{validationConfigError}</p>
+              ) : null}
+            </div>
           ) : null}
 
           {validationRule.type === 'numbers_only' ? (
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="From">
-                <Input
-                  type="number"
-                  value={validationRule.min_number}
-                  onChange={(event) => updateRule({ min_number: event.target.value })}
-                  placeholder="Optional"
-                  className="rounded-2xl"
-                />
-              </Field>
-              <Field label="To">
-                <Input
-                  type="number"
-                  value={validationRule.max_number}
-                  onChange={(event) => updateRule({ max_number: event.target.value })}
-                  placeholder="Optional"
-                  className="rounded-2xl"
-                />
-              </Field>
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="From">
+                  <Input
+                    type="number"
+                    step="any"
+                    max={validationRule.max_number || undefined}
+                    value={validationRule.min_number}
+                    onChange={(event) => updateRule({ min_number: event.target.value })}
+                    placeholder="Optional"
+                    className="rounded-2xl"
+                  />
+                </Field>
+                <Field label="To">
+                  <Input
+                    type="number"
+                    step="any"
+                    min={validationRule.min_number || undefined}
+                    value={validationRule.max_number}
+                    onChange={(event) => updateRule({ max_number: event.target.value })}
+                    placeholder="Optional"
+                    className="rounded-2xl"
+                  />
+                </Field>
+              </div>
+              {validationConfigError ? (
+                <p className="text-sm font-medium text-rose-500">{validationConfigError}</p>
+              ) : null}
             </div>
           ) : null}
         </div>

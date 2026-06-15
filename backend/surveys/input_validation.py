@@ -68,6 +68,53 @@ def normalize_question_input_validation_settings(settings):
     return normalized_settings
 
 
+def validate_input_validation_rule_configuration(rule):
+    normalized_rule = normalize_input_validation_rule(rule)
+
+    if not normalized_rule["enabled"] or not normalized_rule["type"]:
+        return ""
+
+    if normalized_rule["type"] == "text_only":
+        char_limit = normalized_rule["char_limit"]
+        if char_limit is not None and char_limit <= 0:
+            return "Character limit must be greater than 0."
+
+    if normalized_rule["type"] == "numbers_only":
+        min_number = normalized_rule["min_number"]
+        max_number = normalized_rule["max_number"]
+
+        if (
+            min_number is not None
+            and max_number is not None
+            and min_number >= max_number
+        ):
+            return 'The "From" value must be less than the "To" value.'
+
+    return ""
+
+
+def validate_question_input_validation_settings(settings):
+    normalized_settings = normalize_question_input_validation_settings(settings)
+    errors = {}
+
+    input_validation_error = validate_input_validation_rule_configuration(
+        normalized_settings.get("input_validation")
+    )
+    if input_validation_error:
+        errors["input_validation"] = input_validation_error
+
+    row_validation_errors = {}
+    for row_key, rule in (normalized_settings.get("row_validations") or {}).items():
+        validation_error = validate_input_validation_rule_configuration(rule)
+        if validation_error:
+            row_validation_errors[str(row_key)] = validation_error
+
+    if row_validation_errors:
+        errors["row_validations"] = row_validation_errors
+
+    return errors
+
+
 def _is_valid_phone_number(value):
     if not PHONE_PATTERN.match(value):
         return False

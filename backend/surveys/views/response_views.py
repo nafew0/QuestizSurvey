@@ -24,7 +24,7 @@ from surveys.serializers import (
     SurveyResponseDetailSerializer,
     SurveyResponseSerializer,
 )
-from surveys.throttles import PublicSurveyWriteThrottle
+from surveys.throttles import PublicSurveyStartThrottle, PublicSurveyUpdateThrottle
 
 from .common import get_owned_survey
 
@@ -89,14 +89,15 @@ class SurveyResponseViewSet(
 
 class PublicSurveyView(APIView):
     permission_classes = [AllowAny]
-    throttle_classes = [PublicSurveyWriteThrottle]
+    throttle_classes = []
     completion_cookie_days = 30
-    write_throttle_methods = {"POST", "PUT"}
 
     def get_throttles(self):
-        if self.request.method not in self.write_throttle_methods:
-            return []
-        return super().get_throttles()
+        if self.request.method == "POST":
+            return [PublicSurveyStartThrottle()]
+        if self.request.method == "PUT":
+            return [PublicSurveyUpdateThrottle()]
+        return []
 
     def get_response_queryset(self):
         return SurveyResponse.objects.select_related(
@@ -523,7 +524,9 @@ class PublicSurveyView(APIView):
 
 class PublicSurveyLoadView(PublicSurveyView):
     permission_classes = [AllowAny]
-    write_throttle_methods = set()
+
+    def get_throttles(self):
+        return []
 
     def post(self, request, slug):
         serializer = PublicSurveyLoadSerializer(data=request.data)

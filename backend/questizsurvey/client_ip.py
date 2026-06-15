@@ -2,18 +2,36 @@ import ipaddress
 
 from django.conf import settings
 
+LOOPBACK_PROXY_IPS = ("127.0.0.1", "::1")
+TRUSTED_PROXY_HEADERS = (
+    "HTTP_X_FORWARDED_FOR",
+    "HTTP_X_REAL_IP",
+    "HTTP_CF_CONNECTING_IP",
+    "HTTP_TRUE_CLIENT_IP",
+    "HTTP_X_CLUSTER_CLIENT_IP",
+)
+
+
+def _extract_forwarded_ip(header_value):
+    if not header_value:
+        return ""
+
+    parts = [part.strip() for part in str(header_value).split(",") if part.strip()]
+    return parts[0] if parts else ""
+
 
 def get_client_ip(request):
     remote_addr = (request.META.get("REMOTE_ADDR") or "").strip()
-    forwarded_for = (request.META.get("HTTP_X_FORWARDED_FOR") or "").strip()
-    trusted_proxy_ips = set(getattr(settings, "TRUSTED_PROXY_IPS", []))
+    trusted_proxy_ips = [
+        *(getattr(settings, "TRUSTED_PROXY_IPS", []) or []),
+        *LOOPBACK_PROXY_IPS,
+    ]
 
-    if remote_addr and remote_addr in trusted_proxy_ips and forwarded_for:
-        forwarded_chain = [
-            part.strip() for part in forwarded_for.split(",") if part and part.strip()
-        ]
-        if forwarded_chain:
-            return forwarded_chain[0]
+    if remote_addr and ip_matches_allowlist(remote_addr, trusted_proxy_ips):
+        for header_name in TRUSTED_PROXY_HEADERS:
+            forwarded_ip = _extract_forwarded_ip(request.META.get(header_name))
+            if forwarded_ip:
+                return forwarded_ip
 
     return remote_addr
 

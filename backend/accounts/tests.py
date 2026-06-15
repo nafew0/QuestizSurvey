@@ -545,6 +545,15 @@ class ClientIpResolutionTests(TestCase):
     def setUp(self):
         self.request_factory = RequestFactory()
 
+    def test_get_client_ip_uses_forwarded_for_from_loopback_proxy_by_default(self):
+        request = self.request_factory.get(
+            "/api/auth/login/",
+            HTTP_X_FORWARDED_FOR="198.51.100.24, 127.0.0.1",
+            REMOTE_ADDR="127.0.0.1",
+        )
+
+        self.assertEqual(get_client_ip(request), "198.51.100.24")
+
     def test_get_client_ip_ignores_forwarded_for_from_untrusted_proxy(self):
         request = self.request_factory.get(
             "/api/auth/login/",
@@ -563,6 +572,16 @@ class ClientIpResolutionTests(TestCase):
         )
 
         self.assertEqual(get_client_ip(request), "198.51.100.24")
+
+    @override_settings(TRUSTED_PROXY_IPS=["10.0.0.0/8"])
+    def test_get_client_ip_uses_real_ip_from_trusted_proxy_network(self):
+        request = self.request_factory.get(
+            "/api/auth/login/",
+            HTTP_X_REAL_IP="198.51.100.88",
+            REMOTE_ADDR="10.4.12.9",
+        )
+
+        self.assertEqual(get_client_ip(request), "198.51.100.88")
 
 
 @override_settings(

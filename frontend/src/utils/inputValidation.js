@@ -50,6 +50,15 @@ export function normalizeInputValidationRule(rule = {}) {
   }
 }
 
+function getNormalizedConfiguredNumber(value) {
+  if (!hasContent(value)) {
+    return null
+  }
+
+  const numericValue = Number(value)
+  return Number.isNaN(numericValue) ? null : numericValue
+}
+
 function hasContent(value) {
   return `${value ?? ''}`.trim().length > 0
 }
@@ -83,6 +92,40 @@ function isValidUrl(value) {
   } catch {
     return false
   }
+}
+
+export function getInputValidationConfigError(rule) {
+  const normalizedRule = normalizeInputValidationRule(rule)
+
+  if (!normalizedRule.enabled || !normalizedRule.type) {
+    return ''
+  }
+
+  if (normalizedRule.type === 'text_only' && hasContent(normalizedRule.char_limit)) {
+    const charLimit = Number(normalizedRule.char_limit)
+    if (Number.isNaN(charLimit) || charLimit <= 0) {
+      return 'Character limit must be greater than 0.'
+    }
+  }
+
+  if (normalizedRule.type === 'numbers_only') {
+    const minNumber = getNormalizedConfiguredNumber(normalizedRule.min_number)
+    const maxNumber = getNormalizedConfiguredNumber(normalizedRule.max_number)
+
+    if (hasContent(normalizedRule.min_number) && minNumber == null) {
+      return 'From must be a valid number.'
+    }
+
+    if (hasContent(normalizedRule.max_number) && maxNumber == null) {
+      return 'To must be a valid number.'
+    }
+
+    if (minNumber != null && maxNumber != null && minNumber >= maxNumber) {
+      return 'The "From" value must be less than the "To" value.'
+    }
+  }
+
+  return ''
 }
 
 export function validateInputValue(value, rule) {

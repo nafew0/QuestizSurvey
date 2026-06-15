@@ -1,3 +1,5 @@
+import logging
+
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
@@ -12,6 +14,8 @@ from surveys.models import (
     Question,
     SurveyResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _truncate_text(value, *, limit=48):
@@ -500,15 +504,23 @@ class SubmitAnswerSerializer(serializers.Serializer):
             and response.status == SurveyResponse.Status.COMPLETED
             and not was_completed
         ):
-            from surveys.tasks import dispatch_task, send_public_response_copy_email
+            from surveys.tasks import send_public_response_copy_email
 
-            transaction.on_commit(
-                lambda: dispatch_task(
-                    send_public_response_copy_email,
-                    str(response.id),
-                    response_copy_email,
-                )
-            )
+            response_id = str(response.id)
+            recipient_email = response_copy_email
+
+            def send_response_copy_after_commit():
+                try:
+                    send_public_response_copy_email.apply(
+                        args=(response_id, recipient_email)
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to send public response copy email for response %s",
+                        response_id,
+                    )
+
+            transaction.on_commit(send_response_copy_after_commit)
 
         return response
 
