@@ -46,6 +46,40 @@ def env_list(name, default=None):
     return [value.strip() for value in values if value and value.strip()]
 
 
+def env_int(name, default, *, minimum=None):
+    raw_value = os.environ.get(name)
+    if raw_value in (None, ""):
+        return default
+
+    try:
+        value = int(str(raw_value).strip())
+    except (TypeError, ValueError) as exc:
+        raise ImproperlyConfigured(f"{name} must be an integer.") from exc
+
+    if minimum is not None and value < minimum:
+        raise ImproperlyConfigured(f"{name} must be greater than or equal to {minimum}.")
+
+    return value
+
+
+def env_throttle_rate(name, default, *, allow_seconds=False):
+    rate = (os.environ.get(name, default) or "").strip()
+    if not rate:
+        return default
+
+    if "/" not in rate:
+        raise ImproperlyConfigured(
+            f"{name} must use a DRF throttle rate such as '10/min' or '300/hour'."
+        )
+
+    period = rate.rsplit("/", 1)[1].strip().lower()
+    second_units = {"s", "sec", "secs", "second", "seconds"}
+    if period in second_units and not allow_seconds:
+        raise ImproperlyConfigured(f"{name} cannot be configured with a per-second rate.")
+
+    return rate
+
+
 def unique_items(values):
     seen = set()
     result = []
@@ -279,6 +313,68 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# Rate limits and anti-abuse thresholds.
+# These are intentionally environment-configurable for production tuning.
+ACCOUNT_REGISTRATION_SUBNET_LIMIT = env_int(
+    "ACCOUNT_REGISTRATION_SUBNET_LIMIT",
+    50,
+    minimum=1,
+)
+PUBLIC_LOGIN_RATE_LIMIT = env_throttle_rate("PUBLIC_LOGIN_RATE_LIMIT", "10/min")
+PUBLIC_REGISTER_RATE_LIMIT = env_throttle_rate("PUBLIC_REGISTER_RATE_LIMIT", "10/hour")
+PUBLIC_TOKEN_REFRESH_RATE_LIMIT = env_throttle_rate(
+    "PUBLIC_TOKEN_REFRESH_RATE_LIMIT",
+    "20/hour",
+)
+ADMIN_API_RATE_LIMIT = env_throttle_rate("ADMIN_API_RATE_LIMIT", "100/hour")
+
+PUBLIC_SURVEY_START_RATE_LIMIT = env_throttle_rate(
+    "PUBLIC_SURVEY_START_RATE_LIMIT",
+    "300/hour",
+)
+PUBLIC_SURVEY_UPDATE_RATE_LIMIT = env_throttle_rate(
+    "PUBLIC_SURVEY_UPDATE_RATE_LIMIT",
+    "120/hour",
+)
+QUESTION_INSIGHTS_RATE_LIMIT = env_throttle_rate("QUESTION_INSIGHTS_RATE_LIMIT", "10/min")
+SURVEY_AI_SUMMARY_RATE_LIMIT = env_throttle_rate("SURVEY_AI_SUMMARY_RATE_LIMIT", "10/min")
+SURVEY_AI_CHAT_RATE_LIMIT = env_throttle_rate("SURVEY_AI_CHAT_RATE_LIMIT", "10/min")
+QUESTION_IMPROVE_RATE_LIMIT = env_throttle_rate("QUESTION_IMPROVE_RATE_LIMIT", "10/min")
+
+PUBLIC_VERIFICATION_RESEND_WINDOW_SECONDS = env_int(
+    "PUBLIC_VERIFICATION_RESEND_WINDOW_SECONDS",
+    15 * 60,
+    minimum=1,
+)
+PUBLIC_VERIFICATION_RESEND_MAX_ATTEMPTS = env_int(
+    "PUBLIC_VERIFICATION_RESEND_MAX_ATTEMPTS",
+    10,
+    minimum=1,
+)
+PUBLIC_PASSWORD_RESET_WINDOW_SECONDS = env_int(
+    "PUBLIC_PASSWORD_RESET_WINDOW_SECONDS",
+    15 * 60,
+    minimum=1,
+)
+PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS = env_int(
+    "PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS",
+    10,
+    minimum=1,
+)
+
+PAYMENT_CHECKOUT_RATE_LIMIT = env_throttle_rate("PAYMENT_CHECKOUT_RATE_LIMIT", "10/hour")
+PAYMENT_STATUS_RATE_LIMIT = env_throttle_rate("PAYMENT_STATUS_RATE_LIMIT", "60/hour")
+BKASH_CALLBACK_WINDOW_SECONDS = env_int(
+    "BKASH_CALLBACK_WINDOW_SECONDS",
+    60 * 60,
+    minimum=1,
+)
+BKASH_CALLBACK_MAX_ATTEMPTS = env_int(
+    "BKASH_CALLBACK_MAX_ATTEMPTS",
+    30,
+    minimum=1,
+)
 
 # Redis Cache (optional but recommended)
 CACHES = {

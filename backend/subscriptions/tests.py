@@ -19,7 +19,6 @@ from subscriptions.tasks import (
     check_expiring_subscriptions,
     expire_stale_bkash_transactions,
 )
-from subscriptions.throttles import PaymentCheckoutThrottle, PaymentStatusThrottle
 from surveys.models import Collector, Page, Question, Survey, SurveyResponse
 
 User = get_user_model()
@@ -298,7 +297,7 @@ class StripePaymentTests(TestCase):
     def test_create_checkout_endpoint_is_throttled(self, create_checkout_session_mock):
         create_checkout_session_mock.return_value = "https://checkout.stripe.com/pay/cs_test_123"
 
-        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+        with override_settings(PAYMENT_CHECKOUT_RATE_LIMIT="1/min"):
             first_response = self.client.post(
                 "/api/payments/stripe/create-checkout/",
                 {
@@ -334,7 +333,7 @@ class StripePaymentTests(TestCase):
             "url": "https://billing.stripe.com/session/test",
         }
 
-        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+        with override_settings(PAYMENT_CHECKOUT_RATE_LIMIT="1/min"):
             first_response = self.client.post("/api/payments/stripe/customer-portal/")
             second_response = self.client.post("/api/payments/stripe/customer-portal/")
 
@@ -795,7 +794,7 @@ class BkashPaymentTests(TestCase):
             "response": {"statusCode": "0000"},
         }
 
-        with patch.object(PaymentCheckoutThrottle, "rate", "1/min"):
+        with override_settings(PAYMENT_CHECKOUT_RATE_LIMIT="1/min"):
             first_response = self.client.post(
                 "/api/payments/bkash/create/",
                 {
@@ -1116,7 +1115,7 @@ class BkashPaymentTests(TestCase):
         )
         sync_transaction_mock.return_value = transaction_record
 
-        with patch.object(PaymentStatusThrottle, "rate", "1/min"):
+        with override_settings(PAYMENT_STATUS_RATE_LIMIT="1/min"):
             first_response = self.client.get("/api/payments/bkash/status/payment_status/")
             second_response = self.client.get("/api/payments/bkash/status/payment_status/")
 

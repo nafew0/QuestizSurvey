@@ -1,6 +1,8 @@
 import ipaddress
 
-MAX_REGISTRATIONS_PER_SUBNET = 3
+from django.conf import settings
+
+MAX_REGISTRATIONS_PER_SUBNET = 50
 IPV4_PREFIX_LENGTH = 24
 IPV6_PREFIX_LENGTH = 64
 
@@ -26,5 +28,10 @@ def has_subnet_reached_registration_cap(subnet):
 
     from .models import User
 
+    limit = getattr(
+        settings,
+        "ACCOUNT_REGISTRATION_SUBNET_LIMIT",
+        MAX_REGISTRATIONS_PER_SUBNET,
+    )
     count = User.objects.filter(registration_ip_subnet=subnet).count()
-    return count >= MAX_REGISTRATIONS_PER_SUBNET
+    return count >= limit

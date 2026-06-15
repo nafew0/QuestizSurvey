@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Max
 from django.db import transaction
 from rest_framework import serializers, status, viewsets
@@ -20,7 +21,11 @@ from .common import get_owned_page, get_owned_survey
 
 class QuestionImproveThrottle(SimpleRateThrottle):
     scope = "question_improve"
-    rate = "10/min"
+    rate = None
+    default_rate = "10/min"
+
+    def get_rate(self):
+        return getattr(settings, "QUESTION_IMPROVE_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         if not request.user or not request.user.is_authenticated:

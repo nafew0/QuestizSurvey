@@ -116,13 +116,23 @@ def mark_password_reset_sent(user):
 
 def should_throttle_public_password_reset(ip_address):
     cache_key = get_public_password_reset_cache_key(ip_address)
+    window_seconds = getattr(
+        settings,
+        "PUBLIC_PASSWORD_RESET_WINDOW_SECONDS",
+        PUBLIC_PASSWORD_RESET_WINDOW_SECONDS,
+    )
+    max_attempts = getattr(
+        settings,
+        "PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS",
+        PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS,
+    )
 
     try:
-        added = cache.add(cache_key, 1, timeout=PUBLIC_PASSWORD_RESET_WINDOW_SECONDS)
+        added = cache.add(cache_key, 1, timeout=window_seconds)
         if added:
             return False
         attempts = cache.incr(cache_key)
-        return attempts > PUBLIC_PASSWORD_RESET_MAX_ATTEMPTS
+        return attempts > max_attempts
     except Exception:
         logger.warning("Public password reset throttle unavailable.", exc_info=True)
         return False

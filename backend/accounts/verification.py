@@ -120,14 +120,24 @@ def get_public_resend_cache_key(ip_address):
 
 def should_throttle_public_resend(ip_address):
     cache_key = get_public_resend_cache_key(ip_address)
+    window_seconds = getattr(
+        settings,
+        "PUBLIC_VERIFICATION_RESEND_WINDOW_SECONDS",
+        PUBLIC_RESEND_WINDOW_SECONDS,
+    )
+    max_attempts = getattr(
+        settings,
+        "PUBLIC_VERIFICATION_RESEND_MAX_ATTEMPTS",
+        PUBLIC_RESEND_MAX_ATTEMPTS,
+    )
 
     try:
-        added = cache.add(cache_key, 1, timeout=PUBLIC_RESEND_WINDOW_SECONDS)
+        added = cache.add(cache_key, 1, timeout=window_seconds)
         if added:
             return False
 
         attempts = cache.incr(cache_key)
-        return attempts > PUBLIC_RESEND_MAX_ATTEMPTS
+        return attempts > max_attempts
     except Exception:  # pragma: no cover - cache failures should not break auth
         logger.warning("Public resend throttle unavailable.", exc_info=True)
         return False

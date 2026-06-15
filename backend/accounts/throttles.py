@@ -1,5 +1,6 @@
 import hashlib
 
+from django.conf import settings
 from rest_framework.throttling import SimpleRateThrottle
 
 from .verification import get_request_ip_address
@@ -14,7 +15,11 @@ def _hash_identifier(value):
 
 class LoginRateThrottle(SimpleRateThrottle):
     scope = "public_login"
-    rate = "10/min"
+    rate = None
+    default_rate = "10/min"
+
+    def get_rate(self):
+        return getattr(settings, "PUBLIC_LOGIN_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         identifier = _hash_identifier(
@@ -30,7 +35,11 @@ class LoginRateThrottle(SimpleRateThrottle):
 
 class RegisterRateThrottle(SimpleRateThrottle):
     scope = "public_register"
-    rate = "2/hour"
+    rate = None
+    default_rate = "10/hour"
+
+    def get_rate(self):
+        return getattr(settings, "PUBLIC_REGISTER_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         identifier = _hash_identifier(
@@ -46,7 +55,11 @@ class RegisterRateThrottle(SimpleRateThrottle):
 
 class TokenRefreshRateThrottle(SimpleRateThrottle):
     scope = "public_token_refresh"
-    rate = "20/hour"
+    rate = None
+    default_rate = "20/hour"
+
+    def get_rate(self):
+        return getattr(settings, "PUBLIC_TOKEN_REFRESH_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         client_ip = get_request_ip_address(request) or "unknown"
@@ -58,7 +71,11 @@ class TokenRefreshRateThrottle(SimpleRateThrottle):
 
 class AdminRateThrottle(SimpleRateThrottle):
     scope = "admin_api"
-    rate = "100/hour"
+    rate = None
+    default_rate = "100/hour"
+
+    def get_rate(self):
+        return getattr(settings, "ADMIN_API_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         if not request.user or not request.user.is_authenticated:

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Prefetch
 from django.shortcuts import get_object_or_404
 from rest_framework import status
@@ -22,7 +23,11 @@ from .common import get_owned_survey
 
 class AISummaryThrottle(SimpleRateThrottle):
     scope = "survey_ai_summary"
-    rate = "10/min"
+    rate = None
+    default_rate = "10/min"
+
+    def get_rate(self):
+        return getattr(settings, "SURVEY_AI_SUMMARY_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         if not request.user or not request.user.is_authenticated:
@@ -35,7 +40,11 @@ class AISummaryThrottle(SimpleRateThrottle):
 
 class AIChatMessageThrottle(SimpleRateThrottle):
     scope = "survey_ai_chat"
-    rate = "10/min"
+    rate = None
+    default_rate = "10/min"
+
+    def get_rate(self):
+        return getattr(settings, "SURVEY_AI_CHAT_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         if not request.user or not request.user.is_authenticated:

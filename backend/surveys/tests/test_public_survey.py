@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.core import mail
@@ -8,7 +6,6 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from surveys.models import Answer, Choice, Page, Question, Survey, SurveyResponse
-from surveys.throttles import PublicSurveyStartThrottle, PublicSurveyUpdateThrottle
 
 User = get_user_model()
 
@@ -787,91 +784,92 @@ class PublicSurveyTests(TestCase):
         self.assertEqual(second_response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(second_response.data["code"], "already_completed")
 
+    @override_settings(PUBLIC_SURVEY_START_RATE_LIMIT="1/min")
     def test_public_submission_throttle_blocks_after_limit(self):
-        with patch.object(PublicSurveyStartThrottle, "rate", "1/min"):
-            first_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
-            second_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
+        first_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        second_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
 
         self.assertEqual(first_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
+    @override_settings(PUBLIC_SURVEY_UPDATE_RATE_LIMIT="1/min")
     def test_public_update_throttle_blocks_after_limit(self):
-        with patch.object(PublicSurveyUpdateThrottle, "rate", "1/min"):
-            start_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
-            first_update_response = self.public_client.put(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "resume_token": start_response.data["resume_token"],
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
-            second_update_response = self.public_client.put(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "resume_token": start_response.data["resume_token"],
-                    "status": SurveyResponse.Status.COMPLETED,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
+        start_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        first_update_response = self.public_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": start_response.data["resume_token"],
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        second_update_response = self.public_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": start_response.data["resume_token"],
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
 
         self.assertEqual(start_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(first_update_response.status_code, status.HTTP_200_OK)
         self.assertEqual(second_update_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
 
+    @override_settings(PUBLIC_SURVEY_UPDATE_RATE_LIMIT="1/min")
     def test_public_update_throttle_isolated_by_resume_token(self):
         first_start = self.public_client.post(
             f"/api/public/surveys/{self.survey.slug}/",
@@ -904,80 +902,79 @@ class PublicSurveyTests(TestCase):
             REMOTE_ADDR="203.0.113.25",
         )
 
-        with patch.object(PublicSurveyUpdateThrottle, "rate", "1/min"):
-            first_update = self.public_client.put(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "resume_token": first_start.data["resume_token"],
-                    "status": SurveyResponse.Status.COMPLETED,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-                REMOTE_ADDR="203.0.113.25",
-            )
-            second_update = self.public_client.put(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "resume_token": second_start.data["resume_token"],
-                    "status": SurveyResponse.Status.COMPLETED,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-                REMOTE_ADDR="203.0.113.25",
-            )
+        first_update = self.public_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": first_start.data["resume_token"],
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+            REMOTE_ADDR="203.0.113.25",
+        )
+        second_update = self.public_client.put(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "resume_token": second_start.data["resume_token"],
+                "status": SurveyResponse.Status.COMPLETED,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+            REMOTE_ADDR="203.0.113.25",
+        )
 
         self.assertEqual(first_start.status_code, status.HTTP_201_CREATED)
         self.assertEqual(second_start.status_code, status.HTTP_201_CREATED)
         self.assertEqual(first_update.status_code, status.HTTP_200_OK)
         self.assertEqual(second_update.status_code, status.HTTP_200_OK)
 
+    @override_settings(PUBLIC_SURVEY_START_RATE_LIMIT="1/min")
     def test_public_load_is_not_throttled_when_write_limit_is_exceeded(self):
-        with patch.object(PublicSurveyStartThrottle, "rate", "1/min"):
-            start_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
-            throttled_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/",
-                {
-                    "status": SurveyResponse.Status.IN_PROGRESS,
-                    "current_page": str(self.page.id),
-                    "answers": [
-                        {
-                            "question": str(self.question.id),
-                            "choice_ids": [str(self.choice.id)],
-                        }
-                    ],
-                },
-                format="json",
-            )
-            load_response = self.public_client.post(
-                f"/api/public/surveys/{self.survey.slug}/load/",
-                {"resume_token": start_response.data["resume_token"]},
-                format="json",
-            )
+        start_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        throttled_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/",
+            {
+                "status": SurveyResponse.Status.IN_PROGRESS,
+                "current_page": str(self.page.id),
+                "answers": [
+                    {
+                        "question": str(self.question.id),
+                        "choice_ids": [str(self.choice.id)],
+                    }
+                ],
+            },
+            format="json",
+        )
+        load_response = self.public_client.post(
+            f"/api/public/surveys/{self.survey.slug}/load/",
+            {"resume_token": start_response.data["resume_token"]},
+            format="json",
+        )
 
         self.assertEqual(start_response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(throttled_response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)

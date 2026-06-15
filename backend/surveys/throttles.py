@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.throttling import SimpleRateThrottle
 
 from questizsurvey.client_ip import get_client_ip
@@ -13,7 +14,11 @@ class PublicSurveyStartThrottle(SimpleRateThrottle):
     """
 
     scope = "public_survey_start"
-    rate = "300/hour"
+    rate = None
+    default_rate = "300/hour"
+
+    def get_rate(self):
+        return getattr(settings, "PUBLIC_SURVEY_START_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         survey_slug = (view.kwargs.get("slug") or "").strip()
@@ -42,7 +47,11 @@ class PublicSurveyUpdateThrottle(SimpleRateThrottle):
     """
 
     scope = "public_survey_update"
-    rate = "120/hour"
+    rate = None
+    default_rate = "120/hour"
+
+    def get_rate(self):
+        return getattr(settings, "PUBLIC_SURVEY_UPDATE_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         survey_slug = (view.kwargs.get("slug") or "").strip()

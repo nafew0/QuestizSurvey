@@ -26,7 +26,10 @@ from questizsurvey.client_ip import get_client_ip
 from .admin import EmailVerificationTokenAdmin
 from .ai_testing import AITestService
 from .models import EmailVerificationToken, SiteSettings
-from .throttles import AdminRateThrottle
+from .subnet_limits import (
+    MAX_REGISTRATIONS_PER_SUBNET,
+    has_subnet_reached_registration_cap,
+)
 from .verification import send_verification_email
 from subscriptions.admin_services import StripePaymentsResult
 from subscriptions.models import BkashTransaction, Plan, SubscriptionEvent, UserSubscription
@@ -81,6 +84,26 @@ class AccountsAuthFlowTestCase(TestCase):
         }
         payload.update(overrides)
         return User.objects.create_user(**payload)
+
+    def test_default_registration_subnet_cap_is_fifty(self):
+        self.assertEqual(MAX_REGISTRATIONS_PER_SUBNET, 50)
+
+    @override_settings(ACCOUNT_REGISTRATION_SUBNET_LIMIT=2)
+    def test_registration_subnet_cap_uses_configured_limit(self):
+        subnet = "198.51.100.0/24"
+        self.create_user(
+            username="subnet-user-1",
+            email="subnet-user-1@example.com",
+            registration_ip_subnet=subnet,
+        )
+        self.assertFalse(has_subnet_reached_registration_cap(subnet))
+
+        self.create_user(
+            username="subnet-user-2",
+            email="subnet-user-2@example.com",
+            registration_ip_subnet=subnet,
+        )
+        self.assertTrue(has_subnet_reached_registration_cap(subnet))
 
     def test_user_registration_requires_email_verification_when_enabled(self):
         data = {
@@ -1106,7 +1129,7 @@ class AdminApiTests(TestCase):
     def test_admin_endpoints_are_throttled(self):
         self.authenticate_admin()
 
-        with patch.object(AdminRateThrottle, "rate", "1/min"):
+        with override_settings(ADMIN_API_RATE_LIMIT="1/min"):
             first_response = self.client.get("/api/admin/dashboard/")
             second_response = self.client.get("/api/admin/dashboard/")
 

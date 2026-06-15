@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -30,7 +31,11 @@ class SurveyAnalyticsBaseView(APIView):
 
 class QuestionInsightsThrottle(SimpleRateThrottle):
     scope = "question_insights"
-    rate = "10/min"
+    rate = None
+    default_rate = "10/min"
+
+    def get_rate(self):
+        return getattr(settings, "QUESTION_INSIGHTS_RATE_LIMIT", self.default_rate)
 
     def get_cache_key(self, request, view):
         if not request.user or not request.user.is_authenticated:
