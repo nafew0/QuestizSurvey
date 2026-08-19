@@ -10,6 +10,11 @@ User = get_user_model()
 
 
 @override_settings(
+    CACHES={
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        }
+    },
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     DEFAULT_FROM_EMAIL="no-reply@mindspear.test",
     PUBLIC_APP_URL="http://localhost:5555",
@@ -91,6 +96,14 @@ class DistributionTests(TestCase):
         self.assertIn("MindSpear", mail.outbox[0].alternatives[0][0])
         self.assertIn("/branding/logo.svg", mail.outbox[0].alternatives[0][0])
         self.assertIn("We would value your feedback.", mail.outbox[0].alternatives[0][0])
+        self.assertIn(
+            f"http://localhost:5555/{self.survey.slug}?invite=",
+            mail.outbox[0].alternatives[0][0],
+        )
+        self.assertNotIn(
+            f"http://localhost:5555/s/{self.survey.slug}",
+            mail.outbox[0].alternatives[0][0],
+        )
 
         self.email_collector.refresh_from_db()
         self.assertEqual(

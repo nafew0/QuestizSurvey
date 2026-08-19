@@ -36,6 +36,7 @@ from .survey_serializers import (
     SurveyCreateUpdateSerializer,
     SurveyDetailSerializer,
     SurveyListSerializer,
+    SurveySlugUpdateSerializer,
     SurveyThemeAssetUploadSerializer,
 )
 
@@ -66,6 +67,7 @@ __all__ = [
     "SurveyCreateUpdateSerializer",
     "SurveyDetailSerializer",
     "SurveyListSerializer",
+    "SurveySlugUpdateSerializer",
     "SurveyResponseDetailSerializer",
     "SurveyResponseSerializer",
     "SurveyThemeAssetUploadSerializer",

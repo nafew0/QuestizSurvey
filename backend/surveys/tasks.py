@@ -72,7 +72,7 @@ def deliver_invitation_email(invitation, *, subject="", message="", reminder=Fal
     )
     subject_line = build_email_subject(invitation, subject, reminder)
     public_app_url = get_public_app_url()
-    survey_url = f"{public_app_url}/s/{survey.slug}?invite={invitation.token}"
+    survey_url = f"{public_app_url}/{survey.slug}?invite={invitation.token}"
     tracking_pixel_url = f"{get_api_base_url()}/track/open/{invitation.token}/"
 
     context = {

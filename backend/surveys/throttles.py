@@ -6,7 +6,7 @@ from questizsurvey.client_ip import get_client_ip
 
 class PublicSurveyStartThrottle(SimpleRateThrottle):
     """
-    Throttles POST /s/<slug>/ (new response creation).
+    Throttles POST /api/public/surveys/<slug>/ (new response creation).
 
     Keyed by IP + survey slug. The rate is intentionally generous to
     accommodate live events where many respondents share one public IP
@@ -38,7 +38,7 @@ class PublicSurveyStartThrottle(SimpleRateThrottle):
 
 class PublicSurveyUpdateThrottle(SimpleRateThrottle):
     """
-    Throttles PUT /s/<slug>/ (page-by-page saves).
+    Throttles PUT /api/public/surveys/<slug>/ (page-by-page saves).
 
     Keyed by resume_token when present, so every respondent gets their
     own independent counter even when hundreds of people share one IP

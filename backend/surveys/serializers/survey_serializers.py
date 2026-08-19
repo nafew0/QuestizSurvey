@@ -3,6 +3,11 @@ from rest_framework import serializers
 
 from subscriptions.services import LicenseService
 from surveys.models import Survey
+from surveys.public_links import (
+    SURVEY_SLUG_MAX_LENGTH,
+    SURVEY_SLUG_MIN_LENGTH,
+    validate_survey_slug,
+)
 from surveys.rich_text import rich_text_to_plain_text, sanitize_rich_text_html
 from surveys.security import normalize_access_settings, sanitize_access_settings
 from surveys.theme import normalize_survey_theme
@@ -99,6 +104,21 @@ class SurveyCreateUpdateSerializer(SurveyThemeSerializerMixin, serializers.Model
             "updated_at",
         ]
         read_only_fields = ["id", "slug", "status", "created_at", "updated_at"]
+
+
+class SurveySlugUpdateSerializer(serializers.Serializer):
+    slug = serializers.CharField(
+        required=True,
+        allow_blank=False,
+        min_length=SURVEY_SLUG_MIN_LENGTH,
+        max_length=SURVEY_SLUG_MAX_LENGTH,
+    )
+
+    def validate_slug(self, value):
+        try:
+            return validate_survey_slug(value)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc)) from exc
 
 
 class PublicSurveySerializer(SurveyThemeSerializerMixin, serializers.ModelSerializer):

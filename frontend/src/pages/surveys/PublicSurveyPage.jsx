@@ -40,6 +40,7 @@ import {
   validateResponseCopyEmail,
   validateSurveyPage,
 } from '@/utils/publicSurvey'
+import { buildPublicSurveyPath, buildPublicSurveyUrl } from '@/utils/publicSurveyLinks'
 
 const PUBLIC_SURVEY_STORAGE_PREFIX = 'questiz-public-survey'
 
@@ -433,7 +434,7 @@ export default function PublicSurveyPage() {
   const confettiPlayedRef = useRef(false)
   const currentPageIndex = pageHistory[pageHistory.length - 1] ?? 0
   const currentPage = survey?.pages?.[currentPageIndex] ?? null
-  const redirectTarget = useMemo(() => `/s/${slug}`, [slug])
+  const redirectTarget = useMemo(() => buildPublicSurveyPath(slug), [slug])
 
   const surveyTheme = useMemo(
     () =>
@@ -820,7 +821,7 @@ export default function PublicSurveyPage() {
       }
 
       if (copyResumeLink && nextToken) {
-        const resumeUrl = new URL(`${window.location.origin}/s/${survey.slug}`)
+        const resumeUrl = new URL(buildPublicSurveyUrl(survey.slug))
         const hashParams = new URLSearchParams()
         hashParams.set('resume', nextToken)
         if (invitationToken) {

@@ -2,14 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import html2canvas from 'html2canvas'
 import {
+  AlertTriangle,
   ArrowLeft,
+  Check,
   Copy,
   Globe,
   LoaderCircle,
   Mail,
   MonitorSmartphone,
+  Pencil,
   Send,
   Share2,
+  X,
 } from 'lucide-react'
 import { HexColorPicker } from 'react-colorful'
 import {
@@ -46,7 +50,13 @@ import {
   sendCollectorReminders,
   updateCollector,
 } from '@/services/collectors'
-import { fetchSurvey } from '@/services/surveys'
+import { fetchSurvey, updateSurveySlug } from '@/services/surveys'
+import {
+  buildPublicSurveyUrl,
+  getPublicSurveyOrigin,
+  getSurveySlugValidationError,
+  normalizeSurveySlug,
+} from '@/utils/publicSurveyLinks'
 import { normalizeSurvey } from '@/utils/surveyBuilder'
 
 const DISTRIBUTION_TABS = [
@@ -253,12 +263,25 @@ export default function SurveyDistributePage() {
     message: '',
   })
   const [qrColor, setQrColor] = useState(activeColors.primary)
+  const [slugDraft, setSlugDraft] = useState('')
+  const [slugEditing, setSlugEditing] = useState(false)
+  const [slugSaving, setSlugSaving] = useState(false)
+  const [slugError, setSlugError] = useState('')
+
+  const publicOrigin = useMemo(() => getPublicSurveyOrigin(), [])
+  const normalizedSlugDraft = normalizeSurveySlug(slugDraft)
+  const slugValidationError = slugEditing
+    ? getSurveySlugValidationError(slugDraft)
+    : ''
+  const slugChanged = Boolean(
+    survey && normalizedSlugDraft !== survey.slug
+  )
 
   const publicUrl = useMemo(() => {
     if (!survey) {
       return ''
     }
-    return `${window.location.origin}/s/${survey.slug}`
+    return buildPublicSurveyUrl(survey.slug)
   }, [survey])
 
   const emailCollector = useMemo(
@@ -323,6 +346,7 @@ export default function SurveyDistributePage() {
         }
 
         setSurvey(nextSurvey)
+        setSlugDraft(nextSurvey.slug)
         setCollectors(existingCollectors)
 
         const nextWebCollector = getCollector(existingCollectors, 'web_link')
@@ -401,6 +425,59 @@ export default function SurveyDistributePage() {
       })
     } finally {
       setSavingTab('')
+    }
+  }
+
+  const handleStartSlugEdit = () => {
+    setSlugDraft(survey.slug)
+    setSlugError('')
+    setSlugEditing(true)
+  }
+
+  const handleCancelSlugEdit = () => {
+    setSlugDraft(survey.slug)
+    setSlugError('')
+    setSlugEditing(false)
+  }
+
+  const handleSaveSlug = async () => {
+    const validationError = getSurveySlugValidationError(slugDraft)
+    if (validationError) {
+      setSlugError(validationError)
+      return
+    }
+
+    setSlugSaving(true)
+    setSlugError('')
+
+    try {
+      const updatedSurvey = normalizeSurvey(
+        await updateSurveySlug(surveyId, normalizedSlugDraft)
+      )
+      setSurvey(updatedSurvey)
+      setSlugDraft(updatedSurvey.slug)
+      setSlugEditing(false)
+      toast({
+        title: 'Share link updated',
+        description: `Your survey is now available at /${updatedSurvey.slug}.`,
+        variant: 'success',
+      })
+    } catch (err) {
+      const responseData = err.response?.data
+      const fieldError = Array.isArray(responseData?.slug)
+        ? responseData.slug[0]
+        : responseData?.slug
+      const nextError =
+        fieldError || responseData?.detail || 'The share link could not be updated.'
+
+      setSlugError(nextError)
+      toast({
+        title: 'Share link not updated',
+        description: nextError,
+        variant: 'error',
+      })
+    } finally {
+      setSlugSaving(false)
     }
   }
 
@@ -674,27 +751,129 @@ export default function SurveyDistributePage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  <div className="rounded-[1.5rem] border border-[rgb(var(--theme-border-rgb)/0.82)] bg-white p-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="survey-share-slug"
+                      className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground"
+                    >
                       Public URL
-                    </p>
-                    <p className="mt-2 break-all text-sm font-medium text-[rgb(var(--theme-secondary-ink-rgb))]">
-                      {publicUrl}
+                    </label>
+                    <div
+                      className={`flex min-w-0 items-center rounded-[1.25rem] border bg-white px-4 transition ${
+                        slugError || slugValidationError
+                          ? 'border-rose-300 ring-2 ring-rose-100'
+                          : slugEditing
+                            ? 'border-primary/40 ring-2 ring-primary/10'
+                            : 'border-[rgb(var(--theme-border-rgb)/0.82)]'
+                      }`}
+                    >
+                      <span className="shrink-0 text-sm text-muted-foreground">
+                        {publicOrigin}/
+                      </span>
+                      <Input
+                        id="survey-share-slug"
+                        value={slugDraft}
+                        disabled={!slugEditing || slugSaving}
+                        aria-invalid={Boolean(slugError || slugValidationError)}
+                        aria-describedby="survey-share-slug-help"
+                        onChange={(event) => {
+                          setSlugDraft(event.target.value.toLowerCase())
+                          setSlugError('')
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && slugEditing && slugChanged) {
+                            event.preventDefault()
+                            handleSaveSlug()
+                          }
+                          if (event.key === 'Escape' && slugEditing) {
+                            handleCancelSlugEdit()
+                          }
+                        }}
+                        className="min-w-0 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 disabled:cursor-default disabled:opacity-100"
+                        autoComplete="off"
+                        spellCheck="false"
+                      />
+                    </div>
+                    <p
+                      id="survey-share-slug-help"
+                      className={`text-xs ${
+                        slugError || slugValidationError
+                          ? 'text-rose-600'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {slugError ||
+                        slugValidationError ||
+                        'Use 2–32 lowercase letters, numbers, and single hyphens.'}
                     </p>
                   </div>
-                  <Button
-                    type="button"
-                    className="rounded-2xl"
-                    onClick={() =>
-                      copyText(publicUrl, toast, {
-                        title: 'Public link copied',
-                        description: 'The shareable survey link is on your clipboard.',
-                      })
-                    }
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    Copy link
-                  </Button>
+
+                  {slugEditing && slugChanged ? (
+                    <div className="flex gap-3 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-800">
+                      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p className="text-xs leading-5">
+                        Saving this change will invalidate the previous slug. Existing copied links, QR codes, embeds, and sent emails using that slug will need to be updated.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap gap-3">
+                    {slugEditing ? (
+                      <>
+                        <Button
+                          type="button"
+                          className="rounded-2xl"
+                          disabled={
+                            slugSaving ||
+                            !slugChanged ||
+                            Boolean(slugValidationError)
+                          }
+                          onClick={handleSaveSlug}
+                        >
+                          {slugSaving ? (
+                            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Check className="mr-2 h-4 w-4" />
+                          )}
+                          Save link
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="rounded-2xl"
+                          disabled={slugSaving}
+                          onClick={handleCancelSlugEdit}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-2xl"
+                        onClick={handleStartSlugEdit}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit link
+                      </Button>
+                    )}
+
+                    <Button
+                      type="button"
+                      className="rounded-2xl"
+                      onClick={() =>
+                        copyText(publicUrl, toast, {
+                          title: 'Public link copied',
+                          description: 'The shareable survey link is on your clipboard.',
+                        })
+                      }
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Copy link
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

@@ -20,6 +20,11 @@ export async function updateSurvey(surveyId, payload) {
   return response.data
 }
 
+export async function updateSurveySlug(surveyId, slug) {
+  const response = await api.patch(`/surveys/${surveyId}/slug/`, { slug })
+  return response.data
+}
+
 export async function uploadSurveyThemeAsset(surveyId, { assetType, file, clear = false }) {
   const formData = new FormData()
   formData.append('asset_type', assetType)

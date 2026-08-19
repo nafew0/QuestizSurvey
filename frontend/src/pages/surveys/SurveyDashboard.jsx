@@ -54,6 +54,7 @@ import {
   formatSurveyDate,
   getStatusLabel,
 } from '@/utils/surveyBuilder'
+import { buildPublicSurveyUrl } from '@/utils/publicSurveyLinks'
 
 const DASHBOARD_FILTERS = [
   { value: 'all', label: 'All Surveys' },
@@ -366,7 +367,7 @@ export default function SurveyDashboard() {
   }
 
   const handleCopyShareLink = async (slug) => {
-    await navigator.clipboard.writeText(`${window.location.origin}/s/${slug}`)
+    await navigator.clipboard.writeText(buildPublicSurveyUrl(slug))
     toast({
       title: 'Share link copied',
       description: 'The public survey link is in your clipboard.',
@@ -701,7 +702,7 @@ export default function SurveyDashboard() {
                     <div className="space-y-3 pb-1">
                       <div className="flex min-w-0 items-center justify-between gap-3 text-xs text-muted-foreground">
                         <span className="min-w-0 truncate text-[rgb(var(--theme-secondary-ink-rgb))]">
-                          /s/{survey.slug}
+                          /{survey.slug}
                         </span>
                         <span className="whitespace-nowrap">Public link</span>
                       </div>

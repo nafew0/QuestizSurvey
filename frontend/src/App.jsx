@@ -1,11 +1,12 @@
 import { Suspense, lazy } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { SiteThemeProvider } from './contexts/SiteThemeContext'
 import { ToastProvider } from './hooks/useToast'
 import AdminRoute from './components/AdminRoute'
 import ProtectedRoute from './components/ProtectedRoute'
 import Navbar from './components/Navbar'
+import { buildPublicSurveyPath, isReservedSurveySlug } from './utils/publicSurveyLinks'
 
 const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
@@ -42,10 +43,27 @@ function AppFallback() {
   )
 }
 
+function LegacyPublicSurveyRedirect() {
+  const { slug = '' } = useParams()
+  const location = useLocation()
+
+  return (
+    <Navigate
+      to={`${buildPublicSurveyPath(slug)}${location.search}${location.hash}`}
+      replace
+    />
+  )
+}
+
 function App() {
   const location = useLocation()
   const isBuilderRoute = /^\/surveys\/[^/]+\/edit\/?$/.test(location.pathname)
-  const isPublicSurveyRoute = /^\/s\/[^/]+\/?$/.test(location.pathname)
+  const legacyPublicSurveyRoute = /^\/s\/[^/]+\/?$/.test(location.pathname)
+  const rootSlugMatch = location.pathname.match(/^\/([^/]+)\/?$/)
+  const rootPublicSurveyRoute = Boolean(
+    rootSlugMatch && !isReservedSurveySlug(rootSlugMatch[1])
+  )
+  const isPublicSurveyRoute = legacyPublicSurveyRoute || rootPublicSurveyRoute
   const isPublicReportRoute = /^\/reports\/[^/]+\/?$/.test(location.pathname)
   const hideNavbar =
     location.pathname.includes('/preview') ||
@@ -142,7 +160,7 @@ function App() {
                       </ProtectedRoute>
                     }
                   />
-                  <Route path="/s/:slug" element={<PublicSurveyPage />} />
+                  <Route path="/s/:slug" element={<LegacyPublicSurveyRedirect />} />
                   <Route path="/reports/:reportId" element={<PublicReportPage />} />
                   <Route
                     path="/profile"
@@ -167,6 +185,7 @@ function App() {
                     <Route path="settings" element={<AdminSettings />} />
                   </Route>
 
+                  <Route path="/:slug" element={<PublicSurveyPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Suspense>

@@ -2,7 +2,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.files.storage import default_storage
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Count
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -18,6 +18,7 @@ from surveys.serializers import (
     SurveyListSerializer,
     SurveyLotteryDrawSerializer,
     SurveyLotterySettingsSerializer,
+    SurveySlugUpdateSerializer,
     SurveyThemeAssetUploadSerializer,
 )
 from surveys.services.lottery import (
@@ -66,6 +67,9 @@ class SurveyViewSet(viewsets.ModelViewSet):
 
         if self.action in {"create", "update", "partial_update"}:
             return SurveyCreateUpdateSerializer
+
+        if self.action == "slug":
+            return SurveySlugUpdateSerializer
 
         return SurveyDetailSerializer
 
@@ -118,6 +122,62 @@ class SurveyViewSet(viewsets.ModelViewSet):
             survey, context=self.get_serializer_context()
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["patch"], url_path="slug")
+    def slug(self, request, pk=None):
+        survey = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        next_slug = serializer.validated_data["slug"]
+
+        if (
+            Survey.objects.filter(slug__iexact=next_slug)
+            .exclude(pk=survey.pk)
+            .exists()
+        ):
+            return self._build_slug_taken_response()
+
+        if survey.slug == next_slug:
+            detail_serializer = SurveyDetailSerializer(
+                survey,
+                context=self.get_serializer_context(),
+            )
+            return Response(detail_serializer.data, status=status.HTTP_200_OK)
+
+        try:
+            with transaction.atomic():
+                locked_survey = Survey.objects.select_for_update().get(
+                    pk=survey.pk,
+                    user=request.user,
+                )
+
+                if (
+                    Survey.objects.filter(slug__iexact=next_slug)
+                    .exclude(pk=locked_survey.pk)
+                    .exists()
+                ):
+                    return self._build_slug_taken_response()
+
+                locked_survey.slug = next_slug
+                locked_survey.save(update_fields=["slug", "updated_at"])
+        except IntegrityError:
+            return self._build_slug_taken_response()
+
+        detail_serializer = SurveyDetailSerializer(
+            locked_survey,
+            context=self.get_serializer_context(),
+        )
+        return Response(detail_serializer.data, status=status.HTTP_200_OK)
+
+    def _build_slug_taken_response(self):
+        return Response(
+            {
+                "code": "slug_taken",
+                "detail": "That share link is already in use.",
+                "slug": ["Choose a different share link."],
+            },
+            status=status.HTTP_409_CONFLICT,
+        )
 
     @action(detail=True, methods=["get", "patch"])
     def lottery(self, request, pk=None):
