@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Mail,
+  Play,
   Sparkles,
 } from 'lucide-react'
 
@@ -1169,15 +1170,20 @@ export default function PublicSurveyPage() {
                   fieldIdPrefix="welcome-response-copy"
                   className="public-survey-welcome-item public-survey-welcome-item-3 mx-auto max-w-2xl"
                 />
-                <Button
-                  type="button"
-                  size="lg"
-                  className="public-survey-welcome-item public-survey-welcome-item-4 survey-theme-control px-8"
-                  onClick={handleNext}
-                >
-                  Start survey
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Button>
+                <div className="public-survey-welcome-item public-survey-welcome-item-4">
+                  <Button
+                    type="button"
+                    size="lg"
+                    className="group survey-theme-control px-8 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 active:scale-[0.98] motion-reduce:transform-none motion-reduce:transition-none"
+                    onClick={handleNext}
+                  >
+                    Start
+                    <Play
+                      className="ml-2 h-4 w-4 fill-current transition-transform duration-200 group-hover:translate-x-0.5 group-hover:scale-110 group-active:scale-90 motion-reduce:transform-none motion-reduce:transition-none"
+                      aria-hidden="true"
+                    />
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}
